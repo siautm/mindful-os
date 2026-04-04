@@ -28,9 +28,15 @@ export interface Task {
   importance: number; // 1-10
   priority: number; // calculated
   dueDate: string;
+  /** Optional due time same calendar day as `dueDate`, 24h `HH:mm` from time input. */
+  dueTime?: string;
   completed: boolean;
   estimatedMinutes: number;
   createdAt: string;
+  /** Optional link to a Timetable row (representative slot for this course). */
+  linkedTimetableEntryId?: string;
+  /** Denormalized label, e.g. "PSY101 — Intro"; kept if the timetable row is removed. */
+  courseLabel?: string;
 }
 
 export interface FocusSession {
@@ -251,6 +257,89 @@ export function getTimetable(): TimetableEntry[] {
 
 export function saveTimetable(entries: TimetableEntry[]): void {
   setToStorage("mindful_timetable", entries);
+}
+
+/** Label for UI: course code + name when code exists. */
+export function timetableCourseDisplayLabel(entry: TimetableEntry): string {
+  const code = (entry.courseCode || "").trim();
+  return code ? `${code} — ${entry.courseName}` : entry.courseName;
+}
+
+/** One selectable row per distinct course (deduped by code + name). */
+export function getTimetableCourseSelectOptions(entries: TimetableEntry[]): {
+  timetableEntryId: string;
+  label: string;
+}[] {
+  const seen = new Set<string>();
+  const out: { timetableEntryId: string; label: string }[] = [];
+  for (const e of entries) {
+    const name = (e.courseName || "").trim();
+    if (!name) continue;
+    const code = (e.courseCode || "").trim().toLowerCase();
+    const key = `${code}|${name.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      timetableEntryId: e.id,
+      label: timetableCourseDisplayLabel(e),
+    });
+  }
+  out.sort((a, b) => a.label.localeCompare(b.label));
+  return out;
+}
+
+export function resolveTaskCourseLabel(
+  task: Task,
+  timetable: TimetableEntry[]
+): string | undefined {
+  if (task.linkedTimetableEntryId) {
+    const row = timetable.find((r) => r.id === task.linkedTimetableEntryId);
+    if (row) return timetableCourseDisplayLabel(row);
+  }
+  const legacy = task.courseLabel?.trim();
+  return legacy || undefined;
+}
+
+export function taskDueDayISO(task: Task): string {
+  return task.dueDate.split("T")[0];
+}
+
+/** For sorting by deadline (end of day if no time). */
+export function taskDueSortKey(task: Task): number {
+  const day = taskDueDayISO(task);
+  const [y, mo, d] = day.split("-").map(Number);
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) {
+    return 0;
+  }
+  const t = task.dueTime?.trim();
+  if (t && /^\d{1,2}:\d{2}$/.test(t)) {
+    const [H, M] = t.split(":").map((s) => parseInt(s, 10));
+    return new Date(y, mo - 1, d, H, M).getTime();
+  }
+  return new Date(y, mo - 1, d, 23, 59, 59, 999).getTime();
+}
+
+export function formatTaskDueDateTime(task: Task, locale = "en-US"): string {
+  const day = taskDueDayISO(task);
+  const [y, mo, d] = day.split("-").map(Number);
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) {
+    return task.dueDate;
+  }
+  const dateObj = new Date(y, mo - 1, d);
+  const datePart = dateObj.toLocaleDateString(locale, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  const t = task.dueTime?.trim();
+  if (!t || !/^\d{1,2}:\d{2}$/.test(t)) return datePart;
+  const [H, M] = t.split(":").map((s) => parseInt(s, 10));
+  const timeObj = new Date(y, mo - 1, d, H, M);
+  const timePart = timeObj.toLocaleTimeString(locale, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${datePart} · ${timePart}`;
 }
 
 // Task functions

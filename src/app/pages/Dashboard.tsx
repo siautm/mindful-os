@@ -44,6 +44,8 @@ import {
   isQuoteFavorite,
   getLoadingShownDate,
   saveLoadingShownDate,
+  resolveTaskCourseLabel,
+  formatTaskDueDateTime,
 } from "../lib/storage";
 import { motion } from "motion/react";
 import { LoadingQuoteScreen } from "../components/LoadingQuoteScreen";
@@ -262,16 +264,18 @@ export function Dashboard() {
 
     // Get top 2 priority tasks
     const tasks = getTasks();
+    const timetableRows = getTimetable();
     const incompleteTasks = tasks
       .filter(t => !t.completed)
       .sort((a, b) => b.priority - a.priority)
       .slice(0, 2);
     
     incompleteTasks.forEach(task => {
+      const course = resolveTaskCourseLabel(task, timetableRows);
       items.push({
         type: "task",
         title: task.title,
-        subtitle: `Priority: ${task.priority} • Due ${new Date(task.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
+        subtitle: `Priority: ${task.priority} • ${formatTaskDueDateTime(task)}${course ? ` • ${course}` : ""}`,
         priority: task.priority,
         color: task.priority >= 8 ? "red" : task.priority >= 5 ? "yellow" : "green",
       });

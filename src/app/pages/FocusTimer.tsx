@@ -9,6 +9,7 @@ import { Slider } from "../components/ui/slider";
 import { Play, Pause, RotateCcw, Coffee, Target, Plus, Trash2, Edit2, Volume2, VolumeX, Maximize2 } from "lucide-react";
 import {
   getTasks,
+  getTimetable,
   getFocusSessions,
   saveFocusSessions,
   FocusSession,
@@ -17,6 +18,9 @@ import {
   saveFocusPresets,
   FocusPreset,
   Task,
+  TimetableEntry,
+  resolveTaskCourseLabel,
+  formatTaskDueDateTime,
   getFocusWallpaperChoice,
   saveFocusWallpaperChoice,
 } from "../lib/storage";
@@ -31,6 +35,7 @@ import { FocusImmersiveOverlay } from "../components/FocusImmersiveOverlay";
 
 export function FocusTimer() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [timetableForTasks, setTimetableForTasks] = useState<TimetableEntry[]>([]);
   const [selectedTask, setSelectedTask] = useState<string>("none");
   const [presets, setPresets] = useState<FocusPreset[]>([]);
   const [selectedPreset, setSelectedPreset] = useState<string>("");
@@ -117,6 +122,7 @@ export function FocusTimer() {
   function loadData() {
     const loadedTasks = getTasks().filter(t => !t.completed);
     setTasks(loadedTasks);
+    setTimetableForTasks(getTimetable());
     
     const loadedPresets = getFocusPresets();
     setPresets(loadedPresets);
@@ -420,11 +426,16 @@ export function FocusTimer() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No specific task</SelectItem>
-                  {tasks.map((task) => (
-                    <SelectItem key={task.id} value={task.id}>
-                      {task.title}
-                    </SelectItem>
-                  ))}
+                  {tasks.map((task) => {
+                    const course = resolveTaskCourseLabel(task, timetableForTasks);
+                    const due = formatTaskDueDateTime(task);
+                    const bits = [task.title, course, due].filter(Boolean);
+                    return (
+                      <SelectItem key={task.id} value={task.id}>
+                        {bits.join(" · ")}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>

@@ -1,18 +1,33 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Checkbox } from "../components/ui/checkbox";
 import { Badge } from "../components/ui/badge";
 import { Plus, Trash2, AlertCircle, Clock, TrendingUp, Edit2 } from "lucide-react";
-import { getTasks, saveTasks, Task, calculatePriority } from "../lib/storage";
+import {
+  getTasks,
+  saveTasks,
+  getTimetable,
+  getTimetableCourseSelectOptions,
+  resolveTaskCourseLabel,
+  formatTaskDueDateTime,
+  taskDueSortKey,
+  type Task,
+  type TimetableEntry,
+  calculatePriority,
+} from "../lib/storage";
 import { toast } from "sonner";
+
+const NO_COURSE = "none";
 
 export function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [timetableEntries, setTimetableEntries] = useState<TimetableEntry[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
@@ -24,12 +39,39 @@ export function Tasks() {
   });
 
   useEffect(() => {
-    loadTasks();
+    refreshData();
   }, []);
 
-  function loadTasks() {
+  useEffect(() => {
+    if (isAddDialogOpen || editingTask) {
+      setTimetableEntries(getTimetable());
+    }
+  }, [isAddDialogOpen, editingTask]);
+
+  function refreshData() {
     setTasks(getTasks());
+    setTimetableEntries(getTimetable());
   }
+
+  const addCourseOptions = useMemo(
+    () => getTimetableCourseSelectOptions(timetableEntries),
+    [timetableEntries]
+  );
+
+  const editCourseOptions = useMemo(() => {
+    if (!editingTask) return addCourseOptions;
+    const id = editingTask.linkedTimetableEntryId;
+    if (!id || addCourseOptions.some((o) => o.timetableEntryId === id)) {
+      return addCourseOptions;
+    }
+    return [
+      {
+        timetableEntryId: id,
+        label: editingTask.courseLabel?.trim() || "Former course (removed from timetable)",
+      },
+      ...addCourseOptions,
+    ];
+  }, [editingTask, addCourseOptions]);
 
   function handleAddTask() {
     if (!newTask.title || !newTask.dueDate) {
@@ -42,6 +84,15 @@ export function Tasks() {
       newTask.importance || 5
     );
 
+    const cid = newTask.linkedTimetableEntryId;
+    let linkedTimetableEntryId: string | undefined;
+    let courseLabel: string | undefined;
+    if (cid && cid !== NO_COURSE) {
+      linkedTimetableEntryId = cid;
+      courseLabel = addCourseOptions.find((o) => o.timetableEntryId === cid)?.label;
+    }
+
+    const dueTimeRaw = newTask.dueTime?.trim();
     const task: Task = {
       id: Date.now().toString(),
       title: newTask.title!,
@@ -50,9 +101,12 @@ export function Tasks() {
       importance: newTask.importance || 5,
       priority,
       dueDate: newTask.dueDate!,
+      dueTime: dueTimeRaw || undefined,
       completed: false,
       estimatedMinutes: newTask.estimatedMinutes || 30,
       createdAt: new Date().toISOString(),
+      linkedTimetableEntryId,
+      courseLabel,
     };
 
     const updatedTasks = [...tasks, task];
@@ -63,6 +117,8 @@ export function Tasks() {
       urgency: 5,
       importance: 5,
       estimatedMinutes: 30,
+      linkedTimetableEntryId: undefined,
+      dueTime: undefined,
     });
     toast.success("Task added successfully");
   }
@@ -93,12 +149,23 @@ export function Tasks() {
       return;
     }
     const priority = calculatePriority(editingTask.urgency, editingTask.importance);
+    const cid = editingTask.linkedTimetableEntryId;
+    let linkedTimetableEntryId: string | undefined;
+    let courseLabel: string | undefined;
+    if (cid && cid !== NO_COURSE) {
+      linkedTimetableEntryId = cid;
+      courseLabel = editCourseOptions.find((o) => o.timetableEntryId === cid)?.label;
+    }
+    const dueTimeRaw = editingTask.dueTime?.trim();
     const updatedTask: Task = {
       ...editingTask,
       title: editingTask.title.trim(),
       description: editingTask.description?.trim() || "",
       priority,
       estimatedMinutes: Math.max(5, editingTask.estimatedMinutes || 30),
+      dueTime: dueTimeRaw || undefined,
+      linkedTimetableEntryId,
+      courseLabel,
     };
     const updatedTasks = tasks.map((t) => (t.id === updatedTask.id ? updatedTask : t));
     setTasks(updatedTasks);
@@ -119,9 +186,8 @@ export function Tasks() {
     return filtered.sort((a, b) => {
       if (sortBy === "priority") {
         return b.priority - a.priority;
-      } else {
-        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
       }
+      return taskDueSortKey(a) - taskDueSortKey(b);
     });
   }
 
@@ -163,7 +229,7 @@ export function Tasks() {
         <div>
           <h1 className="text-3xl font-semibold text-gray-900">Task Manager</h1>
           <p className="text-gray-600 mt-1">
-            Organize with urgency & importance scoring
+            Link tasks to a course from your Timetable (optional), plus urgency & importance scoring
           </p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -202,15 +268,60 @@ export function Tasks() {
                 />
               </div>
               <div>
-                <Label htmlFor="dueDate">Due Date *</Label>
-                <Input
-                  id="dueDate"
-                  type="date"
-                  value={newTask.dueDate || ""}
-                  onChange={(e) =>
-                    setNewTask({ ...newTask, dueDate: e.target.value })
+                <Label htmlFor="task-course">Course (optional)</Label>
+                <Select
+                  value={newTask.linkedTimetableEntryId ?? NO_COURSE}
+                  onValueChange={(v) =>
+                    setNewTask({
+                      ...newTask,
+                      linkedTimetableEntryId: v === NO_COURSE ? undefined : v,
+                    })
                   }
-                />
+                >
+                  <SelectTrigger id="task-course">
+                    <SelectValue placeholder="No course" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_COURSE}>No course</SelectItem>
+                    {addCourseOptions.map((o) => (
+                      <SelectItem key={o.timetableEntryId} value={o.timetableEntryId}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {addCourseOptions.length === 0 && (
+                  <p className="text-xs text-amber-700 mt-1.5">
+                    Add classes in Timetable to pick a course here.
+                  </p>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="dueDate">Due date *</Label>
+                  <Input
+                    id="dueDate"
+                    type="date"
+                    value={newTask.dueDate || ""}
+                    onChange={(e) =>
+                      setNewTask({ ...newTask, dueDate: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="dueTime">Due time (optional)</Label>
+                  <Input
+                    id="dueTime"
+                    type="time"
+                    value={newTask.dueTime || ""}
+                    onChange={(e) =>
+                      setNewTask({
+                        ...newTask,
+                        dueTime: e.target.value || undefined,
+                      })
+                    }
+                  />
+                </div>
               </div>
               <div>
                 <Label htmlFor="estimatedMinutes">
@@ -396,8 +507,11 @@ export function Tasks() {
         ) : (
           filteredTasks.map(task => {
             const daysUntil = getDaysUntilDue(task.dueDate);
-            const isOverdue = daysUntil < 0;
-            const isDueSoon = daysUntil >= 0 && daysUntil <= 2;
+            const pastDeadline = taskDueSortKey(task) < Date.now();
+            const isOverdue = pastDeadline;
+            const isDueSoon = !pastDeadline && daysUntil >= 0 && daysUntil <= 2;
+            const courseLine = resolveTaskCourseLabel(task, timetableEntries);
+            const dueLine = formatTaskDueDateTime(task);
 
             return (
               <Card
@@ -414,13 +528,23 @@ export function Tasks() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
-                          <h3
-                            className={`font-medium text-gray-900 ${
-                              task.completed ? "line-through" : ""
-                            }`}
-                          >
-                            {task.title}
-                          </h3>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3
+                              className={`font-medium text-gray-900 ${
+                                task.completed ? "line-through" : ""
+                              }`}
+                            >
+                              {task.title}
+                            </h3>
+                            {courseLine && (
+                              <Badge
+                                variant="outline"
+                                className="text-xs font-normal border-blue-200 bg-blue-50 text-blue-900"
+                              >
+                                {courseLine}
+                              </Badge>
+                            )}
+                          </div>
                           {task.description && (
                             <p className="text-sm text-gray-600 mt-1">
                               {task.description}
@@ -476,12 +600,14 @@ export function Tasks() {
                           📅
                           <span>
                             {isOverdue
-                              ? `Overdue by ${Math.abs(daysUntil)} days`
+                              ? daysUntil < 0
+                                ? `Overdue by ${Math.abs(daysUntil)} days · ${dueLine}`
+                                : `Past due · ${dueLine}`
                               : daysUntil === 0
-                              ? "Due today"
+                              ? `Due today · ${dueLine}`
                               : daysUntil === 1
-                              ? "Due tomorrow"
-                              : `Due in ${daysUntil} days`}
+                              ? `Due tomorrow · ${dueLine}`
+                              : `Due in ${daysUntil} days · ${dueLine}`}
                           </span>
                         </div>
                       </div>
@@ -523,15 +649,55 @@ export function Tasks() {
                 />
               </div>
               <div>
-                <Label htmlFor="edit-dueDate">Due date *</Label>
-                <Input
-                  id="edit-dueDate"
-                  type="date"
-                  value={editingTask.dueDate.split("T")[0]}
-                  onChange={(e) =>
-                    setEditingTask({ ...editingTask, dueDate: e.target.value })
+                <Label htmlFor="edit-course">Course (optional)</Label>
+                <Select
+                  value={editingTask.linkedTimetableEntryId ?? NO_COURSE}
+                  onValueChange={(v) =>
+                    setEditingTask({
+                      ...editingTask,
+                      linkedTimetableEntryId: v === NO_COURSE ? undefined : v,
+                    })
                   }
-                />
+                >
+                  <SelectTrigger id="edit-course">
+                    <SelectValue placeholder="No course" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_COURSE}>No course</SelectItem>
+                    {editCourseOptions.map((o) => (
+                      <SelectItem key={o.timetableEntryId} value={o.timetableEntryId}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-dueDate">Due date *</Label>
+                  <Input
+                    id="edit-dueDate"
+                    type="date"
+                    value={editingTask.dueDate.split("T")[0]}
+                    onChange={(e) =>
+                      setEditingTask({ ...editingTask, dueDate: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-dueTime">Due time (optional)</Label>
+                  <Input
+                    id="edit-dueTime"
+                    type="time"
+                    value={editingTask.dueTime || ""}
+                    onChange={(e) =>
+                      setEditingTask({
+                        ...editingTask,
+                        dueTime: e.target.value || undefined,
+                      })
+                    }
+                  />
+                </div>
               </div>
               <div>
                 <Label htmlFor="edit-estimated">Estimated time (minutes)</Label>

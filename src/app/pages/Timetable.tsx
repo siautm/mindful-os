@@ -220,7 +220,7 @@ export function Timetable() {
         id: task.id,
         title: task.title,
         subtitle: `Priority: ${task.priority.toFixed(1)}`,
-        time: "Due today",
+        time: task.dueTime?.trim() ? `Due · ${task.dueTime}` : "Due today",
         type: "task",
         color: task.completed ? "bg-gray-100 border-gray-300" : "bg-green-100 border-green-300",
         completed: task.completed,
