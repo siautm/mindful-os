@@ -22,6 +22,16 @@ import {
 import { parseStudyPlanBulkText } from "../lib/studyPlanParse";
 import { toast } from "sonner";
 
+const PARTS_PREVIEW_COUNT = 5;
+
+/** Completed parts first (by order), then rest; used for the 5-item preview. */
+function orderPartsForDisplay(parts: StudyPlanPart[]): StudyPlanPart[] {
+  const sorted = [...parts].sort((a, b) => a.order - b.order);
+  const done = sorted.filter((p) => p.completed);
+  const todo = sorted.filter((p) => !p.completed);
+  return done.length > 0 ? [...done, ...todo] : sorted;
+}
+
 function newPart(title: string, detail: string, order: number): StudyPlanPart {
   return {
     id: `${Date.now()}-${order}-${Math.random().toString(36).slice(2, 7)}`,
@@ -44,6 +54,8 @@ export function StudyPlans() {
   const [singleTitle, setSingleTitle] = useState("");
   const [singleDetail, setSingleDetail] = useState("");
   const [bulkText, setBulkText] = useState("");
+  /** planId -> show every part instead of preview */
+  const [showAllParts, setShowAllParts] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setPlans(getStudyPlans());
@@ -285,6 +297,11 @@ export function StudyPlans() {
           {sortedPlans.map((plan) => {
             const open = expandedId === plan.id;
             const done = plan.parts.filter((p) => p.completed).length;
+            const ordered = orderPartsForDisplay(plan.parts);
+            const showAll = showAllParts[plan.id] === true;
+            const visibleParts = showAll ? ordered : ordered.slice(0, PARTS_PREVIEW_COUNT);
+            const hiddenCount = Math.max(0, ordered.length - visibleParts.length);
+
             return (
               <Card key={plan.id} className="overflow-hidden">
                 <CardHeader className="pb-2">
@@ -310,35 +327,52 @@ export function StudyPlans() {
                 </CardHeader>
                 {open && (
                   <CardContent className="pt-0 space-y-3 border-t bg-slate-50/50">
-                    {plan.parts
-                      .slice()
-                      .sort((a, b) => a.order - b.order)
-                      .map((part) => (
-                        <label
-                          key={part.id}
-                          className="flex items-start gap-3 rounded-lg border bg-white p-3 cursor-pointer hover:bg-slate-50"
-                        >
-                          <Checkbox
-                            checked={part.completed}
-                            onCheckedChange={(c) =>
-                              togglePart(plan.id, part.id, c === true)
-                            }
-                            className="mt-1"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p
-                              className={`font-medium text-sm ${
-                                part.completed ? "line-through text-gray-400" : "text-gray-900"
-                              }`}
-                            >
-                              {part.title}
-                            </p>
-                            {part.detail ? (
-                              <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">{part.detail}</p>
-                            ) : null}
-                          </div>
-                        </label>
-                      ))}
+                    <p className="text-xs text-gray-500 pt-3">
+                      Showing {visibleParts.length} of {plan.parts.length} parts
+                      {done > 0 ? " (completed listed first)" : ""}.
+                    </p>
+                    {visibleParts.map((part) => (
+                      <label
+                        key={part.id}
+                        className="flex items-start gap-3 rounded-lg border bg-white p-3 cursor-pointer hover:bg-slate-50"
+                      >
+                        <Checkbox
+                          checked={part.completed}
+                          onCheckedChange={(c) =>
+                            togglePart(plan.id, part.id, c === true)
+                          }
+                          className="mt-1"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className={`font-medium text-sm ${
+                              part.completed ? "line-through text-gray-400" : "text-gray-900"
+                            }`}
+                          >
+                            {part.title}
+                          </p>
+                          {part.detail ? (
+                            <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">{part.detail}</p>
+                          ) : null}
+                        </div>
+                      </label>
+                    ))}
+                    {hiddenCount > 0 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() =>
+                          setShowAllParts((prev) => ({
+                            ...prev,
+                            [plan.id]: !showAll,
+                          }))
+                        }
+                      >
+                        {showAll ? "Show fewer" : `Show all ${plan.parts.length} parts (${hiddenCount} hidden)`}
+                      </Button>
+                    )}
                   </CardContent>
                 )}
               </Card>

@@ -13,6 +13,7 @@ import {
   ChevronDown,
   Menu,
   BookOpen,
+  Repeat2,
 } from "lucide-react";
 import { cn } from "./ui/utils";
 import { motion, AnimatePresence } from "motion/react";
@@ -50,6 +51,7 @@ const navigationGroups = [
     collapsible: false,
     items: [
       { name: "Finance", path: "/finance", icon: DollarSign },
+      { name: "Habits", path: "/habits", icon: Repeat2 },
       { name: "Analytics", path: "/analytics", icon: BarChart3 },
     ],
   },

@@ -196,6 +196,19 @@ export interface StudyPlan {
   createdAt: string;
 }
 
+export interface Habit {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+}
+
+/** One row per habit marked done on a calendar day (local YYYY-MM-DD). */
+export interface HabitDayEntry {
+  habitId: string;
+  date: string;
+}
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.trim() || "";
 const STATE_ENDPOINT = `${API_BASE}/api/state`;
 
@@ -625,6 +638,44 @@ export function updateStudyPlanPartCompleted(
     };
   });
   saveStudyPlans(next);
+}
+
+// Habits
+export function getHabits(): Habit[] {
+  return getFromStorage<Habit[]>("mindful_habits", []);
+}
+
+export function saveHabits(habits: Habit[]): void {
+  setToStorage("mindful_habits", habits);
+}
+
+export function getHabitDayEntries(): HabitDayEntry[] {
+  return getFromStorage<HabitDayEntry[]>("mindful_habit_days", []);
+}
+
+export function saveHabitDayEntries(entries: HabitDayEntry[]): void {
+  setToStorage("mindful_habit_days", entries);
+}
+
+export function isHabitCompletedOnDate(habitId: string, ymd: string): boolean {
+  return getHabitDayEntries().some((e) => e.habitId === habitId && e.date === ymd);
+}
+
+export function setHabitCompletedOnDate(habitId: string, ymd: string, done: boolean): void {
+  const raw = getHabitDayEntries();
+  const next = raw.filter((e) => !(e.habitId === habitId && e.date === ymd));
+  if (done) next.push({ habitId, date: ymd });
+  saveHabitDayEntries(next);
+}
+
+export function habitCompletionCountInRange(
+  habitId: string,
+  startYmd: string,
+  endYmd: string
+): number {
+  return getHabitDayEntries().filter(
+    (e) => e.habitId === habitId && e.date >= startYmd && e.date <= endYmd
+  ).length;
 }
 
 // Playlist functions

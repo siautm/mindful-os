@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
+import { Checkbox } from "../components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import {
   CheckSquare,
@@ -18,6 +19,7 @@ import {
   CheckCircle2,
   Clock,
   MapPin,
+  Repeat2,
   Star,
   X,
   Moon,
@@ -47,6 +49,10 @@ import {
   formatTaskDueDateTime,
   eventStartMs,
   formatEventTimeRange,
+  getHabits,
+  isHabitCompletedOnDate,
+  setHabitCompletedOnDate,
+  type Habit,
 } from "../lib/storage";
 import { motion } from "motion/react";
 import { LoadingQuoteScreen } from "../components/LoadingQuoteScreen";
@@ -116,7 +122,14 @@ export function Dashboard() {
   const [favoriteQuotes, setFavoriteQuotes] = useState<QuoteEntry[]>([]);
   const [hasCheckedIn, setHasCheckedIn] = useState(false);
   const [checkInStreak, setCheckInStreak] = useState(0);
+  const [habits, setHabits] = useState<Habit[]>([]);
   const cursorGlowRef = useRef<HTMLDivElement>(null);
+
+  function habitTodayYmd(): string {
+    const x = new Date();
+    x.setHours(0, 0, 0, 0);
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+  }
 
   const particleConfigs = useMemo(
     () =>
@@ -165,6 +178,10 @@ export function Dashboard() {
     determineTimeOfDay();
     loadAllData();
   }, []);
+
+  useEffect(() => {
+    setHabits(getHabits());
+  }, [location.pathname]);
 
   useEffect(() => {
     scheduleIdleQuotePrefetch(quoteTags);
@@ -254,6 +271,7 @@ export function Dashboard() {
     loadCheckInStatus();
     loadPriorityItems();
     loadFavorites();
+    setHabits(getHabits());
   }
 
   function loadStats() {
@@ -551,6 +569,86 @@ export function Dashboard() {
             );
           })}
         </motion.div>
+
+        {habits.length > 0 && (
+          <motion.div
+            initial={{ y: 24, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.15 }}
+            className={`rounded-2xl border-2 p-4 sm:p-5 shadow-lg ${
+              theme === "dark" ? "bg-gray-800 border-emerald-900/50" : "bg-white border-emerald-200"
+            }`}
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="size-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                  <Repeat2 className="size-5 text-emerald-700" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className={`font-semibold ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
+                    Today&apos;s habits
+                  </h2>
+                  <p className={`text-xs sm:text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                    Check off what you&apos;ve done today.
+                  </p>
+                </div>
+              </div>
+              <Link to="/habits">
+                <Button variant="outline" size="sm" className="w-full sm:w-auto shrink-0">
+                  Manage habits
+                </Button>
+              </Link>
+            </div>
+            <ul className="mt-4 space-y-2">
+              {habits.map((h) => {
+                const ymd = habitTodayYmd();
+                const done = isHabitCompletedOnDate(h.id, ymd);
+                return (
+                  <li
+                    key={h.id}
+                    className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${
+                      theme === "dark" ? "border-gray-700 bg-gray-900/40" : "border-gray-100 bg-gray-50/80"
+                    }`}
+                  >
+                    <Checkbox
+                      checked={done}
+                      onCheckedChange={(c) => {
+                        setHabitCompletedOnDate(h.id, ymd, c === true);
+                        setHabits(getHabits());
+                      }}
+                      className="mt-0.5"
+                      aria-label={`${h.name} done today`}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`text-sm font-medium ${
+                          done
+                            ? theme === "dark"
+                              ? "text-gray-500 line-through"
+                              : "text-gray-400 line-through"
+                            : theme === "dark"
+                              ? "text-gray-100"
+                              : "text-gray-900"
+                        }`}
+                      >
+                        {h.name}
+                      </p>
+                      {h.description ? (
+                        <p
+                          className={`text-xs mt-0.5 line-clamp-2 ${
+                            theme === "dark" ? "text-gray-500" : "text-gray-600"
+                          }`}
+                        >
+                          {h.description}
+                        </p>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </motion.div>
+        )}
 
         {/* Quote Card with Favorites */}
         <motion.div

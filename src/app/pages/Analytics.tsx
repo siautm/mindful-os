@@ -20,6 +20,8 @@ import {
   Circle,
   ChevronLeft,
   ChevronRight,
+  BookOpen,
+  Repeat2,
 } from "lucide-react";
 import {
   getFocusSessions,
@@ -32,6 +34,10 @@ import {
   getWellnessChecklistStatusForDate,
   isWellnessChecklistCompleteForDate,
   getCheckInTrackingStartYmd,
+  getStudyPlans,
+  getHabits,
+  habitCompletionCountInRange,
+  getHabitDayEntries,
   FocusSession,
   Task,
   FinanceEntry,
@@ -39,6 +45,8 @@ import {
   SleepEntry,
   MeditationEntry,
   WeightEntry,
+  type StudyPlan,
+  type Habit,
 } from "../lib/storage";
 
 type TimePeriod = "daily" | "weekly" | "monthly" | "yearly" | "total";
@@ -175,6 +183,8 @@ export function Analytics() {
   const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [financeEntries, setFinanceEntries] = useState<FinanceEntry[]>([]);
+  const [studyPlans, setStudyPlans] = useState<StudyPlan[]>([]);
+  const [habits, setHabits] = useState<Habit[]>([]);
 
   useEffect(() => {
     loadData();
@@ -184,6 +194,8 @@ export function Analytics() {
     setFocusSessions(getFocusSessions());
     setTasks(getTasks());
     setFinanceEntries(getFinanceEntries());
+    setStudyPlans(getStudyPlans());
+    setHabits(getHabits());
   }
 
   // Helper function to get date range based on period
@@ -379,9 +391,107 @@ export function Analytics() {
     };
   }
 
+  function rangeYmdBounds(): { startYmd: string; endYmd: string } {
+    const { start, end } = getDateRange(timePeriod);
+    return { startYmd: toYmdLocal(start), endYmd: toYmdLocal(end) };
+  }
+
+  function getStudyPlanAnalytics() {
+    const { start, end } = getDateRange(timePeriod);
+    const sessions = focusSessions.filter((s) => {
+      if (!s.completed || !s.studyPlanId) return false;
+      const d = new Date(s.date);
+      return d >= start && d <= end;
+    });
+    const byPlan: Record<string, { minutes: number; sessions: number; label: string }> = {};
+    sessions.forEach((s) => {
+      const key = s.studyPlanId!;
+      const label = s.studyPlanName?.trim() || key;
+      if (!byPlan[key]) byPlan[key] = { minutes: 0, sessions: 0, label };
+      byPlan[key].minutes += s.duration;
+      byPlan[key].sessions += 1;
+    });
+    const focusChart = Object.values(byPlan).map((v) => ({
+      name: v.label.length > 28 ? `${v.label.slice(0, 26)}…` : v.label,
+      minutes: v.minutes,
+      sessions: v.sessions,
+    }));
+
+    const planRows = studyPlans.map((p) => {
+      const total = p.parts.length;
+      const done = p.parts.filter((x) => x.completed).length;
+      return {
+        id: p.id,
+        name: p.name,
+        done,
+        total,
+        pct: total > 0 ? Math.round((done / total) * 100) : 0,
+      };
+    });
+
+    const totalParts = studyPlans.reduce((s, p) => s + p.parts.length, 0);
+    const doneParts = studyPlans.reduce(
+      (s, p) => s + p.parts.filter((x) => x.completed).length,
+      0
+    );
+
+    return {
+      focusChart,
+      planRows,
+      totalPlans: studyPlans.length,
+      totalParts,
+      doneParts,
+      overallPct: totalParts > 0 ? Math.round((doneParts / totalParts) * 100) : 0,
+      focusMinutes: sessions.reduce((s, x) => s + x.duration, 0),
+    };
+  }
+
+  function getHabitAnalytics() {
+    const { startYmd, endYmd } = rangeYmdBounds();
+    const entries = getHabitDayEntries().filter(
+      (e) => e.date >= startYmd && e.date <= endYmd
+    );
+    const perHabitChart = habits.map((h) => ({
+      name: h.name.length > 22 ? `${h.name.slice(0, 20)}…` : h.name,
+      completions: habitCompletionCountInRange(h.id, startYmd, endYmd),
+    }));
+
+    const dayKeys: Record<string, number> = {};
+    entries.forEach((e) => {
+      dayKeys[e.date] = (dayKeys[e.date] || 0) + 1;
+    });
+    const { start, end } = getDateRange(timePeriod);
+    const dailyChart: { name: string; count: number }[] = [];
+    const walk = new Date(start);
+    walk.setHours(0, 0, 0, 0);
+    const endDay = new Date(end);
+    endDay.setHours(0, 0, 0, 0);
+    while (walk <= endDay) {
+      const k = toYmdLocal(walk);
+      dailyChart.push({
+        name: walk.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          ...(timePeriod === "yearly" || timePeriod === "total" ? { year: "2-digit" as const } : {}),
+        }),
+        count: dayKeys[k] || 0,
+      });
+      walk.setDate(walk.getDate() + 1);
+    }
+
+    return {
+      perHabitChart,
+      dailyChart,
+      totalTicks: entries.length,
+      activeHabits: habits.length,
+    };
+  }
+
   const pomodoroData = getPomodoroData();
   const tasksData = getTasksData();
   const financeData = getFinanceData();
+  const studyAnalytics = getStudyPlanAnalytics();
+  const habitAnalytics = getHabitAnalytics();
 
   const trackingStartYmd = useMemo(() => getCheckInTrackingStartYmd(), []);
   const todayYmd = toYmdLocal(new Date());
@@ -412,10 +522,11 @@ export function Analytics() {
       : todayYmd;
   const selectedRow = buildWellnessDetailRow(parseYmdLocal(effectiveSelectedYmd));
 
+  /** Week starts Monday (column 1 = Mon). */
   function monthGridCells(year: number, month: number) {
     const first = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0).getDate();
-    const startPad = first.getDay();
+    const startPad = (first.getDay() + 6) % 7;
     const cells: { ymd: string | null; dayNum: number | null }[] = [];
     for (let i = 0; i < startPad; i++) {
       cells.push({ ymd: null, dayNum: null });
@@ -552,7 +663,7 @@ export function Analytics() {
 
       {/* Charts */}
       <Tabs defaultValue="pomodoro" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 h-auto p-1">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1 h-auto p-1">
           <TabsTrigger value="pomodoro" className="text-xs sm:text-sm">
             <Clock className="size-4 sm:mr-2 shrink-0" />
             <span className="truncate">Pomodoro</span>
@@ -564,6 +675,14 @@ export function Analytics() {
           <TabsTrigger value="finance" className="text-xs sm:text-sm">
             <DollarSign className="size-4 sm:mr-2 shrink-0" />
             <span className="truncate">Finance</span>
+          </TabsTrigger>
+          <TabsTrigger value="study" className="text-xs sm:text-sm">
+            <BookOpen className="size-4 sm:mr-2 shrink-0" />
+            <span className="truncate">Study</span>
+          </TabsTrigger>
+          <TabsTrigger value="habits" className="text-xs sm:text-sm">
+            <Repeat2 className="size-4 sm:mr-2 shrink-0" />
+            <span className="truncate">Habits</span>
           </TabsTrigger>
           <TabsTrigger value="checkin" className="text-xs sm:text-sm">
             <Heart className="size-4 sm:mr-2 shrink-0" />
@@ -793,43 +912,237 @@ export function Analytics() {
           </div>
         </TabsContent>
 
-        <TabsContent value="checkin" className="space-y-4">
+        <TabsContent value="study" className="space-y-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <Card>
+              <CardContent className="pt-4 pb-4 px-4">
+                <p className="text-xs text-gray-500">Plans</p>
+                <p className="text-2xl font-semibold text-indigo-600 tabular-nums">{studyAnalytics.totalPlans}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 pb-4 px-4">
+                <p className="text-xs text-gray-500">Parts done</p>
+                <p className="text-2xl font-semibold text-gray-900 tabular-nums">
+                  {studyAnalytics.doneParts}/{studyAnalytics.totalParts || "0"}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 pb-4 px-4">
+                <p className="text-xs text-gray-500">Completion</p>
+                <p className="text-2xl font-semibold text-emerald-600 tabular-nums">{studyAnalytics.overallPct}%</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 pb-4 px-4">
+                <p className="text-xs text-gray-500">Focus (linked)</p>
+                <p className="text-2xl font-semibold text-violet-600 tabular-nums">{studyAnalytics.focusMinutes}m</p>
+              </CardContent>
+            </Card>
+          </div>
+
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Heart className="size-5 text-rose-500" />
-                Check-in calendar
-              </CardTitle>
-              <p className="text-xs sm:text-sm text-gray-600 font-normal leading-relaxed">
-                Tracking starts from{" "}
-                <span className="font-medium text-gray-800">{trackingStartYmd}</span> (set the first time you open
-                Analytics). Green = full five-item check-in, red = missed past day, amber = today still in progress.
-                Gray = before tracking or future.
+              <CardTitle>Progress by plan</CardTitle>
+              <p className="text-sm text-gray-600 font-normal">
+                Share of parts marked complete (current state). Use Study plans to update.
               </p>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex flex-wrap gap-3 text-xs text-gray-600">
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3 rounded-sm bg-emerald-500" />
-                  Done
+            <CardContent>
+              {studyAnalytics.planRows.length === 0 ? (
+                <p className="text-sm text-gray-500 py-8 text-center">No study plans yet.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={Math.min(360, 40 + studyAnalytics.planRows.length * 36)}>
+                  <BarChart
+                    data={studyAnalytics.planRows.map((r) => ({
+                      name: r.name.length > 24 ? `${r.name.slice(0, 22)}…` : r.name,
+                      pct: r.pct,
+                    }))}
+                    layout="vertical"
+                    margin={{ left: 8, right: 16 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                    <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }} />
+                    <Tooltip formatter={(v: number) => [`${v}%`, "Parts done"]} />
+                    <Bar dataKey="pct" fill="#6366f1" name="Completion %" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Focus time by study plan</CardTitle>
+              <p className="text-sm text-gray-600 font-normal">
+                Pomodoro sessions in this period where you picked a study plan (and optional part).
+              </p>
+            </CardHeader>
+            <CardContent>
+              {studyAnalytics.focusChart.length === 0 ? (
+                <p className="text-sm text-gray-500 py-8 text-center">
+                  No linked focus sessions in this period.
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={studyAnalytics.focusChart}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-25} textAnchor="end" height={70} />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="minutes" fill="#8b5cf6" name="Minutes" />
+                    <Bar dataKey="sessions" fill="#a78bfa" name="Sessions" />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="habits" className="space-y-6">
+          <div className="grid grid-cols-2 gap-3">
+            <Card>
+              <CardContent className="pt-4 pb-4 px-4">
+                <p className="text-xs text-gray-500">Check-ins in period</p>
+                <p className="text-2xl font-semibold text-emerald-600 tabular-nums">{habitAnalytics.totalTicks}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 pb-4 px-4">
+                <p className="text-xs text-gray-500">Habits tracked</p>
+                <p className="text-2xl font-semibold text-gray-900 tabular-nums">{habitAnalytics.activeHabits}</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Completions per habit</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {habitAnalytics.activeHabits === 0 ? (
+                <p className="text-sm text-gray-500 py-8 text-center">
+                  Add habits from the Habits page to see analytics.
+                </p>
+              ) : habitAnalytics.perHabitChart.every((x) => x.completions === 0) ? (
+                <p className="text-sm text-gray-500 py-8 text-center">No habit ticks in this period.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={habitAnalytics.perHabitChart}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="completions" fill="#10b981" name="Days checked" />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Habit activity by day</CardTitle>
+              <p className="text-sm text-gray-600 font-normal">Total habit checkmarks per calendar day.</p>
+            </CardHeader>
+            <CardContent>
+              {habitAnalytics.activeHabits === 0 ? (
+                <p className="text-sm text-gray-500 py-8 text-center">No habits to chart.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={habitAnalytics.dailyChart}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="count" stroke="#059669" strokeWidth={2} name="Checkmarks" dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="checkin" className="space-y-4">
+          <Card>
+            <CardHeader className="space-y-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Heart className="size-5 text-rose-500" />
+                Wellness calendar
+              </CardTitle>
+              <p className="text-sm text-gray-600 font-normal leading-relaxed">
+                Each day shows whether you completed all five wellness items (exercise, finance, sleep, meditation,
+                weight). Tracking since <span className="font-medium text-gray-800">{trackingStartYmd}</span>.
+              </p>
+              <div className="flex flex-wrap gap-3 pt-1 text-xs text-gray-700">
+                <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-2.5 py-1 border border-emerald-100">
+                  <span className="size-2.5 rounded-full bg-emerald-500" />
+                  Complete
                 </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3 rounded-sm bg-red-500" />
-                  Missed
+                <span className="inline-flex items-center gap-2 rounded-full bg-red-50 px-2.5 py-1 border border-red-100">
+                  <span className="size-2.5 rounded-full bg-red-500" />
+                  Missed (past)
                 </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3 rounded-sm bg-amber-400" />
-                  Today
+                <span className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-2.5 py-1 border border-amber-100">
+                  <span className="size-2.5 rounded-full bg-amber-400" />
+                  In progress
                 </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3 rounded-sm bg-gray-200 border border-gray-300" />
-                  N/A
+                <span className="inline-flex items-center gap-2 rounded-full bg-gray-50 px-2.5 py-1 border border-gray-200">
+                  <span className="size-2.5 rounded-full bg-gray-200" />
+                  Out of range
                 </span>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center justify-center gap-2 sm:justify-start">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label="Previous month"
+                    onClick={() =>
+                      setCheckinCalYM((p) => (p.m === 0 ? { y: p.y - 1, m: 11 } : { y: p.y, m: p.m - 1 }))
+                    }
+                  >
+                    <ChevronLeft className="size-4" />
+                  </Button>
+                  <span className="min-w-[10rem] text-center text-base font-semibold text-gray-900">
+                    {monthNames[checkinCalYM.m]} {checkinCalYM.y}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label="Next month"
+                    onClick={() =>
+                      setCheckinCalYM((p) => (p.m === 11 ? { y: p.y + 1, m: 0 } : { y: p.y, m: p.m + 1 }))
+                    }
+                  >
+                    <ChevronRight className="size-4" />
+                  </Button>
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="w-full sm:w-auto"
+                  onClick={() => {
+                    const [y, m, d] = todayYmd.split("-").map(Number);
+                    setCheckinCalYM({ y, m: m - 1 });
+                    setSelectedCheckinYmd(todayYmd);
+                  }}
+                >
+                  Go to today
+                </Button>
               </div>
 
               <div>
-                <p className="text-xs font-medium text-gray-500 mb-2">{checkinCalYM.y} — tap a month</p>
-                <div className="grid grid-cols-6 gap-1 sm:flex sm:flex-wrap sm:justify-start">
+                <p className="text-xs font-medium text-gray-500 mb-2">Jump to month</p>
+                <div className="flex flex-wrap gap-1.5">
                   {monthNames.map((name, mi) => {
                     const s = monthStripStatus(checkinCalYM.y, mi, trackingStartYmd, todayYmd);
                     return (
@@ -846,69 +1159,47 @@ export function Analytics() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  aria-label="Previous month"
-                  onClick={() =>
-                    setCheckinCalYM((p) => (p.m === 0 ? { y: p.y - 1, m: 11 } : { y: p.y, m: p.m - 1 }))
-                  }
-                >
-                  <ChevronLeft className="size-4" />
-                </Button>
-                <span className="text-sm font-semibold text-gray-900">
-                  {monthNames[checkinCalYM.m]} {checkinCalYM.y}
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  aria-label="Next month"
-                  onClick={() =>
-                    setCheckinCalYM((p) => (p.m === 11 ? { y: p.y + 1, m: 0 } : { y: p.y, m: p.m + 1 }))
-                  }
-                >
-                  <ChevronRight className="size-4" />
-                </Button>
+              <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-2 sm:p-3">
+                <div className="grid grid-cols-7 gap-1 text-center text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+                    <div key={d} className="py-1 truncate">
+                      {d}
+                    </div>
+                  ))}
+                  {checkinMonthCells.map((cell, idx) => {
+                    if (cell.ymd == null || cell.dayNum == null) {
+                      return <div key={`pad-${idx}`} className="aspect-square min-h-[2.5rem] sm:min-h-10" />;
+                    }
+                    const theme = dayCellTheme(cell.ymd, trackingStartYmd, todayYmd);
+                    const selectable = cell.ymd >= trackingStartYmd && cell.ymd <= todayYmd;
+                    return (
+                      <button
+                        key={cell.ymd}
+                        type="button"
+                        disabled={!selectable}
+                        onClick={() => selectable && setSelectedCheckinYmd(cell.ymd!)}
+                        className={`aspect-square min-h-[2.5rem] sm:min-h-10 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 ${cellClass(
+                          theme,
+                          cell.ymd === effectiveSelectedYmd
+                        )}`}
+                      >
+                        {cell.dayNum}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              <div className="grid grid-cols-7 gap-0.5 sm:gap-1 text-center text-[9px] sm:text-[11px] font-medium text-gray-500">
-                {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
-                  <div key={d} className="py-0.5 sm:py-1 truncate">
-                    {d}
-                  </div>
-                ))}
-                {checkinMonthCells.map((cell, idx) => {
-                  if (cell.ymd == null || cell.dayNum == null) {
-                    return <div key={`pad-${idx}`} className="aspect-square min-h-0" />;
-                  }
-                  const theme = dayCellTheme(cell.ymd, trackingStartYmd, todayYmd);
-                  const selectable = cell.ymd >= trackingStartYmd && cell.ymd <= todayYmd;
-                  return (
-                    <button
-                      key={cell.ymd}
-                      type="button"
-                      disabled={!selectable}
-                      onClick={() => selectable && setSelectedCheckinYmd(cell.ymd!)}
-                      className={`aspect-square min-h-[2rem] sm:min-h-0 rounded-md text-[10px] sm:text-xs flex items-center justify-center transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${cellClass(
-                        theme,
-                        cell.ymd === effectiveSelectedYmd
-                      )}`}
-                    >
-                      {cell.dayNum}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-                <div className="space-y-1.5 flex-1">
-                  <Label htmlFor="checkin-date-pick">Choose day</Label>
+              <details className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
+                <summary className="cursor-pointer font-medium text-gray-800 py-1">Pick a date</summary>
+                <div className="pt-3 pb-1">
+                  <Label htmlFor="checkin-date-pick" className="text-xs">
+                    Date
+                  </Label>
                   <Input
                     id="checkin-date-pick"
                     type="date"
+                    className="mt-1 max-w-xs"
                     min={trackingStartYmd}
                     max={todayYmd}
                     value={effectiveSelectedYmd}
@@ -922,36 +1213,33 @@ export function Analytics() {
                     }}
                   />
                 </div>
-              </div>
+              </details>
 
-              <div>
-                <p className="text-sm font-medium text-gray-800 mb-2">Completed check-ins only</p>
-                {completedCheckinYmds.length === 0 ? (
-                  <p className="text-sm text-gray-500">No full check-ins recorded yet since {trackingStartYmd}.</p>
-                ) : (
-                  <ul className="flex flex-wrap gap-2">
-                    {completedCheckinYmds.map((ymd) => (
-                      <li key={ymd}>
-                        <button
-                          type="button"
-                          className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                            ymd === effectiveSelectedYmd
-                              ? "border-emerald-600 bg-emerald-50 text-emerald-900"
-                              : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300"
-                          }`}
-                          onClick={() => {
-                            setSelectedCheckinYmd(ymd);
-                            const [yy, mm] = ymd.split("-").map(Number);
-                            setCheckinCalYM({ y: yy, m: mm - 1 });
-                          }}
-                        >
-                          {ymd}
-                        </button>
-                      </li>
+              {completedCheckinYmds.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-2">Recent perfect days (newest first)</p>
+                  <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                    {completedCheckinYmds.slice(0, 14).map((ymd) => (
+                      <button
+                        key={ymd}
+                        type="button"
+                        className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                          ymd === effectiveSelectedYmd
+                            ? "border-emerald-600 bg-emerald-50 text-emerald-900"
+                            : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300"
+                        }`}
+                        onClick={() => {
+                          setSelectedCheckinYmd(ymd);
+                          const [yy, mm] = ymd.split("-").map(Number);
+                          setCheckinCalYM({ y: yy, m: mm - 1 });
+                        }}
+                      >
+                        {ymd}
+                      </button>
                     ))}
-                  </ul>
-                )}
-              </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

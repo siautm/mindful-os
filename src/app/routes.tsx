@@ -11,6 +11,7 @@ import { Analytics } from "./pages/Analytics";
 import { Minigame } from "./pages/Minigame";
 import { CheckIn } from "./pages/CheckIn";
 import { StudyPlans } from "./pages/StudyPlans";
+import { Habits } from "./pages/Habits";
 
 export const router = createBrowserRouter([
   {
@@ -24,6 +25,7 @@ export const router = createBrowserRouter([
       { path: "study-plans", element: <StudyPlans /> },
       { path: "focus", element: <FocusTimer /> },
       { path: "finance", element: <Finance /> },
+      { path: "habits", element: <Habits /> },
       { path: "analytics", element: <Analytics /> },
       { path: "ideas", element: <Ideas /> },
       { path: "events", element: <Events /> },
