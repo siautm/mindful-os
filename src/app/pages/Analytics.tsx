@@ -548,7 +548,7 @@ export function Analytics() {
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
   return (
-    <div className="px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 md:p-8 md:pb-8 space-y-6 w-full min-w-0 max-w-full">
+    <div className="w-full min-w-0 max-w-full space-y-6 px-2 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-3 sm:py-6 md:px-4 md:py-8 md:pb-8">
       {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between min-w-0">
         <div className="min-w-0">
@@ -1042,49 +1042,49 @@ export function Analytics() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="checkin">
-          <div className="flex w-full flex-col gap-4 lg:mx-auto lg:max-w-6xl lg:grid lg:grid-cols-[minmax(280px,400px)_minmax(0,1fr)] lg:items-start lg:gap-6">
-          <Card className="mx-auto w-full max-w-lg border-gray-200/90 shadow-sm lg:mx-0 lg:max-w-none lg:self-start lg:sticky lg:top-4">
-            <CardHeader className="space-y-3 pb-3 pt-5 px-5 border-b border-gray-100 bg-gradient-to-b from-rose-50/40 to-transparent">
-              <div className="flex items-start gap-3">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+        <TabsContent
+          value="checkin"
+          className="-mx-2 min-w-0 w-[calc(100%+1rem)] sm:-mx-3 sm:w-[calc(100%+1.5rem)] md:-mx-4 md:w-[calc(100%+2rem)]"
+        >
+          <div className="grid w-full min-w-0 max-w-none grid-cols-1 overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-sm lg:grid-cols-[minmax(17rem,34%)_minmax(0,1fr)]">
+            <div className="border-b border-gray-100 bg-gradient-to-b from-rose-50/50 to-white p-5 sm:p-6 lg:border-b-0 lg:border-r lg:border-gray-100 lg:p-7 xl:p-8">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
                   <Heart className="size-5" />
                 </div>
-                <div className="min-w-0 space-y-1">
-                  <CardTitle className="text-lg font-semibold text-gray-900">Wellness calendar</CardTitle>
-                  <p className="text-sm text-gray-600 leading-relaxed">
-                    Full daily checklist (exercise, finance, sleep, meditation, weight). Tracking since{" "}
-                    <span className="font-medium text-gray-800">{trackingStartYmd}</span>. Week starts Monday.
+                <div className="min-w-0">
+                  <h3 className="text-lg font-semibold leading-tight text-gray-900 sm:text-xl">Wellness calendar</h3>
+                  <p className="text-sm leading-snug text-gray-500">
+                    Since {trackingStartYmd} · week starts Monday
                   </p>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-600">
+              <div className="mb-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-gray-600">
                 <span className="inline-flex items-center gap-2">
                   <span className="size-2.5 shrink-0 rounded-sm bg-emerald-500" />
                   Complete
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <span className="size-2.5 shrink-0 rounded-sm bg-red-500" />
-                  Missed (past)
+                  Missed
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <span className="size-2.5 shrink-0 rounded-sm bg-amber-400" />
-                  Today / in progress
+                  Today
                 </span>
                 <span className="inline-flex items-center gap-2">
                   <span className="size-2.5 shrink-0 rounded-sm bg-gray-200 ring-1 ring-gray-300/80" />
                   Out of range
                 </span>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-5 px-5 pb-5 pt-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                <div className="flex items-center justify-center gap-1 sm:justify-start">
+
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-0.5">
                   <Button
                     type="button"
                     variant="outline"
                     size="icon"
-                    className="size-9 shrink-0"
+                    className="size-10 shrink-0"
                     aria-label="Previous month"
                     onClick={() =>
                       setCheckinCalYM((p) => (p.m === 0 ? { y: p.y - 1, m: 11 } : { y: p.y, m: p.m - 1 }))
@@ -1096,7 +1096,7 @@ export function Analytics() {
                     type="button"
                     variant="outline"
                     size="icon"
-                    className="size-9 shrink-0"
+                    className="size-10 shrink-0"
                     aria-label="Next month"
                     onClick={() =>
                       setCheckinCalYM((p) => (p.m === 11 ? { y: p.y + 1, m: 0 } : { y: p.y, m: p.m + 1 }))
@@ -1105,31 +1105,28 @@ export function Analytics() {
                     <ChevronRight className="size-4" />
                   </Button>
                 </div>
-                <div className="flex flex-1 flex-col gap-2 sm:min-w-[12rem] sm:max-w-xs">
-                  <Label className="text-xs text-gray-500">Jump to month</Label>
-                  <Select
-                    value={checkinMonthSelectValue}
-                    onValueChange={(v) => {
-                      const [yy, mm] = v.split("-").map(Number);
-                      setCheckinCalYM({ y: yy, m: mm - 1 });
-                    }}
-                  >
-                    <SelectTrigger className="h-9 w-full text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-60">
-                      {checkinMonthJumpOptions.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>
-                          {o.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Select
+                  value={checkinMonthSelectValue}
+                  onValueChange={(v) => {
+                    const [yy, mm] = v.split("-").map(Number);
+                    setCheckinCalYM({ y: yy, m: mm - 1 });
+                  }}
+                >
+                  <SelectTrigger className="h-10 min-w-[10rem] flex-1 text-sm sm:min-w-[12rem]">
+                    <SelectValue placeholder="Month" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {checkinMonthJumpOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button
                   type="button"
                   variant="secondary"
-                  className="h-9 w-full shrink-0 text-sm sm:w-auto"
+                  className="h-10 shrink-0 px-4 text-sm"
                   onClick={() => {
                     const [y, m] = todayYmd.split("-").map(Number);
                     setCheckinCalYM({ y, m: m - 1 });
@@ -1140,76 +1137,72 @@ export function Analytics() {
                 </Button>
               </div>
 
-              <div className="mx-auto w-full max-w-[340px] rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
-                <p className="mb-3 text-center text-sm font-semibold text-gray-900">
-                  {monthNames[checkinCalYM.m]} {checkinCalYM.y}
-                </p>
-                <div className="grid grid-cols-7 gap-1.5">
-                  {(["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"] as const).map((d, wi) => (
-                    <div
-                      key={`w-${wi}`}
-                      className="pb-1 text-center text-[11px] font-medium uppercase tracking-wide text-gray-500"
+              <p className="mb-2 text-center text-sm font-semibold text-gray-800 sm:text-base">
+                {monthNames[checkinCalYM.m]} {checkinCalYM.y}
+              </p>
+              <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+                {(["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"] as const).map((d, wi) => (
+                  <div
+                    key={`w-${wi}`}
+                    className="pb-1 text-center text-xs font-medium uppercase tracking-wide text-gray-500"
+                  >
+                    {d}
+                  </div>
+                ))}
+                {checkinMonthCells.map((cell, idx) => {
+                  if (cell.ymd == null || cell.dayNum == null) {
+                    return <div key={`pad-${idx}`} className="h-10 sm:h-11" aria-hidden />;
+                  }
+                  const theme = dayCellTheme(cell.ymd, trackingStartYmd, todayYmd);
+                  const selectable = cell.ymd >= trackingStartYmd && cell.ymd <= todayYmd;
+                  return (
+                    <button
+                      key={cell.ymd}
+                      type="button"
+                      disabled={!selectable}
+                      onClick={() => selectable && setSelectedCheckinYmd(cell.ymd!)}
+                      className={`h-10 w-full rounded-lg text-sm font-medium transition-colors active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-35 sm:h-11 sm:text-base ${cellClass(
+                        theme,
+                        cell.ymd === effectiveSelectedYmd
+                      )}`}
                     >
-                      {d}
-                    </div>
-                  ))}
-                  {checkinMonthCells.map((cell, idx) => {
-                    if (cell.ymd == null || cell.dayNum == null) {
-                      return <div key={`pad-${idx}`} className="aspect-square min-h-[2.25rem]" />;
-                    }
-                    const theme = dayCellTheme(cell.ymd, trackingStartYmd, todayYmd);
-                    const selectable = cell.ymd >= trackingStartYmd && cell.ymd <= todayYmd;
-                    return (
-                      <button
-                        key={cell.ymd}
-                        type="button"
-                        disabled={!selectable}
-                        onClick={() => selectable && setSelectedCheckinYmd(cell.ymd!)}
-                        className={`aspect-square min-h-[2.25rem] w-full rounded-lg text-sm font-medium transition-colors active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-35 ${cellClass(
-                          theme,
-                          cell.ymd === effectiveSelectedYmd
-                        )}`}
-                      >
-                        {cell.dayNum}
-                      </button>
-                    );
-                  })}
-                </div>
+                      {cell.dayNum}
+                    </button>
+                  );
+                })}
               </div>
 
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-4">
-                <div className="flex-1 space-y-1.5">
-                  <Label htmlFor="checkin-date-pick" className="text-xs text-gray-600">
-                    Or pick a date
-                  </Label>
-                  <Input
-                    id="checkin-date-pick"
-                    type="date"
-                    className="h-9 max-w-full text-sm sm:max-w-[240px]"
-                    min={trackingStartYmd}
-                    max={todayYmd}
-                    value={effectiveSelectedYmd}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (v && v >= trackingStartYmd && v <= todayYmd) {
-                        setSelectedCheckinYmd(v);
-                        const [yy, mm] = v.split("-").map(Number);
-                        setCheckinCalYM({ y: yy, m: mm - 1 });
-                      }
-                    }}
-                  />
-                </div>
+              <div className="mt-4 space-y-1.5">
+                <Label htmlFor="checkin-date-pick" className="text-sm text-gray-500">
+                  Pick a date
+                </Label>
+                <Input
+                  id="checkin-date-pick"
+                  type="date"
+                  className="h-10 w-full text-sm sm:h-11 sm:text-base"
+                  min={trackingStartYmd}
+                  max={todayYmd}
+                  value={effectiveSelectedYmd}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v && v >= trackingStartYmd && v <= todayYmd) {
+                      setSelectedCheckinYmd(v);
+                      const [yy, mm] = v.split("-").map(Number);
+                      setCheckinCalYM({ y: yy, m: mm - 1 });
+                    }
+                  }}
+                />
               </div>
 
               {completedCheckinYmds.length > 0 && (
-                <div className="rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-3">
-                  <p className="mb-2 text-xs font-medium text-gray-600">Recent complete days</p>
-                  <div className="flex flex-wrap gap-2">
+                <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50/90 px-3 py-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Recent complete</p>
+                  <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto">
                     {completedCheckinYmds.slice(0, 12).map((ymd) => (
                       <button
                         key={ymd}
                         type="button"
-                        className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                        className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors sm:text-sm ${
                           ymd === effectiveSelectedYmd
                             ? "border-emerald-600 bg-emerald-50 text-emerald-900"
                             : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300"
@@ -1226,26 +1219,23 @@ export function Analytics() {
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
 
-          <Card className="mx-auto w-full min-w-0 max-w-lg border-gray-200/90 shadow-sm lg:mx-0 lg:max-w-none">
-            <CardHeader className="py-4 px-5 border-b border-gray-100">
-              <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-                <Calendar className="size-4 text-emerald-600 shrink-0" />
-                <span>{selectedRow.label}</span>
+            <div className="min-w-0 p-5 sm:p-6 lg:p-7 xl:p-8">
+              <div className="mb-5 flex flex-wrap items-center gap-3 border-b border-gray-100 pb-4">
+                <Calendar className="size-5 shrink-0 text-emerald-600 sm:size-6" />
+                <h3 className="text-lg font-semibold text-gray-900 sm:text-xl">{selectedRow.label}</h3>
                 {selectedRow.complete ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                    <CheckCircle2 className="size-3.5" />
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800">
+                    <CheckCircle2 className="size-4" />
                     Full check-in
                   </span>
                 ) : (
-                  <span className="text-xs font-normal text-gray-500">Checklist incomplete</span>
+                  <span className="text-sm text-gray-500">Incomplete</span>
                 )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
+              </div>
+
+              <div className="mb-5 flex flex-wrap gap-x-4 gap-y-2 text-sm text-gray-600">
                 {(
                   [
                     ["Exercise", selectedRow.checklist.exercise],
@@ -1255,27 +1245,27 @@ export function Analytics() {
                     ["Weight", selectedRow.checklist.weight],
                   ] as const
                 ).map(([name, ok]) => (
-                  <span key={name} className="inline-flex items-center gap-1">
+                  <span key={name} className="inline-flex items-center gap-1.5">
                     {ok ? (
-                      <CheckCircle2 className="size-3.5 text-green-600" />
+                      <CheckCircle2 className="size-4 text-green-600" />
                     ) : (
-                      <Circle className="size-3.5 text-gray-300" />
+                      <Circle className="size-4 text-gray-300" />
                     )}
                     {name}
                   </span>
                 ))}
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-lg bg-gray-50 border border-gray-100 p-3">
-                  <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                    <Dumbbell className="size-3.5 text-emerald-600" />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                    <Dumbbell className="size-4 text-emerald-600" />
                     Exercise
                   </p>
                   {selectedRow.exercises.length === 0 ? (
-                    <p className="text-xs text-gray-400">No entries</p>
+                    <p className="text-sm text-gray-400">No entries</p>
                   ) : (
-                    <ul className="text-xs text-gray-700 space-y-1">
+                    <ul className="space-y-1.5 text-sm leading-relaxed text-gray-700">
                       {selectedRow.exercises.map((e: ExerciseEntry) => (
                         <li key={e.id}>
                           {e.type} · {e.duration} min · {e.intensity}
@@ -1286,15 +1276,15 @@ export function Analytics() {
                   )}
                 </div>
 
-                <div className="rounded-lg bg-gray-50 border border-gray-100 p-3">
-                  <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                    <Moon className="size-3.5 text-indigo-600" />
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                    <Moon className="size-4 text-indigo-600" />
                     Sleep
                   </p>
                   {selectedRow.sleeps.length === 0 ? (
-                    <p className="text-xs text-gray-400">No entries</p>
+                    <p className="text-sm text-gray-400">No entries</p>
                   ) : (
-                    <ul className="text-xs text-gray-700 space-y-1">
+                    <ul className="space-y-1.5 text-sm leading-relaxed text-gray-700">
                       {selectedRow.sleeps.map((s: SleepEntry) => (
                         <li key={s.id}>
                           Bed {s.bedTime}
@@ -1308,15 +1298,15 @@ export function Analytics() {
                   )}
                 </div>
 
-                <div className="rounded-lg bg-gray-50 border border-gray-100 p-3">
-                  <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                    <Brain className="size-3.5 text-purple-600" />
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                    <Brain className="size-4 text-purple-600" />
                     Meditation
                   </p>
                   {selectedRow.meditations.length === 0 ? (
-                    <p className="text-xs text-gray-400">No entries</p>
+                    <p className="text-sm text-gray-400">No entries</p>
                   ) : (
-                    <ul className="text-xs text-gray-700 space-y-1">
+                    <ul className="space-y-1.5 text-sm leading-relaxed text-gray-700">
                       {selectedRow.meditations.map((m: MeditationEntry) => (
                         <li key={m.id}>
                           {m.duration} min · {m.type}
@@ -1327,15 +1317,15 @@ export function Analytics() {
                   )}
                 </div>
 
-                <div className="rounded-lg bg-gray-50 border border-gray-100 p-3">
-                  <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                    <Scale className="size-3.5 text-teal-600" />
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                    <Scale className="size-4 text-teal-600" />
                     Weight
                   </p>
                   {selectedRow.weights.length === 0 ? (
-                    <p className="text-xs text-gray-400">No entries</p>
+                    <p className="text-sm text-gray-400">No entries</p>
                   ) : (
-                    <ul className="text-xs text-gray-700 space-y-1">
+                    <ul className="space-y-1.5 text-sm leading-relaxed text-gray-700">
                       {selectedRow.weights.map((w: WeightEntry) => (
                         <li key={w.id}>
                           {w.weight} {w.unit}
@@ -1345,32 +1335,31 @@ export function Analytics() {
                     </ul>
                   )}
                 </div>
-              </div>
 
-              <div className="rounded-lg bg-gray-50 border border-gray-100 p-3">
-                <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                  <DollarSign className="size-3.5 text-amber-600" />
-                  Finance ({selectedRow.finance.length}{" "}
-                  {selectedRow.finance.length === 1 ? "entry" : "entries"})
-                </p>
-                {selectedRow.finance.length === 0 ? (
-                  <p className="text-xs text-gray-400">No entries</p>
-                ) : (
-                  <ul className="text-xs text-gray-700 space-y-1 max-h-32 overflow-y-auto">
-                    {selectedRow.finance.map((f: FinanceEntry) => (
-                      <li key={f.id}>
-                        <span className={f.type === "income" ? "text-green-700" : "text-red-700"}>
-                          {f.type === "income" ? "+" : "-"}${f.amount.toFixed(2)}
-                        </span>{" "}
-                        · {f.category}
-                        {f.description ? ` — ${f.description}` : ""}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <div className="col-span-full rounded-xl border border-gray-100 bg-gray-50 p-4">
+                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                    <DollarSign className="size-4 text-amber-600" />
+                    Finance ({selectedRow.finance.length}{" "}
+                    {selectedRow.finance.length === 1 ? "entry" : "entries"})
+                  </p>
+                  {selectedRow.finance.length === 0 ? (
+                    <p className="text-sm text-gray-400">No entries</p>
+                  ) : (
+                    <ul className="max-h-40 space-y-1.5 overflow-y-auto text-sm leading-relaxed text-gray-700">
+                      {selectedRow.finance.map((f: FinanceEntry) => (
+                        <li key={f.id}>
+                          <span className={f.type === "income" ? "text-green-700" : "text-red-700"}>
+                            {f.type === "income" ? "+" : "-"}${f.amount.toFixed(2)}
+                          </span>{" "}
+                          · {f.category}
+                          {f.description ? ` — ${f.description}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
           </div>
         </TabsContent>
       </Tabs>
