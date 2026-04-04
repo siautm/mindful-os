@@ -1042,8 +1042,9 @@ export function Analytics() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="checkin" className="space-y-4">
-          <Card className="max-w-lg mx-auto w-full border-gray-200/90 shadow-sm">
+        <TabsContent value="checkin">
+          <div className="flex w-full flex-col gap-4 lg:mx-auto lg:max-w-6xl lg:grid lg:grid-cols-[minmax(280px,400px)_minmax(0,1fr)] lg:items-start lg:gap-6">
+          <Card className="mx-auto w-full max-w-lg border-gray-200/90 shadow-sm lg:mx-0 lg:max-w-none lg:self-start lg:sticky lg:top-4">
             <CardHeader className="space-y-3 pb-3 pt-5 px-5 border-b border-gray-100 bg-gradient-to-b from-rose-50/40 to-transparent">
               <div className="flex items-start gap-3">
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
@@ -1228,7 +1229,7 @@ export function Analytics() {
             </CardContent>
           </Card>
 
-          <Card className="max-w-lg mx-auto w-full border-gray-200/90 shadow-sm">
+          <Card className="mx-auto w-full min-w-0 max-w-lg border-gray-200/90 shadow-sm lg:mx-0 lg:max-w-none">
             <CardHeader className="py-4 px-5 border-b border-gray-100">
               <CardTitle className="flex flex-wrap items-center gap-2 text-base">
                 <Calendar className="size-4 text-emerald-600 shrink-0" />
@@ -1370,6 +1371,7 @@ export function Analytics() {
               </div>
             </CardContent>
           </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
