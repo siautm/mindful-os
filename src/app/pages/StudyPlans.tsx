@@ -233,7 +233,7 @@ export function StudyPlans() {
                     value={bulkText}
                     onChange={(e) => setBulkText(e.target.value)}
                     rows={6}
-                    placeholder={`Welcome…\n5 lectures • 12min\n\n-------------------- Part 1: Data Preprocessing --------------------\n4 lectures • 10min\n…`}
+                    placeholder={`Section title on its own line, then lecture lines (blank line between sections).\n\nWelcome…\n5 lectures • 12min\n\nData Preprocessing\n4 lectures • 10min …\n\nRegression\n1 lecture • 1min …\n\n(Also works: Part 1: Title)`}
                     className="text-xs font-mono"
                   />
                   <Button type="button" variant="outline" size="sm" className="mt-2" onClick={handleImportBulk}>
