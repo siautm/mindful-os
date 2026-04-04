@@ -48,19 +48,8 @@ import {
 import { motion } from "motion/react";
 import { LoadingQuoteScreen } from "../components/LoadingQuoteScreen";
 import { useTheme } from "../contexts/ThemeContext";
-
-const MOTIVATIONAL_QUOTES: QuoteEntry[] = [
-  { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
-  { text: "Success is the sum of small efforts repeated day in and day out.", author: "Robert Collier" },
-  { text: "Don't watch the clock; do what it does. Keep going.", author: "Sam Levenson" },
-  { text: "The future depends on what you do today.", author: "Mahatma Gandhi" },
-  { text: "Believe you can and you're halfway there.", author: "Theodore Roosevelt" },
-  { text: "Focus on being productive instead of busy.", author: "Tim Ferriss" },
-  { text: "You don't have to be great to start, but you have to start to be great.", author: "Zig Ziglar" },
-  { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
-  { text: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" },
-  { text: "The only limit to our realization of tomorrow will be our doubts of today.", author: "Franklin D. Roosevelt" },
-];
+import { useQuoteLocale } from "../contexts/QuoteLocaleContext";
+import { fetchRandomQuote } from "../lib/quotesApi";
 
 type TimeOfDay = "morning" | "afternoon" | "evening";
 
@@ -106,10 +95,12 @@ const timeThemes: Record<TimeOfDay, TimeTheme> = {
 
 export function Dashboard() {
   const { theme, toggleTheme } = useTheme();
+  const { locale, setLocale } = useQuoteLocale();
   const [showLoading, setShowLoading] = useState(true);
   const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>("morning");
   const [currentTheme, setCurrentTheme] = useState<TimeTheme>(timeThemes.morning);
-  const [quote, setQuote] = useState<QuoteEntry>(MOTIVATIONAL_QUOTES[0]);
+  const [quote, setQuote] = useState<QuoteEntry>({ text: "", author: "" });
+  const [quoteLoading, setQuoteLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoritesDialogOpen, setFavoritesDialogOpen] = useState(false);
   const [favoriteQuotes, setFavoriteQuotes] = useState<QuoteEntry[]>([]);
@@ -149,7 +140,6 @@ export function Dashboard() {
 
     determineTimeOfDay();
     loadAllData();
-    setRandomQuote();
 
     // Mouse move effect
     const handleMouseMove = (e: MouseEvent) => {
@@ -162,6 +152,22 @@ export function Dashboard() {
   useEffect(() => {
     setIsFavorite(isQuoteFavorite(quote));
   }, [quote]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setQuoteLoading(true);
+      const q = await fetchRandomQuote(locale);
+      if (!cancelled) {
+        setQuote(q);
+        setQuoteLoading(false);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [locale]);
 
   function determineTimeOfDay() {
     const hour = new Date().getHours();
@@ -285,9 +291,11 @@ export function Dashboard() {
     setPriorityItems(sortedItems);
   }
 
-  function setRandomQuote() {
-    const randomQuote = MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)];
-    setQuote(randomQuote);
+  async function refreshQuote() {
+    setQuoteLoading(true);
+    const q = await fetchRandomQuote(locale);
+    setQuote(q);
+    setQuoteLoading(false);
   }
 
   function loadFavorites() {
@@ -295,6 +303,7 @@ export function Dashboard() {
   }
 
   function handleToggleFavorite() {
+    if (!quote.text.trim()) return;
     if (isFavorite) {
       removeFavoriteQuote(quote);
     } else {
@@ -497,40 +506,86 @@ export function Dashboard() {
               <QuoteIcon className="size-6 text-white" />
             </div>
             <div className="flex-1">
-              <p className={`text-lg italic ${theme === "dark" ? "text-gray-200" : "text-gray-800"} mb-2`}>
-                "{quote.text}"
-              </p>
-              <p className={`text-sm font-semibold text-${currentTheme.accentColor}-600`}>
-                — {quote.author}
-              </p>
+              {quoteLoading ? (
+                <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                  {locale === "zh" ? "正在加载名言…" : "Loading quote…"}
+                </p>
+              ) : (
+                <>
+                  <p className={`text-lg italic ${theme === "dark" ? "text-gray-200" : "text-gray-800"} mb-2`}>
+                    “{quote.text}”
+                  </p>
+                  <p className={`text-sm font-semibold text-${currentTheme.accentColor}-600`}>
+                    — {quote.author}
+                  </p>
+                </>
+              )}
             </div>
-            <div className="flex gap-2">
-              <motion.div whileHover={{ scale: 1.2, rotate: 15 }} whileTap={{ scale: 0.9 }}>
-                <Button
+            <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
+              <div className="flex rounded-lg border border-white/20 bg-white/10 p-0.5 dark:border-gray-600 dark:bg-gray-800/80">
+                <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleToggleFavorite();
+                    setLocale("en");
                   }}
-                  variant="ghost"
-                  size="sm"
-                  className={isFavorite ? "text-yellow-500" : `${theme === "dark" ? "text-gray-500" : "text-gray-400"}`}
+                  className={`rounded-md px-2 py-1 text-xs font-semibold ${
+                    locale === "en"
+                      ? theme === "dark"
+                        ? "bg-gray-700 text-white"
+                        : "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                  }`}
                 >
-                  <Star className={`size-5 ${isFavorite ? "fill-yellow-500" : ""}`} />
-                </Button>
-              </motion.div>
-              <motion.div whileHover={{ scale: 1.2, rotate: -15 }} whileTap={{ scale: 0.9 }}>
-                <Button
+                  EN
+                </button>
+                <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setRandomQuote();
+                    setLocale("zh");
                   }}
-                  variant="ghost"
-                  size="sm"
-                  className={`text-${currentTheme.accentColor}-600`}
+                  className={`rounded-md px-2 py-1 text-xs font-semibold ${
+                    locale === "zh"
+                      ? theme === "dark"
+                        ? "bg-gray-700 text-white"
+                        : "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                  }`}
                 >
-                  <Sparkles className="size-4" />
-                </Button>
-              </motion.div>
+                  中文
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <motion.div whileHover={{ scale: 1.2, rotate: 15 }} whileTap={{ scale: 0.9 }}>
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleFavorite();
+                    }}
+                    variant="ghost"
+                    size="sm"
+                    disabled={quoteLoading || !quote.text.trim()}
+                    className={isFavorite ? "text-yellow-500" : `${theme === "dark" ? "text-gray-500" : "text-gray-400"}`}
+                  >
+                    <Star className={`size-5 ${isFavorite ? "fill-yellow-500" : ""}`} />
+                  </Button>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.2, rotate: -15 }} whileTap={{ scale: 0.9 }}>
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void refreshQuote();
+                    }}
+                    variant="ghost"
+                    size="sm"
+                    disabled={quoteLoading}
+                    className={`text-${currentTheme.accentColor}-600`}
+                  >
+                    <Sparkles className="size-4" />
+                  </Button>
+                </motion.div>
+              </div>
             </div>
           </div>
         </motion.div>

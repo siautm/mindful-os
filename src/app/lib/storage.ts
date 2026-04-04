@@ -1,6 +1,11 @@
 import { toast } from "sonner";
+import type { QuoteLocale } from "./quotesApi";
 
 // Storage utility functions for Mindful OS
+
+export type FocusAmbientPreset = "aurora" | "ocean" | "lavender" | "dawn";
+
+const FOCUS_AMBIENT_VALUES: FocusAmbientPreset[] = ["aurora", "ocean", "lavender", "dawn"];
 
 export interface TimetableEntry {
   id: string;
@@ -604,6 +609,24 @@ export function getLoadingShownDate(): string | null {
 
 export function saveLoadingShownDate(date: string): void {
   setToStorage("mindful_loading_shown", date);
+}
+
+export function getQuoteLocale(): QuoteLocale {
+  const v = getFromStorage<string>("mindful_quote_locale", "en");
+  return v === "zh" ? "zh" : "en";
+}
+
+export function saveQuoteLocale(locale: QuoteLocale): void {
+  setToStorage("mindful_quote_locale", locale);
+}
+
+export function getFocusAmbientPreset(): FocusAmbientPreset {
+  const v = getFromStorage<string>("mindful_focus_ambient", "aurora");
+  return FOCUS_AMBIENT_VALUES.includes(v as FocusAmbientPreset) ? (v as FocusAmbientPreset) : "aurora";
+}
+
+export function saveFocusAmbientPreset(preset: FocusAmbientPreset): void {
+  setToStorage("mindful_focus_ambient", preset);
 }
 
 export function getMinigameHighScore(): number {

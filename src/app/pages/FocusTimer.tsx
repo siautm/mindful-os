@@ -6,7 +6,7 @@ import { Progress } from "../components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Input } from "../components/ui/input";
 import { Slider } from "../components/ui/slider";
-import { Play, Pause, RotateCcw, Coffee, Target, Plus, Trash2, Edit2, Volume2, VolumeX } from "lucide-react";
+import { Play, Pause, RotateCcw, Coffee, Target, Plus, Trash2, Edit2, Volume2, VolumeX, Maximize2 } from "lucide-react";
 import {
   getTasks,
   getFocusSessions,
@@ -20,8 +20,17 @@ import {
 } from "../lib/storage";
 import { toast } from "sonner";
 import { getWhiteNoisePlayer, NoiseType, noiseCategories } from "../lib/whiteNoise";
+import {
+  getFocusAmbientPreset,
+  saveFocusAmbientPreset,
+  type FocusAmbientPreset,
+} from "../lib/storage";
+import { FocusImmersiveOverlay } from "../components/FocusImmersiveOverlay";
+import { FOCUS_AMBIENT_LABELS } from "../components/FocusAmbientBackground";
+import { useQuoteLocale } from "../contexts/QuoteLocaleContext";
 
 export function FocusTimer() {
+  const { locale } = useQuoteLocale();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTask, setSelectedTask] = useState<string>("none");
   const [presets, setPresets] = useState<FocusPreset[]>([]);
@@ -43,7 +52,10 @@ export function FocusTimer() {
   const [noiseVolume, setNoiseVolume] = useState(0.3);
   const [isNoisePlaying, setIsNoisePlaying] = useState(false);
   const noisePlayerRef = useRef(getWhiteNoisePlayer());
-  
+
+  const [ambientPreset, setAmbientPreset] = useState<FocusAmbientPreset>(() => getFocusAmbientPreset());
+  const [immersiveOpen, setImmersiveOpen] = useState(false);
+
   const intervalRef = useRef<number>();
 
   useEffect(() => {
@@ -96,6 +108,10 @@ export function FocusTimer() {
       noisePlayerRef.current.setVolume(noiseVolume);
     }
   }, [noiseVolume, isRunning, noiseType]);
+
+  useEffect(() => {
+    if (!isRunning) setImmersiveOpen(false);
+  }, [isRunning]);
 
   function loadData() {
     const loadedTasks = getTasks().filter(t => !t.completed);
@@ -213,6 +229,7 @@ export function FocusTimer() {
   }
 
   function handleStart() {
+    setImmersiveOpen(true);
     setIsRunning(true);
   }
 
@@ -263,8 +280,24 @@ export function FocusTimer() {
   const seconds = timeLeft % 60;
   const progress = ((duration * 60 - timeLeft) / (duration * 60)) * 100;
 
+  const timeLeftLabel = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+
+  function handleAmbientChange(value: string) {
+    const v = value as FocusAmbientPreset;
+    setAmbientPreset(v);
+    saveFocusAmbientPreset(v);
+  }
+
   return (
     <div className="p-8 space-y-6">
+      <FocusImmersiveOverlay
+        open={immersiveOpen && isRunning}
+        onClose={() => setImmersiveOpen(false)}
+        preset={ambientPreset}
+        timeLeftLabel={timeLeftLabel}
+        clockLocale={locale === "zh" ? "zh-CN" : "en-US"}
+      />
+
       {/* Header */}
       <div>
         <h1 className="text-3xl font-semibold text-gray-900">Focus Timer</h1>
@@ -310,7 +343,26 @@ export function FocusTimer() {
       {/* Timer */}
       <Card className="border-2">
         <CardHeader>
-          <CardTitle>Focus Session</CardTitle>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle>Focus Session</CardTitle>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[220px]">
+              <Label htmlFor="ambient-preset" className="text-xs text-gray-500">
+                {locale === "zh" ? "专注背景动画" : "Focus background"}
+              </Label>
+              <Select value={ambientPreset} onValueChange={handleAmbientChange} disabled={isRunning}>
+                <SelectTrigger id="ambient-preset" className="w-full sm:w-[240px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(FOCUS_AMBIENT_LABELS) as FocusAmbientPreset[]).map((key) => (
+                    <SelectItem key={key} value={key}>
+                      {FOCUS_AMBIENT_LABELS[key]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Timer Display */}
@@ -322,15 +374,21 @@ export function FocusTimer() {
             <Progress value={progress} className="h-3 mb-6" />
             <div className="text-sm text-gray-600">
               {isRunning
-                ? "Stay focused! 💪"
+                ? locale === "zh"
+                  ? "保持专注 💪"
+                  : "Stay focused! 💪"
                 : timeLeft === duration * 60
-                ? "Ready to start"
-                : "Paused"}
+                ? locale === "zh"
+                  ? "准备开始"
+                  : "Ready to start"
+                : locale === "zh"
+                  ? "已暂停"
+                  : "Paused"}
             </div>
           </div>
 
           {/* Timer Controls */}
-          <div className="flex justify-center gap-3">
+          <div className="flex flex-wrap justify-center gap-3">
             {!isRunning ? (
               <Button
                 size="lg"
@@ -338,18 +396,31 @@ export function FocusTimer() {
                 className="px-8"
               >
                 <Play className="size-5 mr-2" />
-                Start
+                {locale === "zh" ? "开始" : "Start"}
               </Button>
             ) : (
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={handlePause}
-                className="px-8"
-              >
-                <Pause className="size-5 mr-2" />
-                Pause
-              </Button>
+              <>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={handlePause}
+                  className="px-8"
+                >
+                  <Pause className="size-5 mr-2" />
+                  {locale === "zh" ? "暂停" : "Pause"}
+                </Button>
+                {!immersiveOpen && (
+                  <Button
+                    size="lg"
+                    variant="secondary"
+                    onClick={() => setImmersiveOpen(true)}
+                    className="px-8"
+                  >
+                    <Maximize2 className="size-5 mr-2" />
+                    {locale === "zh" ? "专注视图" : "Focus view"}
+                  </Button>
+                )}
+              </>
             )}
             <Button
               size="lg"

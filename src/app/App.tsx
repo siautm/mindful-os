@@ -5,6 +5,7 @@ import { Toaster } from "./components/ui/sonner";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { initializeCloudStorage, setCloudAuth } from "./lib/storage";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { QuoteLocaleProvider } from "./contexts/QuoteLocaleContext";
 import { AuthScreen } from "./components/AuthScreen";
 import { LoadingQuoteScreen } from "./components/LoadingQuoteScreen";
 
@@ -64,8 +65,10 @@ function AppInner() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppInner />
-    </AuthProvider>
+    <QuoteLocaleProvider>
+      <AuthProvider>
+        <AppInner />
+      </AuthProvider>
+    </QuoteLocaleProvider>
   );
 }
