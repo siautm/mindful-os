@@ -20,13 +20,7 @@ import {
 } from "../lib/storage";
 import { toast } from "sonner";
 import { getWhiteNoisePlayer, NoiseType, noiseCategories } from "../lib/whiteNoise";
-import {
-  getFocusAmbientPreset,
-  saveFocusAmbientPreset,
-  type FocusAmbientPreset,
-} from "../lib/storage";
 import { FocusImmersiveOverlay } from "../components/FocusImmersiveOverlay";
-import { FOCUS_AMBIENT_LABELS } from "../components/FocusAmbientBackground";
 import { useQuoteLocale } from "../contexts/QuoteLocaleContext";
 
 export function FocusTimer() {
@@ -53,7 +47,6 @@ export function FocusTimer() {
   const [isNoisePlaying, setIsNoisePlaying] = useState(false);
   const noisePlayerRef = useRef(getWhiteNoisePlayer());
 
-  const [ambientPreset, setAmbientPreset] = useState<FocusAmbientPreset>(() => getFocusAmbientPreset());
   const [immersiveOpen, setImmersiveOpen] = useState(false);
 
   const intervalRef = useRef<number>();
@@ -282,18 +275,12 @@ export function FocusTimer() {
 
   const timeLeftLabel = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 
-  function handleAmbientChange(value: string) {
-    const v = value as FocusAmbientPreset;
-    setAmbientPreset(v);
-    saveFocusAmbientPreset(v);
-  }
-
   return (
     <div className="p-8 space-y-6">
       <FocusImmersiveOverlay
         open={immersiveOpen && isRunning}
         onClose={() => setImmersiveOpen(false)}
-        preset={ambientPreset}
+        noiseType={noiseType}
         timeLeftLabel={timeLeftLabel}
         clockLocale={locale === "zh" ? "zh-CN" : "en-US"}
       />
@@ -343,26 +330,12 @@ export function FocusTimer() {
       {/* Timer */}
       <Card className="border-2">
         <CardHeader>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle>Focus Session</CardTitle>
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[220px]">
-              <Label htmlFor="ambient-preset" className="text-xs text-gray-500">
-                {locale === "zh" ? "专注背景动画" : "Focus background"}
-              </Label>
-              <Select value={ambientPreset} onValueChange={handleAmbientChange} disabled={isRunning}>
-                <SelectTrigger id="ambient-preset" className="w-full sm:w-[240px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(FOCUS_AMBIENT_LABELS) as FocusAmbientPreset[]).map((key) => (
-                    <SelectItem key={key} value={key}>
-                      {FOCUS_AMBIENT_LABELS[key]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          <CardTitle>Focus Session</CardTitle>
+          <p className="text-xs text-gray-500 pt-1">
+            {locale === "zh"
+              ? "专注视图中的动态壁纸会与上方「环境音效」一致（无声时为柔和渐变）。"
+              : "Immersive focus view uses a live loop matched to your ambient sound above (soft gradient when silent)."}
+          </p>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Timer Display */}

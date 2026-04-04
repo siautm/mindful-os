@@ -52,7 +52,9 @@ import { useQuoteLocale } from "../contexts/QuoteLocaleContext";
 import {
   fetchQuoteFromNetwork,
   getInstantQuote,
+  QUOTE_SOURCE_TAGS,
   scheduleIdleQuotePrefetch,
+  type QuoteSourceTag,
 } from "../lib/quotesApi";
 
 type TimeOfDay = "morning" | "afternoon" | "evening";
@@ -99,7 +101,7 @@ const timeThemes: Record<TimeOfDay, TimeTheme> = {
 
 export function Dashboard() {
   const { theme, toggleTheme } = useTheme();
-  const { locale, setLocale } = useQuoteLocale();
+  const { locale, setLocale, quoteTags, toggleQuoteTag } = useQuoteLocale();
   const [showLoading, setShowLoading] = useState(true);
   const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>("morning");
   const [currentTheme, setCurrentTheme] = useState<TimeTheme>(timeThemes.morning);
@@ -158,8 +160,11 @@ export function Dashboard() {
 
     determineTimeOfDay();
     loadAllData();
-    scheduleIdleQuotePrefetch();
   }, []);
+
+  useEffect(() => {
+    scheduleIdleQuotePrefetch(quoteTags);
+  }, [quoteTags]);
 
   useEffect(() => {
     const el = cursorGlowRef.current;
@@ -184,18 +189,18 @@ export function Dashboard() {
 
   useEffect(() => {
     const favorites = getFavoriteQuotes();
-    const instant = getInstantQuote(locale, favorites);
+    const instant = getInstantQuote(locale, favorites, quoteTags);
     setQuote(instant);
     setQuoteLoading(false);
 
     let cancelled = false;
-    void fetchQuoteFromNetwork(locale).then((q) => {
+    void fetchQuoteFromNetwork(locale, quoteTags).then((q) => {
       if (!cancelled) setQuote(q);
     });
     return () => {
       cancelled = true;
     };
-  }, [locale]);
+  }, [locale, quoteTags]);
 
   function determineTimeOfDay() {
     const hour = new Date().getHours();
@@ -321,7 +326,7 @@ export function Dashboard() {
 
   async function refreshQuote() {
     setQuoteLoading(true);
-    const q = await fetchQuoteFromNetwork(locale);
+    const q = await fetchQuoteFromNetwork(locale, quoteTags);
     setQuote(q);
     setQuoteLoading(false);
   }
@@ -581,6 +586,44 @@ export function Dashboard() {
                 >
                   中文
                 </button>
+              </div>
+              <div className="flex flex-wrap justify-end gap-1 max-w-[220px]">
+                {QUOTE_SOURCE_TAGS.map((tag: QuoteSourceTag) => {
+                  const on = quoteTags.includes(tag);
+                  const label =
+                    locale === "zh"
+                      ? tag === "books"
+                        ? "文学"
+                        : tag === "anime"
+                          ? "动画"
+                          : "游戏"
+                      : tag === "books"
+                        ? "Books"
+                        : tag === "anime"
+                          ? "Anime"
+                          : "Games";
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleQuoteTag(tag);
+                      }}
+                      className={`rounded-md px-2 py-0.5 text-[10px] font-semibold border transition-colors ${
+                        on
+                          ? theme === "dark"
+                            ? "border-violet-500/80 bg-violet-950/50 text-violet-200"
+                            : "border-violet-400 bg-violet-100 text-violet-900"
+                          : theme === "dark"
+                            ? "border-gray-600 text-gray-500 hover:border-gray-500"
+                            : "border-gray-300 text-gray-500 hover:border-gray-400"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
               <div className="flex gap-2">
                 <motion.div whileHover={{ scale: 1.2, rotate: 15 }} whileTap={{ scale: 0.9 }}>

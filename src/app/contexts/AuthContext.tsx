@@ -3,13 +3,13 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabaseClient";
 
 const SESSION_STARTED_AT_KEY = "mindful_session_started_at";
-/** Default 1 min for testing. Set VITE_SESSION_TTL_MS (ms), min 10000. */
+/** Default 1 hour. Override with VITE_SESSION_TTL_MS (ms), min 10000. */
 const SESSION_TTL_MS =
   typeof import.meta.env.VITE_SESSION_TTL_MS === "string" &&
   import.meta.env.VITE_SESSION_TTL_MS.trim() !== "" &&
   Number.isFinite(Number(import.meta.env.VITE_SESSION_TTL_MS))
     ? Math.max(10_000, Number(import.meta.env.VITE_SESSION_TTL_MS))
-    : 60 * 1000;
+    : 60 * 60 * 1000;
 
 function getSessionStartedAt(): number | null {
   const raw = localStorage.getItem(SESSION_STARTED_AT_KEY);
@@ -69,12 +69,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession ?? null);
       if (nextSession) {
-        const now = Date.now();
-        setSessionStartedAt(now);
-        setStartedAt(now);
+        // Only reset the app session clock on real sign-in. TOKEN_REFRESHED / USER_UPDATED
+        // would otherwise push logout forward forever; INITIAL_SESSION must not wipe stored start time.
+        if (event === "SIGNED_IN") {
+          const now = Date.now();
+          setSessionStartedAt(now);
+          setStartedAt(now);
+        } else if (event === "INITIAL_SESSION") {
+          let t0 = getSessionStartedAt();
+          if (!t0) {
+            t0 = Date.now();
+            setSessionStartedAt(t0);
+          }
+          setStartedAt(t0);
+        }
       } else {
         setSessionStartedAt(null);
         setStartedAt(null);
@@ -91,6 +102,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!session?.user || startedAt == null) return;
     const logoutAt = startedAt + SESSION_TTL_MS;
+
+    const signOutIfDue = () => {
+      if (Date.now() >= logoutAt) void supabase.auth.signOut();
+    };
+
+    signOutIfDue();
+
     const schedule = (): ReturnType<typeof setTimeout> | undefined => {
       const delay = logoutAt - Date.now();
       if (delay <= 0) {
@@ -100,19 +118,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return window.setTimeout(() => void supabase.auth.signOut(), delay);
     };
     let timer = schedule();
+
+    // Background tabs throttle long timers; poll so logout still runs within a few seconds of TTL.
+    const poll = window.setInterval(signOutIfDue, 4000);
+
     const onVis = () => {
       if (document.visibilityState !== "visible") return;
-      if (Date.now() >= logoutAt) {
-        void supabase.auth.signOut();
-        return;
+      signOutIfDue();
+      if (Date.now() < logoutAt && timer !== undefined) {
+        clearTimeout(timer);
+        timer = schedule();
       }
-      if (timer !== undefined) clearTimeout(timer);
-      timer = schedule();
     };
     document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", signOutIfDue);
     return () => {
       if (timer !== undefined) clearTimeout(timer);
+      clearInterval(poll);
       document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("focus", signOutIfDue);
     };
   }, [session?.user?.id, startedAt]);
 

@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Sparkles } from "lucide-react";
-import { fetchQuoteFromNetwork, getInstantQuote, type FetchedQuote } from "../lib/quotesApi";
+import {
+  fetchQuoteFromNetwork,
+  getInstantQuote,
+  QUOTE_SOURCE_TAGS,
+  type FetchedQuote,
+  type QuoteSourceTag,
+} from "../lib/quotesApi";
 import { useQuoteLocale } from "../contexts/QuoteLocaleContext";
 import { getFavoriteQuotes } from "../lib/storage";
 
@@ -10,22 +16,22 @@ interface LoadingQuoteScreenProps {
 }
 
 export function LoadingQuoteScreen({ onComplete }: LoadingQuoteScreenProps) {
-  const { locale, setLocale } = useQuoteLocale();
+  const { locale, setLocale, quoteTags, toggleQuoteTag } = useQuoteLocale();
   const [quote, setQuote] = useState<FetchedQuote | null>(() =>
-    getInstantQuote(locale, getFavoriteQuotes())
+    getInstantQuote(locale, getFavoriteQuotes(), quoteTags)
   );
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    setQuote(getInstantQuote(locale, getFavoriteQuotes()));
+    setQuote(getInstantQuote(locale, getFavoriteQuotes(), quoteTags));
     let cancelled = false;
-    void fetchQuoteFromNetwork(locale).then((q) => {
+    void fetchQuoteFromNetwork(locale, quoteTags).then((q) => {
       if (!cancelled) setQuote(q);
     });
     return () => {
       cancelled = true;
     };
-  }, [locale]);
+  }, [locale, quoteTags]);
 
   useEffect(() => {
     const duration = 3000;
@@ -66,25 +72,56 @@ export function LoadingQuoteScreen({ onComplete }: LoadingQuoteScreenProps) {
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 overflow-hidden"
       >
-        <div className="absolute right-4 top-4 z-20 flex gap-1 rounded-full bg-black/15 p-1 backdrop-blur-sm">
-          <button
-            type="button"
-            onClick={() => setLocale("en")}
-            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-              locale === "en" ? "bg-white text-teal-800" : "text-white/80 hover:bg-white/10"
-            }`}
-          >
-            EN
-          </button>
-          <button
-            type="button"
-            onClick={() => setLocale("zh")}
-            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-              locale === "zh" ? "bg-white text-teal-800" : "text-white/80 hover:bg-white/10"
-            }`}
-          >
-            中文
-          </button>
+        <div className="absolute right-4 top-4 z-20 flex flex-col items-end gap-2">
+          <div className="flex gap-1 rounded-full bg-black/15 p-1 backdrop-blur-sm">
+            <button
+              type="button"
+              onClick={() => setLocale("en")}
+              className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                locale === "en" ? "bg-white text-teal-800" : "text-white/80 hover:bg-white/10"
+              }`}
+            >
+              EN
+            </button>
+            <button
+              type="button"
+              onClick={() => setLocale("zh")}
+              className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                locale === "zh" ? "bg-white text-teal-800" : "text-white/80 hover:bg-white/10"
+              }`}
+            >
+              中文
+            </button>
+          </div>
+          <div className="flex flex-wrap justify-end gap-1 rounded-xl bg-black/15 px-2 py-1.5 backdrop-blur-sm">
+            {QUOTE_SOURCE_TAGS.map((tag: QuoteSourceTag) => {
+              const on = quoteTags.includes(tag);
+              const label =
+                locale === "zh"
+                  ? tag === "books"
+                    ? "文学"
+                    : tag === "anime"
+                      ? "动画"
+                      : "游戏"
+                  : tag === "books"
+                    ? "Books"
+                    : tag === "anime"
+                      ? "Anime"
+                      : "Games";
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => toggleQuoteTag(tag)}
+                  className={`rounded-lg px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+                    on ? "bg-white text-teal-800" : "text-white/75 hover:bg-white/10"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {particles.map((particle) => (

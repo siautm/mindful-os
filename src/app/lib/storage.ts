@@ -1,11 +1,8 @@
 import { toast } from "sonner";
-import type { QuoteLocale } from "./quotesApi";
+import type { QuoteLocale, QuoteSourceTag } from "./quotesApi";
+import { normalizeQuoteTags, QUOTE_SOURCE_TAGS } from "./quotesApi";
 
 // Storage utility functions for Mindful OS
-
-export type FocusAmbientPreset = "aurora" | "ocean" | "lavender" | "dawn";
-
-const FOCUS_AMBIENT_VALUES: FocusAmbientPreset[] = ["aurora", "ocean", "lavender", "dawn"];
 
 export interface TimetableEntry {
   id: string;
@@ -620,13 +617,17 @@ export function saveQuoteLocale(locale: QuoteLocale): void {
   setToStorage("mindful_quote_locale", locale);
 }
 
-export function getFocusAmbientPreset(): FocusAmbientPreset {
-  const v = getFromStorage<string>("mindful_focus_ambient", "aurora");
-  return FOCUS_AMBIENT_VALUES.includes(v as FocusAmbientPreset) ? (v as FocusAmbientPreset) : "aurora";
+const QUOTE_TAGS_KEY = "mindful_quote_tags";
+
+export function getQuoteTags(): QuoteSourceTag[] {
+  const raw = getFromStorage<string[] | null>(QUOTE_TAGS_KEY, null);
+  if (!raw || !Array.isArray(raw)) return [...QUOTE_SOURCE_TAGS];
+  return normalizeQuoteTags(raw);
 }
 
-export function saveFocusAmbientPreset(preset: FocusAmbientPreset): void {
-  setToStorage("mindful_focus_ambient", preset);
+export function saveQuoteTags(tags: readonly QuoteSourceTag[]): void {
+  const next = normalizeQuoteTags(tags);
+  setToStorage(QUOTE_TAGS_KEY, next);
 }
 
 export function getMinigameHighScore(): number {

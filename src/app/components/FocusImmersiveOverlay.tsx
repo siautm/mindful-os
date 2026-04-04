@@ -3,13 +3,13 @@ import { createPortal } from "react-dom";
 import { motion } from "motion/react";
 import { X } from "lucide-react";
 import { Button } from "./ui/button";
-import { FocusAmbientBackground } from "./FocusAmbientBackground";
-import type { FocusAmbientPreset } from "../lib/storage";
+import { FocusLiveWallpaper } from "./FocusLiveWallpaper";
+import type { NoiseType } from "../lib/whiteNoise";
 
 interface FocusImmersiveOverlayProps {
   open: boolean;
   onClose: () => void;
-  preset: FocusAmbientPreset;
+  noiseType: NoiseType;
   /** Countdown mm:ss */
   timeLeftLabel: string;
   /** e.g. "en-US" or "zh-CN" */
@@ -32,7 +32,7 @@ function formatClock(date: Date, clockLocale: string): string {
 export function FocusImmersiveOverlay({
   open,
   onClose,
-  preset,
+  noiseType,
   timeLeftLabel,
   clockLocale = typeof navigator !== "undefined" && navigator.language.startsWith("zh")
     ? "zh-CN"
@@ -58,7 +58,7 @@ export function FocusImmersiveOverlay({
       aria-modal="true"
       aria-label="Focus mode"
     >
-      <FocusAmbientBackground preset={preset} />
+      <FocusLiveWallpaper noiseType={noiseType} />
 
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pb-24 pt-16">
         <p className="mb-2 text-sm font-medium uppercase tracking-[0.2em] text-white/60">
