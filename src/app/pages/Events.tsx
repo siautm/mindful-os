@@ -246,48 +246,48 @@ export function Events() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="size-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <CalendarIcon className="size-6 text-blue-600" />
+          <CardContent className="px-2.5 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-6">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="size-9 sm:size-12 shrink-0 bg-blue-100 rounded-full flex items-center justify-center">
+                <CalendarIcon className="size-4 sm:size-6 text-blue-600" />
               </div>
-              <div>
-                <div className="text-2xl font-semibold text-gray-900">
+              <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-semibold text-gray-900 tabular-nums">
                   {events.length}
                 </div>
-                <p className="text-sm text-gray-600">Total Events</p>
+                <p className="text-[10px] sm:text-sm text-gray-600 leading-tight">Total</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="size-12 bg-green-100 rounded-full flex items-center justify-center">
-                <Clock className="size-6 text-green-600" />
+          <CardContent className="px-2.5 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-6">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="size-9 sm:size-12 shrink-0 bg-green-100 rounded-full flex items-center justify-center">
+                <Clock className="size-4 sm:size-6 text-green-600" />
               </div>
-              <div>
-                <div className="text-2xl font-semibold text-gray-900">
+              <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-semibold text-gray-900 tabular-nums">
                   {upcomingCount}
                 </div>
-                <p className="text-sm text-gray-600">Upcoming</p>
+                <p className="text-[10px] sm:text-sm text-gray-600 leading-tight">Upcoming</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="size-12 bg-purple-100 rounded-full flex items-center justify-center">
-                <span className="text-2xl">📅</span>
+          <CardContent className="px-2.5 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-6">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="size-9 sm:size-12 shrink-0 bg-purple-100 rounded-full flex items-center justify-center">
+                <span className="text-lg sm:text-2xl">📅</span>
               </div>
-              <div>
-                <div className="text-2xl font-semibold text-gray-900">
+              <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-semibold text-gray-900 tabular-nums">
                   {todayEvents}
                 </div>
-                <p className="text-sm text-gray-600">Today</p>
+                <p className="text-[10px] sm:text-sm text-gray-600 leading-tight">Today</p>
               </div>
             </div>
           </CardContent>
@@ -296,28 +296,31 @@ export function Events() {
 
       {/* Filters */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Filter className="size-4 text-gray-500" />
-              <Label className="text-sm">View:</Label>
+        <CardContent className="pt-4 sm:pt-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap sm:gap-3">
+              <div className="flex items-center gap-2 shrink-0">
+                <Filter className="size-4 text-gray-500 shrink-0" />
+                <Label className="text-xs sm:text-sm">View</Label>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(["upcoming", "past", "all"] as const).map((mode) => (
+                  <Button
+                    key={mode}
+                    variant={viewMode === mode ? "default" : "outline"}
+                    size="sm"
+                    className="text-xs sm:text-sm"
+                    onClick={() => setViewMode(mode)}
+                  >
+                    {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                  </Button>
+                ))}
+              </div>
             </div>
-            <div className="flex gap-2">
-              {(["upcoming", "past", "all"] as const).map((mode) => (
-                <Button
-                  key={mode}
-                  variant={viewMode === mode ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setViewMode(mode)}
-                >
-                  {mode.charAt(0).toUpperCase() + mode.slice(1)}
-                </Button>
-              ))}
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              <Label className="text-sm">Category:</Label>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 lg:ml-auto w-full lg:w-auto">
+              <Label className="text-xs sm:text-sm shrink-0">Category</Label>
               <Select value={filterCategory} onValueChange={setFilterCategory}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-full sm:w-44 lg:w-40">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -349,18 +352,20 @@ export function Events() {
                   isPast ? "opacity-60" : ""
                 }`}
               >
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <CardTitle className="text-lg">{event.title}</CardTitle>
+                <CardHeader className="space-y-3 pb-2 sm:pb-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <CardTitle className="text-base sm:text-lg leading-snug break-words">
+                          {event.title}
+                        </CardTitle>
                         {isToday && (
-                          <Badge variant="default" className="bg-purple-600">
+                          <Badge variant="default" className="bg-purple-600 shrink-0 text-xs">
                             Today
                           </Badge>
                         )}
                       </div>
-                      <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1 text-xs sm:text-sm text-gray-600">
                         <div className="flex items-center gap-1">
                           <CalendarIcon className="size-4" />
                           {eventDate.toLocaleDateString("en-US", {
@@ -382,24 +387,28 @@ export function Events() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end">
                       <Badge
                         variant="outline"
-                        className={CATEGORY_COLORS[event.category] || CATEGORY_COLORS.Other}
+                        className={`text-xs ${CATEGORY_COLORS[event.category] || CATEGORY_COLORS.Other}`}
                       >
                         {event.category}
                       </Badge>
                       <Button
                         variant="ghost"
                         size="sm"
+                        className="h-8 w-8 p-0"
                         onClick={() => setEditingEvent(event)}
+                        aria-label="Edit event"
                       >
                         <Edit2 className="size-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
+                        className="h-8 w-8 p-0"
                         onClick={() => handleDeleteEvent(event.id)}
+                        aria-label="Delete event"
                       >
                         <Trash2 className="size-4 text-red-500" />
                       </Button>
@@ -407,8 +416,10 @@ export function Events() {
                   </div>
                 </CardHeader>
                 {event.description && (
-                  <CardContent>
-                    <p className="text-gray-700">{event.description}</p>
+                  <CardContent className="pt-0">
+                    <p className="text-sm text-gray-700 break-words whitespace-pre-wrap">
+                      {event.description}
+                    </p>
                   </CardContent>
                 )}
               </Card>

@@ -240,50 +240,50 @@ export function Ideas() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="size-12 bg-yellow-100 rounded-full flex items-center justify-center">
-                <Lightbulb className="size-6 text-yellow-600" />
+          <CardContent className="px-2.5 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-6">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="size-9 sm:size-12 shrink-0 bg-yellow-100 rounded-full flex items-center justify-center">
+                <Lightbulb className="size-4 sm:size-6 text-yellow-600" />
               </div>
-              <div>
-                <div className="text-2xl font-semibold text-gray-900">
+              <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-semibold text-gray-900 tabular-nums">
                   {ideas.length}
                 </div>
-                <p className="text-sm text-gray-600">Total Ideas</p>
+                <p className="text-[10px] sm:text-sm text-gray-600 leading-tight">Total</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="size-12 bg-purple-100 rounded-full flex items-center justify-center">
-                <span className="text-2xl">🏷️</span>
+          <CardContent className="px-2.5 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-6">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="size-9 sm:size-12 shrink-0 bg-purple-100 rounded-full flex items-center justify-center">
+                <span className="text-lg sm:text-2xl">🏷️</span>
               </div>
-              <div>
-                <div className="text-2xl font-semibold text-gray-900">
+              <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-semibold text-gray-900 tabular-nums">
                   {allTags.length}
                 </div>
-                <p className="text-sm text-gray-600">Unique Tags</p>
+                <p className="text-[10px] sm:text-sm text-gray-600 leading-tight">Tags</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="size-12 bg-green-100 rounded-full flex items-center justify-center">
-                <span className="text-2xl">📅</span>
+          <CardContent className="px-2.5 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-6">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="size-9 sm:size-12 shrink-0 bg-green-100 rounded-full flex items-center justify-center">
+                <span className="text-lg sm:text-2xl">📅</span>
               </div>
-              <div>
-                <div className="text-2xl font-semibold text-gray-900">
+              <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-semibold text-gray-900 tabular-nums">
                   {ideas.filter(i => 
                     new Date(i.date).toDateString() === new Date().toDateString()
                   ).length}
                 </div>
-                <p className="text-sm text-gray-600">Today's Ideas</p>
+                <p className="text-[10px] sm:text-sm text-gray-600 leading-tight">Today</p>
               </div>
             </div>
           </CardContent>
@@ -294,12 +294,14 @@ export function Ideas() {
       {filteredIdeas.length > 0 ? (
         <div className="grid gap-4">
           {filteredIdeas.map((idea) => (
-            <Card key={idea.id} className="hover:shadow-md transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg">{idea.title}</CardTitle>
-                    <p className="text-sm text-gray-500 mt-1">
+            <Card key={idea.id} className="hover:shadow-md transition-shadow overflow-hidden">
+              <CardHeader className="space-y-3 pb-2 sm:pb-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-base sm:text-lg leading-snug break-words pr-0 sm:pr-2">
+                      {idea.title}
+                    </CardTitle>
+                    <p className="text-xs sm:text-sm text-gray-500 mt-1">
                       {new Date(idea.date).toLocaleDateString("en-US", {
                         weekday: "short",
                         month: "short",
@@ -310,26 +312,32 @@ export function Ideas() {
                       })}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 shrink-0 self-end sm:self-start">
                     <Button
                       variant="ghost"
                       size="sm"
+                      className="h-8 w-8 p-0"
                       onClick={() => setEditingIdea(idea)}
+                      aria-label="Edit idea"
                     >
                       <Edit2 className="size-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
+                      className="h-8 w-8 p-0"
                       onClick={() => handleDeleteIdea(idea.id)}
+                      aria-label="Delete idea"
                     >
                       <Trash2 className="size-4 text-red-500" />
                     </Button>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                <p className="text-gray-700 whitespace-pre-wrap mb-3">{idea.content}</p>
+              <CardContent className="pt-0">
+                <p className="text-sm sm:text-base text-gray-700 whitespace-pre-wrap break-words mb-3">
+                  {idea.content}
+                </p>
                 {idea.tags.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {idea.tags.map((tag) => (

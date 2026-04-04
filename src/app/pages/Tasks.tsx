@@ -414,41 +414,42 @@ export function Tasks() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-semibold text-gray-900">
+          <CardContent className="px-3 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-6">
+            <div className="text-lg sm:text-2xl font-semibold text-gray-900 tabular-nums">
               {stats.total}
             </div>
-            <p className="text-sm text-gray-600 mt-1">Total Tasks</p>
+            <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1 leading-tight">Total</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-semibold text-blue-600">
+          <CardContent className="px-3 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-6">
+            <div className="text-lg sm:text-2xl font-semibold text-blue-600 tabular-nums">
               {stats.active}
             </div>
-            <p className="text-sm text-gray-600 mt-1">Active</p>
+            <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1 leading-tight">Active</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-semibold text-green-600">
+          <CardContent className="px-3 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-6">
+            <div className="text-lg sm:text-2xl font-semibold text-green-600 tabular-nums">
               {stats.completed}
             </div>
-            <p className="text-sm text-gray-600 mt-1">Completed</p>
+            <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1 leading-tight">Done</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Filters and Sort */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-wrap gap-4 items-center">
-            <div className="flex gap-2">
+        <CardContent className="pt-4 sm:pt-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant={filter === "all" ? "default" : "outline"}
                 size="sm"
+                className="text-xs sm:text-sm"
                 onClick={() => setFilter("all")}
               >
                 All
@@ -456,6 +457,7 @@ export function Tasks() {
               <Button
                 variant={filter === "active" ? "default" : "outline"}
                 size="sm"
+                className="text-xs sm:text-sm"
                 onClick={() => setFilter("active")}
               >
                 Active
@@ -463,29 +465,34 @@ export function Tasks() {
               <Button
                 variant={filter === "completed" ? "default" : "outline"}
                 size="sm"
+                className="text-xs sm:text-sm"
                 onClick={() => setFilter("completed")}
               >
-                Completed
+                Done
               </Button>
             </div>
-            <div className="h-6 w-px bg-gray-300" />
-            <div className="flex gap-2 items-center">
-              <span className="text-sm text-gray-600">Sort by:</span>
+            <div className="hidden h-6 w-px bg-gray-300 sm:block" aria-hidden />
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-xs sm:text-sm text-gray-600 shrink-0">Sort:</span>
               <Button
                 variant={sortBy === "priority" ? "default" : "outline"}
                 size="sm"
+                className="text-xs sm:text-sm"
+                aria-label="Sort by priority"
                 onClick={() => setSortBy("priority")}
               >
-                <TrendingUp className="size-4 mr-1" />
-                Priority
+                <TrendingUp className="size-3.5 sm:size-4 sm:mr-1" />
+                <span className="hidden sm:inline">Priority</span>
               </Button>
               <Button
                 variant={sortBy === "dueDate" ? "default" : "outline"}
                 size="sm"
+                className="text-xs sm:text-sm"
+                aria-label="Sort by due date"
                 onClick={() => setSortBy("dueDate")}
               >
-                <Clock className="size-4 mr-1" />
-                Due Date
+                <Clock className="size-3.5 sm:size-4 sm:mr-1" />
+                <span className="hidden sm:inline">Due date</span>
               </Button>
             </div>
           </div>
@@ -518,19 +525,19 @@ export function Tasks() {
                 key={task.id}
                 className={task.completed ? "opacity-60" : ""}
               >
-                <CardContent className="pt-6">
-                  <div className="flex items-start gap-4">
+                <CardContent className="pt-4 sm:pt-6">
+                  <div className="flex items-start gap-3 sm:gap-4">
                     <Checkbox
                       checked={task.completed}
                       onCheckedChange={() => handleToggleComplete(task.id)}
-                      className="mt-1"
+                      className="mt-1 shrink-0"
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                        <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <h3
-                              className={`font-medium text-gray-900 ${
+                              className={`font-medium text-base text-gray-900 break-words ${
                                 task.completed ? "line-through" : ""
                               }`}
                             >
@@ -539,27 +546,28 @@ export function Tasks() {
                             {courseLine && (
                               <Badge
                                 variant="outline"
-                                className="text-xs font-normal border-blue-200 bg-blue-50 text-blue-900"
+                                className="text-[10px] sm:text-xs font-normal border-blue-200 bg-blue-50 text-blue-900 max-w-full truncate"
                               >
                                 {courseLine}
                               </Badge>
                             )}
                           </div>
                           {task.description && (
-                            <p className="text-sm text-gray-600 mt-1">
+                            <p className="text-xs sm:text-sm text-gray-600 mt-1 break-words">
                               {task.description}
                             </p>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
                           <Badge
-                            className={getPriorityColor(task.priority)}
+                            className={`${getPriorityColor(task.priority)} text-[10px] sm:text-xs`}
                           >
                             {getPriorityLabel(task.priority)} ({task.priority.toFixed(1)})
                           </Badge>
                           <Button
                             variant="ghost"
                             size="sm"
+                            className="h-8 w-8 p-0 sm:h-9 sm:w-9"
                             onClick={() => setEditingTask(task)}
                             aria-label="Edit task"
                           >
@@ -568,6 +576,7 @@ export function Tasks() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            className="h-8 w-8 p-0 sm:h-9 sm:w-9"
                             onClick={() => handleDeleteTask(task.id)}
                             aria-label="Delete task"
                           >
@@ -575,7 +584,7 @@ export function Tasks() {
                           </Button>
                         </div>
                       </div>
-                      <div className="flex flex-wrap gap-4 mt-3 text-sm text-gray-600">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-4 sm:gap-y-1 mt-3 text-xs sm:text-sm text-gray-600">
                         <div className="flex items-center gap-1">
                           <Clock className="size-4" />
                           <span>{task.estimatedMinutes} min</span>

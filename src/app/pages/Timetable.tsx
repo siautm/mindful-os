@@ -68,6 +68,13 @@ const COURSE_COLORS = [
   "bg-teal-200",
 ];
 
+type TimetableTab = "grid" | "combined" | "courses";
+
+function getInitialTimetableTab(): TimetableTab {
+  if (typeof window === "undefined") return "combined";
+  return window.matchMedia("(min-width: 768px)").matches ? "grid" : "combined";
+}
+
 export function Timetable() {
   const [entries, setEntries] = useState<TimetableEntry[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -77,9 +84,20 @@ export function Timetable() {
   const [newEntry, setNewEntry] = useState<Partial<TimetableEntry>>({
     day: "Monday",
   });
+  const [timetableTab, setTimetableTab] = useState<TimetableTab>(getInitialTimetableTab);
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const onChange = () => {
+      setTimetableTab((t) => (!mq.matches && t === "grid" ? "combined" : t));
+    };
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
   }, []);
 
   function loadData() {
@@ -482,10 +500,17 @@ export function Timetable() {
         </Card>
       )}
 
-      {/* Timetable Tabs */}
-      <Tabs defaultValue="grid" className="space-y-6">
-        <TabsList className="grid h-auto w-full grid-cols-1 gap-1.5 sm:grid-cols-3 sm:max-w-2xl">
-          <TabsTrigger value="grid" className="justify-center gap-2 text-xs sm:text-sm">
+      {/* Timetable Tabs: grid view hidden below md (phones use list views) */}
+      <Tabs
+        value={timetableTab}
+        onValueChange={(v) => setTimetableTab(v as TimetableTab)}
+        className="space-y-6"
+      >
+        <TabsList className="flex h-auto w-full max-w-2xl flex-col gap-1.5 sm:grid sm:grid-cols-3">
+          <TabsTrigger
+            value="grid"
+            className="hidden justify-center gap-2 text-xs sm:text-sm md:flex"
+          >
             <Grid3x3 className="size-4 shrink-0" />
             Grid view
           </TabsTrigger>
@@ -499,8 +524,8 @@ export function Timetable() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Grid View */}
-        <TabsContent value="grid" className="space-y-6">
+        {/* Grid View (desktop / tablet only) */}
+        <TabsContent value="grid" className="hidden space-y-6 md:block">
           <Card>
             <CardContent className="pt-6 overflow-x-auto">
               <div className="min-w-max">

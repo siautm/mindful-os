@@ -443,7 +443,7 @@ export function Dashboard() {
           initial={{ y: -50, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ type: "spring", stiffness: 100 }}
-          className={`relative overflow-hidden rounded-3xl bg-gradient-to-r ${currentTheme.gradient} p-8 md:p-12 shadow-2xl group`}
+          className={`relative overflow-hidden rounded-3xl bg-gradient-to-r ${currentTheme.gradient} p-5 sm:p-8 md:p-12 shadow-2xl group`}
         >
           {/* Parallax Background Elements */}
           <motion.div
@@ -465,7 +465,7 @@ export function Dashboard() {
 
           {/* Dark Mode Toggle */}
           <motion.div
-            className="absolute top-6 right-6"
+            className="absolute top-4 right-4 sm:top-6 sm:right-6"
             whileHover={{ scale: 1.1, rotate: 180 }}
             whileTap={{ scale: 0.9 }}
           >
@@ -485,17 +485,17 @@ export function Dashboard() {
 
           <div className="relative z-10">
             <motion.div
-              className="flex items-center gap-4 mb-4"
+              className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4 mb-4 pr-14 sm:pr-0"
               initial={{ x: -30, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               transition={{ delay: 0.2 }}
             >
-              <TimeIcon className="size-12 text-white" />
-              <div>
-                <h1 className="text-4xl md:text-5xl font-bold text-white">
+              <TimeIcon className="size-10 sm:size-12 text-white shrink-0" />
+              <div className="min-w-0">
+                <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold text-white leading-tight">
                   {currentTheme.greeting} {currentTheme.emoji}
                 </h1>
-                <p className="text-lg md:text-xl text-white/90 mt-1">
+                <p className="text-sm sm:text-lg md:text-xl text-white/90 mt-1">
                   {new Date().toLocaleDateString("en-US", { 
                     weekday: "long", 
                     month: "long", 
@@ -533,7 +533,7 @@ export function Dashboard() {
                     theme === "dark" 
                       ? "bg-gray-800 border-gray-700" 
                       : "bg-white border-gray-200"
-                  } border-2 rounded-2xl p-4 shadow-lg hover:shadow-2xl transition-all cursor-pointer group`}
+                  } border-2 rounded-2xl p-3 sm:p-4 shadow-lg hover:shadow-2xl transition-all cursor-pointer group`}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <Icon className={`size-6 text-${stat.color}-500 group-hover:scale-110 transition-transform`} />
@@ -562,29 +562,30 @@ export function Dashboard() {
             theme === "dark" 
               ? "bg-gray-800 border-gray-700" 
               : `bg-gradient-to-br ${currentTheme.cardGradient} border-${currentTheme.accentColor}-200`
-          } border-2 rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all cursor-pointer group`}
+          } border-2 rounded-2xl p-4 sm:p-6 shadow-lg hover:shadow-2xl transition-all cursor-pointer group`}
         >
-          <div className="flex items-start gap-4">
-            <div className={`size-12 bg-gradient-to-br ${currentTheme.gradient} rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:rotate-12 transition-transform`}>
-              <QuoteIcon className="size-6 text-white" />
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-4">
+            <div className={`size-11 sm:size-12 bg-gradient-to-br ${currentTheme.gradient} rounded-2xl flex items-center justify-center shrink-0 group-hover:rotate-12 transition-transform`}>
+              <QuoteIcon className="size-5 sm:size-6 text-white" />
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0 order-2 md:order-none">
               {quoteLoading ? (
                 <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
                   {locale === "zh" ? "正在加载名言…" : "Loading quote…"}
                 </p>
               ) : (
                 <>
-                  <p className={`text-lg italic ${theme === "dark" ? "text-gray-200" : "text-gray-800"} mb-2`}>
+                  <p className={`text-base sm:text-lg italic leading-relaxed break-words ${theme === "dark" ? "text-gray-200" : "text-gray-800"} mb-2`}>
                     “{quote.text}”
                   </p>
-                  <p className={`text-sm font-semibold text-${currentTheme.accentColor}-600`}>
+                  <p className={`text-xs sm:text-sm font-semibold text-${currentTheme.accentColor}-600`}>
                     — {quote.author}
                   </p>
                 </>
               )}
             </div>
-            <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-3 w-full md:w-auto md:shrink-0 md:items-end order-3 md:order-none border-t border-white/10 pt-3 md:border-t-0 md:pt-0 dark:border-gray-600">
+              <div className="flex flex-wrap items-center gap-2 md:justify-end">
               <div className="flex rounded-lg border border-white/20 bg-white/10 p-0.5 dark:border-gray-600 dark:bg-gray-800/80">
                 <button
                   type="button"
@@ -619,7 +620,7 @@ export function Dashboard() {
                   中文
                 </button>
               </div>
-              <div className="flex flex-wrap justify-end gap-1 max-w-[220px]">
+              <div className="flex flex-wrap gap-1 flex-1 md:flex-none md:max-w-[220px] md:justify-end">
                 {QUOTE_SOURCE_TAGS.map((tag: QuoteSourceTag) => {
                   const on = quoteTags.includes(tag);
                   const label =
@@ -657,7 +658,8 @@ export function Dashboard() {
                   );
                 })}
               </div>
-              <div className="flex gap-2">
+              </div>
+              <div className="flex gap-2 md:justify-end">
                 <motion.div whileHover={{ scale: 1.2, rotate: 15 }} whileTap={{ scale: 0.9 }}>
                   <Button
                     onClick={(e) => {
@@ -890,7 +892,7 @@ export function Dashboard() {
 
       {/* Favorites Dialog */}
       <Dialog open={favoritesDialogOpen} onOpenChange={setFavoritesDialogOpen}>
-        <DialogContent className={`max-w-2xl max-h-[80vh] overflow-y-auto ${
+        <DialogContent className={`w-[min(100vw-1.5rem,42rem)] max-w-2xl max-h-[min(85dvh,80vh)] overflow-y-auto ${
           theme === "dark" ? "bg-gray-800 text-white" : "bg-white"
         }`}>
           <DialogHeader>

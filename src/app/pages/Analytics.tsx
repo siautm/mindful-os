@@ -443,7 +443,7 @@ export function Analytics() {
 
   function monthStripButtonClass(s: MonthStripStatus, isCurrentMonth: boolean) {
     const base =
-      "min-w-0 flex-1 rounded-md px-1 py-2 text-[10px] sm:text-xs font-medium transition-colors border";
+      "min-w-0 min-h-[2.25rem] sm:min-h-0 sm:flex-1 rounded-md px-0.5 py-1.5 sm:px-1 sm:py-2 text-[9px] sm:text-xs font-medium transition-colors border";
     const cur = isCurrentMonth ? " ring-2 ring-emerald-500 ring-offset-1" : "";
     switch (s) {
       case "green":
@@ -487,63 +487,63 @@ export function Analytics() {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="size-12 bg-purple-100 rounded-full flex items-center justify-center">
-                <Clock className="size-6 text-purple-600" />
+          <CardContent className="px-2.5 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-6">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="size-9 sm:size-12 shrink-0 bg-purple-100 rounded-full flex items-center justify-center">
+                <Clock className="size-4 sm:size-6 text-purple-600" />
               </div>
-              <div>
-                <div className="text-2xl font-semibold text-gray-900">
+              <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-semibold text-gray-900 tabular-nums">
                   {pomodoroData.total.minutes}m
                 </div>
-                <p className="text-sm text-gray-600">Focus Time</p>
+                <p className="text-[10px] sm:text-sm text-gray-600 leading-tight">Focus</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="size-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <TrendingUp className="size-6 text-blue-600" />
+          <CardContent className="px-2.5 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-6">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="size-9 sm:size-12 shrink-0 bg-blue-100 rounded-full flex items-center justify-center">
+                <TrendingUp className="size-4 sm:size-6 text-blue-600" />
               </div>
-              <div>
-                <div className="text-2xl font-semibold text-gray-900">
+              <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-semibold text-gray-900 tabular-nums">
                   {pomodoroData.total.sessions}
                 </div>
-                <p className="text-sm text-gray-600">Sessions</p>
+                <p className="text-[10px] sm:text-sm text-gray-600 leading-tight">Sessions</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="size-12 bg-green-100 rounded-full flex items-center justify-center">
-                <CheckCircle2 className="size-6 text-green-600" />
+          <CardContent className="px-2.5 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-6">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="size-9 sm:size-12 shrink-0 bg-green-100 rounded-full flex items-center justify-center">
+                <CheckCircle2 className="size-4 sm:size-6 text-green-600" />
               </div>
-              <div>
-                <div className="text-2xl font-semibold text-gray-900">
+              <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-semibold text-gray-900 tabular-nums">
                   {tasksData.total.tasks}
                 </div>
-                <p className="text-sm text-gray-600">Tasks Done</p>
+                <p className="text-[10px] sm:text-sm text-gray-600 leading-tight">Tasks</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="size-12 bg-red-100 rounded-full flex items-center justify-center">
-                <DollarSign className="size-6 text-red-600" />
+          <CardContent className="px-2.5 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-6">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="size-9 sm:size-12 shrink-0 bg-red-100 rounded-full flex items-center justify-center">
+                <DollarSign className="size-4 sm:size-6 text-red-600" />
               </div>
-              <div>
-                <div className="text-2xl font-semibold text-gray-900">
+              <div className="min-w-0">
+                <div className="text-lg sm:text-2xl font-semibold text-gray-900 tabular-nums truncate">
                   ${financeData.total.expenses.toFixed(0)}
                 </div>
-                <p className="text-sm text-gray-600">Expenses</p>
+                <p className="text-[10px] sm:text-sm text-gray-600 leading-tight">Spend</p>
               </div>
             </div>
           </CardContent>
@@ -598,7 +598,7 @@ export function Analytics() {
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">Total Focus Time</CardTitle>
@@ -663,7 +663,7 @@ export function Analytics() {
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">Total Tasks Completed</CardTitle>
@@ -691,14 +691,14 @@ export function Analytics() {
 
         {/* Finance Tab */}
         <TabsContent value="finance" className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Income vs Expenses</CardTitle>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+            <Card className="min-w-0 overflow-hidden">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base sm:text-lg">Income vs Expenses</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-2 sm:px-6">
                 {financeData.chart.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={280}>
                     <BarChart data={financeData.chart}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
@@ -717,21 +717,21 @@ export function Analytics() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Expense Categories</CardTitle>
+            <Card className="min-w-0 overflow-hidden">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base sm:text-lg">Expense Categories</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-2 sm:px-6">
                 {financeData.pieData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={280}>
                     <PieChart>
                       <Pie
                         data={financeData.pieData}
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={(entry) => `${entry.name}: $${entry.value}`}
-                        outerRadius={80}
+                        label={false}
+                        outerRadius={72}
                         fill="#8884d8"
                         dataKey="value"
                       >
@@ -739,11 +739,15 @@ export function Analytics() {
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip />
+                      <Tooltip formatter={(v: number) => `$${v.toFixed(2)}`} />
+                      <Legend
+                        wrapperStyle={{ fontSize: "11px" }}
+                        className="[&_li]:!mr-2"
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-[300px] flex items-center justify-center text-gray-500">
+                  <div className="h-[280px] flex items-center justify-center text-gray-500 text-sm">
                     No expenses for this period
                   </div>
                 )}
@@ -751,34 +755,34 @@ export function Analytics() {
             </Card>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Total Income</CardTitle>
+              <CardHeader className="pb-2 pt-4 sm:pt-6">
+                <CardTitle className="text-xs sm:text-sm">Total Income</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-green-600">
+              <CardContent className="pt-0 pb-4 sm:pb-6">
+                <div className="text-xl sm:text-3xl font-bold text-green-600 break-all tabular-nums">
                   ${financeData.total.income.toFixed(2)}
                 </div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Total Expenses</CardTitle>
+              <CardHeader className="pb-2 pt-4 sm:pt-6">
+                <CardTitle className="text-xs sm:text-sm">Total Expenses</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-red-600">
+              <CardContent className="pt-0 pb-4 sm:pb-6">
+                <div className="text-xl sm:text-3xl font-bold text-red-600 break-all tabular-nums">
                   ${financeData.total.expenses.toFixed(2)}
                 </div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Balance</CardTitle>
+              <CardHeader className="pb-2 pt-4 sm:pt-6">
+                <CardTitle className="text-xs sm:text-sm">Balance</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-0 pb-4 sm:pb-6">
                 <div
-                  className={`text-3xl font-bold ${
+                  className={`text-xl sm:text-3xl font-bold break-all tabular-nums ${
                     financeData.total.balance >= 0 ? "text-green-600" : "text-red-600"
                   }`}
                 >
@@ -796,7 +800,7 @@ export function Analytics() {
                 <Heart className="size-5 text-rose-500" />
                 Check-in calendar
               </CardTitle>
-              <p className="text-sm text-gray-600 font-normal">
+              <p className="text-xs sm:text-sm text-gray-600 font-normal leading-relaxed">
                 Tracking starts from{" "}
                 <span className="font-medium text-gray-800">{trackingStartYmd}</span> (set the first time you open
                 Analytics). Green = full five-item check-in, red = missed past day, amber = today still in progress.
@@ -825,7 +829,7 @@ export function Analytics() {
 
               <div>
                 <p className="text-xs font-medium text-gray-500 mb-2">{checkinCalYM.y} — tap a month</p>
-                <div className="flex flex-wrap gap-1">
+                <div className="grid grid-cols-6 gap-1 sm:flex sm:flex-wrap sm:justify-start">
                   {monthNames.map((name, mi) => {
                     const s = monthStripStatus(checkinCalYM.y, mi, trackingStartYmd, todayYmd);
                     return (
@@ -870,15 +874,15 @@ export function Analytics() {
                 </Button>
               </div>
 
-              <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-gray-500">
+              <div className="grid grid-cols-7 gap-0.5 sm:gap-1 text-center text-[9px] sm:text-[11px] font-medium text-gray-500">
                 {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
-                  <div key={d} className="py-1">
+                  <div key={d} className="py-0.5 sm:py-1 truncate">
                     {d}
                   </div>
                 ))}
                 {checkinMonthCells.map((cell, idx) => {
                   if (cell.ymd == null || cell.dayNum == null) {
-                    return <div key={`pad-${idx}`} className="aspect-square" />;
+                    return <div key={`pad-${idx}`} className="aspect-square min-h-0" />;
                   }
                   const theme = dayCellTheme(cell.ymd, trackingStartYmd, todayYmd);
                   const selectable = cell.ymd >= trackingStartYmd && cell.ymd <= todayYmd;
@@ -888,7 +892,7 @@ export function Analytics() {
                       type="button"
                       disabled={!selectable}
                       onClick={() => selectable && setSelectedCheckinYmd(cell.ymd!)}
-                      className={`aspect-square rounded-md text-xs flex items-center justify-center transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${cellClass(
+                      className={`aspect-square min-h-[2rem] sm:min-h-0 rounded-md text-[10px] sm:text-xs flex items-center justify-center transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${cellClass(
                         theme,
                         cell.ymd === effectiveSelectedYmd
                       )}`}
