@@ -204,6 +204,17 @@ export function Dashboard() {
     };
   }, [locale, quoteTags]);
 
+  /** Auto-refresh dashboard quote every 5 minutes. */
+  useEffect(() => {
+    const ms = 5 * 60 * 1000;
+    const id = window.setInterval(() => {
+      void fetchQuoteFromNetwork(locale, quoteTags).then((q) => {
+        setQuote(q);
+      });
+    }, ms);
+    return () => clearInterval(id);
+  }, [locale, quoteTags]);
+
   function determineTimeOfDay() {
     const hour = new Date().getHours();
     let time: TimeOfDay;
@@ -409,7 +420,7 @@ export function Dashboard() {
         />
       ))}
 
-      <div className="relative z-10 p-6 md:p-8 space-y-6 max-w-7xl mx-auto">
+      <div className="relative z-10 px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 md:p-8 md:pb-8 space-y-6 max-w-7xl mx-auto w-full min-w-0">
         {/* Hero Section with Theme Toggle */}
         <motion.div
           initial={{ y: -50, opacity: 0 }}

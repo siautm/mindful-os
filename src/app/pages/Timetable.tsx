@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { Link } from "react-router";
 import Papa from "papaparse";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -7,8 +8,31 @@ import { Label } from "../components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
-import { Plus, Upload, Trash2, Download, Calendar as CalendarIcon, ListTodo, Grid3x3, Edit2 } from "lucide-react";
-import { getTimetable, saveTimetable, TimetableEntry, getTasks, getEvents, Task, EventEntry } from "../lib/storage";
+import {
+  Plus,
+  Upload,
+  Trash2,
+  Download,
+  Calendar as CalendarIcon,
+  ListTodo,
+  Grid3x3,
+  Edit2,
+  CheckSquare,
+  CalendarDays,
+  MapPin,
+} from "lucide-react";
+import {
+  getTimetable,
+  saveTimetable,
+  TimetableEntry,
+  getTasks,
+  getEvents,
+  Task,
+  EventEntry,
+  taskDueSortKey,
+  formatTaskDueDateTime,
+  resolveTaskCourseLabel,
+} from "../lib/storage";
 import { toast } from "sonner";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -63,6 +87,30 @@ export function Timetable() {
     setTasks(getTasks());
     setEvents(getEvents());
   }
+
+  const upcomingTasksBelow = useMemo(
+    () =>
+      tasks
+        .filter((t) => !t.completed)
+        .sort((a, b) => taskDueSortKey(a) - taskDueSortKey(b))
+        .slice(0, 12),
+    [tasks]
+  );
+
+  const upcomingEventsBelow = useMemo(() => {
+    const now = new Date();
+    return events
+      .filter((e) => {
+        const end = new Date(`${e.date}T${e.endTime}`);
+        return !Number.isNaN(end.getTime()) && end >= now;
+      })
+      .sort(
+        (a, b) =>
+          new Date(`${a.date}T${a.startTime}`).getTime() -
+          new Date(`${b.date}T${b.startTime}`).getTime()
+      )
+      .slice(0, 12);
+  }, [events]);
 
   function handleAddEntry() {
     if (!newEntry.courseName || !newEntry.startTime || !newEntry.endTime) {
@@ -280,14 +328,14 @@ export function Timetable() {
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 md:p-8 md:pb-8 space-y-6 w-full min-w-0 max-w-full">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold text-gray-900">Timetable</h1>
-          <p className="text-gray-600 mt-1">Manage your weekly schedule</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between min-w-0">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900">Timetable</h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">Manage your weekly schedule</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 shrink-0">
           <label htmlFor="csv-upload">
             <Button variant="outline" className="cursor-pointer">
               <Upload className="size-4 mr-2" />
@@ -436,18 +484,18 @@ export function Timetable() {
 
       {/* Timetable Tabs */}
       <Tabs defaultValue="grid" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 max-w-2xl">
-          <TabsTrigger value="grid">
-            <Grid3x3 className="size-4 mr-2" />
-            Grid View
+        <TabsList className="grid h-auto w-full grid-cols-1 gap-1.5 sm:grid-cols-3 sm:max-w-2xl">
+          <TabsTrigger value="grid" className="justify-center gap-2 text-xs sm:text-sm">
+            <Grid3x3 className="size-4 shrink-0" />
+            Grid view
           </TabsTrigger>
-          <TabsTrigger value="combined">
-            <CalendarIcon className="size-4 mr-2" />
-            Full Schedule
+          <TabsTrigger value="combined" className="justify-center gap-2 text-xs sm:text-sm">
+            <CalendarIcon className="size-4 shrink-0" />
+            Full schedule
           </TabsTrigger>
-          <TabsTrigger value="courses">
-            <ListTodo className="size-4 mr-2" />
-            Courses Only
+          <TabsTrigger value="courses" className="justify-center gap-2 text-xs sm:text-sm">
+            <ListTodo className="size-4 shrink-0" />
+            Courses only
           </TabsTrigger>
         </TabsList>
 
@@ -712,6 +760,103 @@ export function Timetable() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card className="border-emerald-200/80 bg-white/90">
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-2">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <CheckSquare className="size-5 text-emerald-600" />
+              Upcoming tasks
+            </CardTitle>
+            <Link
+              to="/tasks"
+              className="text-sm font-medium text-emerald-600 hover:text-emerald-800 hover:underline"
+            >
+              View all →
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {upcomingTasksBelow.length === 0 ? (
+              <p className="text-sm text-gray-500 py-4 text-center">
+                No open tasks. Add some in Tasks.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {upcomingTasksBelow.map((task) => {
+                  const course = resolveTaskCourseLabel(task, entries);
+                  return (
+                    <li
+                      key={task.id}
+                      className="rounded-lg border border-gray-100 bg-gray-50/80 px-3 py-2.5 text-sm"
+                    >
+                      <p className="font-medium text-gray-900">{task.title}</p>
+                      <p className="text-xs text-gray-600 mt-0.5">
+                        {formatTaskDueDateTime(task)}
+                        {course ? ` · ${course}` : ""}
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-teal-200/80 bg-white/90">
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-2">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <CalendarDays className="size-5 text-teal-600" />
+              Upcoming events
+            </CardTitle>
+            <Link
+              to="/events"
+              className="text-sm font-medium text-teal-600 hover:text-teal-800 hover:underline"
+            >
+              View all →
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {upcomingEventsBelow.length === 0 ? (
+              <p className="text-sm text-gray-500 py-4 text-center">
+                No upcoming events. Add some in Events.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {upcomingEventsBelow.map((event) => {
+                  const d = new Date(event.date);
+                  const dateStr = d.toLocaleDateString("en-US", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                  });
+                  return (
+                    <li
+                      key={event.id}
+                      className="rounded-lg border border-gray-100 bg-gray-50/80 px-3 py-2.5 text-sm"
+                    >
+                      <p className="font-medium text-gray-900">{event.title}</p>
+                      <p className="text-xs text-gray-600 mt-0.5 flex flex-wrap items-center gap-x-2">
+                        <span>
+                          {dateStr} · {event.startTime}–{event.endTime}
+                        </span>
+                        {event.location && (
+                          <span className="inline-flex items-center gap-0.5">
+                            <MapPin className="size-3 shrink-0" />
+                            {event.location}
+                          </span>
+                        )}
+                      </p>
+                      {event.category && (
+                        <p className="text-[11px] text-purple-700 mt-1">{event.category}</p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {editingEntry && (
         <Dialog open={!!editingEntry} onOpenChange={() => setEditingEntry(null)}>

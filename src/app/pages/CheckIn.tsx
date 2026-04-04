@@ -380,18 +380,18 @@ export function CheckIn() {
   const completedCount = Object.values(checklistStatus).filter(status => status === true).length;
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 md:p-8 md:pb-8 space-y-6 w-full min-w-0 max-w-full">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold text-gray-900">Daily Check-In</h1>
-          <p className="text-gray-600 mt-1">Complete your daily wellness checklist</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between min-w-0">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900">Daily Check-In</h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">Complete your daily wellness checklist</p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="text-center">
+        <div className="flex items-center gap-4 shrink-0 self-start sm:self-auto">
+          <div className="text-center rounded-xl border border-orange-200 bg-orange-50/80 px-4 py-2">
             <div className="flex items-center gap-2 justify-center mb-1">
               <Flame className="size-6 text-orange-500" />
-              <span className="text-3xl font-bold text-orange-600">{streak}</span>
+              <span className="text-2xl sm:text-3xl font-bold text-orange-600">{streak}</span>
             </div>
             <p className="text-xs text-gray-600">Day Streak</p>
           </div>

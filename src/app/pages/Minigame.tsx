@@ -33,15 +33,15 @@ export function Minigame() {
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 md:p-8 md:pb-8 space-y-6 w-full min-w-0 max-w-full">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold text-gray-900">Brain Break 🧠</h1>
-          <p className="text-gray-600 mt-1">Quick games to refresh your mind</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between min-w-0">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900">Brain Break 🧠</h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">Quick games to refresh your mind</p>
         </div>
         {gameMode !== "menu" && (
-          <Button onClick={() => setGameMode("menu")} variant="outline">
+          <Button onClick={() => setGameMode("menu")} variant="outline" className="w-full sm:w-auto shrink-0">
             Back to Menu
           </Button>
         )}

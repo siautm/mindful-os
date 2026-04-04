@@ -141,21 +141,21 @@ export function Events() {
   ).length;
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 md:p-8 md:pb-8 space-y-6 w-full min-w-0 max-w-full">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold text-gray-900">Events</h1>
-          <p className="text-gray-600 mt-1">Manage your schedule and activities</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between min-w-0">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900">Events</h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">Manage your schedule and activities</p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button size="lg">
+            <Button size="lg" className="w-full sm:w-auto shrink-0">
               <Plus className="size-5 mr-2" />
               New Event
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl w-[min(100vw-1.5rem,42rem)] max-h-[min(90dvh,720px)] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add New Event</DialogTitle>
             </DialogHeader>

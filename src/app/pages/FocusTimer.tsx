@@ -290,7 +290,7 @@ export function FocusTimer() {
   const timeLeftLabel = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 md:p-8 md:pb-8 space-y-6 w-full min-w-0 max-w-full">
       <FocusImmersiveOverlay
         open={immersiveOpen && isRunning}
         onClose={() => setImmersiveOpen(false)}
@@ -301,9 +301,9 @@ export function FocusTimer() {
       />
 
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-semibold text-gray-900">Focus Timer</h1>
-        <p className="text-gray-600 mt-1">
+      <div className="min-w-0">
+        <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900">Focus Timer</h1>
+        <p className="text-gray-600 mt-1 text-sm sm:text-base">
           Stay focused with time-boxed work sessions
         </p>
       </div>
@@ -353,7 +353,7 @@ export function FocusTimer() {
         <CardContent className="space-y-6">
           {/* Timer Display */}
           <div className="text-center py-8">
-            <div className="text-7xl font-bold text-purple-600 mb-4 tabular-nums">
+            <div className="text-5xl sm:text-6xl md:text-7xl font-bold text-purple-600 mb-4 tabular-nums">
               {String(minutes).padStart(2, "0")}:
               {String(seconds).padStart(2, "0")}
             </div>
