@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
@@ -32,7 +32,7 @@ import {
   getFinanceSummary,
   getTimetable,
   getEvents,
-  getTodayCheckIn,
+  hasCompletedTodayWellnessChecklist,
   getCheckInStreak,
   Task,
   EventEntry,
@@ -102,6 +102,7 @@ const timeThemes: Record<TimeOfDay, TimeTheme> = {
 };
 
 export function Dashboard() {
+  const location = useLocation();
   const { theme, toggleTheme } = useTheme();
   const { locale, setLocale, quoteTags, toggleQuoteTag } = useQuoteLocale();
   const [showLoading, setShowLoading] = useState(true);
@@ -215,6 +216,22 @@ export function Dashboard() {
     return () => clearInterval(id);
   }, [locale, quoteTags]);
 
+  useEffect(() => {
+    setHasCheckedIn(hasCompletedTodayWellnessChecklist());
+    setCheckInStreak(getCheckInStreak());
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible") {
+        setHasCheckedIn(hasCompletedTodayWellnessChecklist());
+        setCheckInStreak(getCheckInStreak());
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+
   function determineTimeOfDay() {
     const hour = new Date().getHours();
     let time: TimeOfDay;
@@ -259,7 +276,7 @@ export function Dashboard() {
   }
 
   function loadCheckInStatus() {
-    setHasCheckedIn(getTodayCheckIn() !== null);
+    setHasCheckedIn(hasCompletedTodayWellnessChecklist());
     setCheckInStreak(getCheckInStreak());
   }
 

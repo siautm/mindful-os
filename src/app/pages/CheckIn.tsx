@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate, useLocation } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -24,15 +25,14 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { 
-  getCheckIns, 
+import {
+  getCheckIns,
   saveCheckIns,
   getCheckInStreak,
   CheckInEntry,
   getExerciseEntries,
   saveExerciseEntries,
   ExerciseEntry,
-  getTodayFinanceEntries,
   getSleepEntries,
   saveSleepEntries,
   SleepEntry,
@@ -42,15 +42,18 @@ import {
   getWeightEntries,
   saveWeightEntries,
   WeightEntry,
-  getLatestWeightEntry,
+  getWellnessChecklistStatusForDate,
 } from "../lib/storage";
 import { toast } from "sonner";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { getWhiteNoisePlayer, NoiseType, noiseCategories } from "../lib/whiteNoise";
 
 export function CheckIn() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [streak, setStreak] = useState(0);
   const [pastCheckIns, setPastCheckIns] = useState<CheckInEntry[]>([]);
+  const [streakJustAdded, setStreakJustAdded] = useState(false);
   
   // Checklist status
   const [checklistStatus, setChecklistStatus] = useState({
@@ -74,8 +77,6 @@ export function CheckIn() {
   const [sleepDialogOpen, setSleepDialogOpen] = useState(false);
   const [sleepForm, setSleepForm] = useState({
     bedTime: "",
-    wakeTime: "",
-    quality: 3,
     notes: "",
   });
 
@@ -104,9 +105,33 @@ export function CheckIn() {
   const [optionalNotes, setOptionalNotes] = useState("");
   const [notesExpanded, setNotesExpanded] = useState(false);
 
+  const syncChecklistFromStorage = useCallback(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    setChecklistStatus(getWellnessChecklistStatusForDate(today));
+  }, []);
+
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible") {
+        syncChecklistFromStorage();
+        setStreak(getCheckInStreak());
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [syncChecklistFromStorage]);
+
+  useEffect(() => {
+    if (location.pathname === "/checkin") {
+      syncChecklistFromStorage();
+      setStreak(getCheckInStreak());
+    }
+  }, [location.pathname, syncChecklistFromStorage]);
 
   useEffect(() => {
     if (meditationTimerRunning) {
@@ -142,55 +167,30 @@ export function CheckIn() {
 
   function loadData() {
     setStreak(getCheckInStreak());
-    
-    // Load past check-ins (last 7 days)
+
     const all = getCheckIns();
-    const sorted = [...all].sort((a, b) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
+    const sorted = [...all].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
     setPastCheckIns(sorted.slice(0, 7));
-    
-    // Check today's completion status
-    checkTodayStatus();
+
+    syncChecklistFromStorage();
   }
 
-  function checkTodayStatus() {
-    const today = new Date().toDateString();
-    
-    // Check exercise (at least 1)
-    const exerciseEntries = getExerciseEntries();
-    const todayExercise = exerciseEntries.filter(e => 
-      new Date(e.date).toDateString() === today
-    );
-    
-    // Check finance entries
-    const todayFinance = getTodayFinanceEntries();
-    
-    // Check sleep
-    const sleepEntries = getSleepEntries();
-    const todaySleep = sleepEntries.filter(e => 
-      new Date(e.date).toDateString() === today
-    );
-    
-    // Check meditation (at least 30 seconds)
-    const meditationEntries = getMeditationEntries();
-    const todayMeditation = meditationEntries.filter(e => 
-      new Date(e.date).toDateString() === today && e.duration >= 0.5
-    );
-    
-    // Check weight
-    const weightEntries = getWeightEntries();
-    const todayWeight = weightEntries.filter(e => 
-      new Date(e.date).toDateString() === today
-    );
-    
-    setChecklistStatus({
-      exercise: todayExercise.length > 0,
-      finance: todayFinance.length > 0,
-      sleep: todaySleep.length > 0,
-      meditation: todayMeditation.length > 0,
-      weight: todayWeight.length > 0,
-    });
+  /** Call after mutating checklist-related storage; optionally play streak +1 animation. */
+  function afterWellnessLogSaved() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const before = checklistStatus;
+    const beforeAll = Object.values(before).every(Boolean);
+    const after = getWellnessChecklistStatusForDate(today);
+    const afterAll = Object.values(after).every(Boolean);
+    setChecklistStatus(after);
+    setStreak(getCheckInStreak());
+    if (afterAll && !beforeAll) {
+      setStreakJustAdded(true);
+      window.setTimeout(() => setStreakJustAdded(false), 2800);
+    }
   }
 
   function handleExerciseLog() {
@@ -213,45 +213,28 @@ export function CheckIn() {
     toast.success("Exercise logged! 💪");
     setExerciseDialogOpen(false);
     setExerciseForm({ type: "cardio", duration: 30, intensity: "moderate", notes: "" });
-    checkTodayStatus();
-    updateCheckInStreak();
+    afterWellnessLogSaved();
   }
 
   function handleSleepLog() {
-    if (!sleepForm.bedTime || !sleepForm.wakeTime) {
-      toast.error("Please enter both bed time and wake time");
+    if (!sleepForm.bedTime) {
+      toast.error("Please enter bed time");
       return;
     }
-
-    // Calculate duration
-    const bedTime = new Date(`2000-01-01 ${sleepForm.bedTime}`);
-    let wakeTime = new Date(`2000-01-01 ${sleepForm.wakeTime}`);
-    
-    // If wake time is before bed time, assume next day
-    if (wakeTime < bedTime) {
-      wakeTime = new Date(`2000-01-02 ${sleepForm.wakeTime}`);
-    }
-    
-    const durationMs = wakeTime.getTime() - bedTime.getTime();
-    const durationHours = durationMs / (1000 * 60 * 60);
 
     const sleeps = getSleepEntries();
     const newSleep: SleepEntry = {
       id: Date.now().toString(),
       date: new Date().toISOString(),
       bedTime: sleepForm.bedTime,
-      wakeTime: sleepForm.wakeTime,
-      duration: Math.round(durationHours * 10) / 10,
-      quality: sleepForm.quality,
       notes: sleepForm.notes,
     };
 
     saveSleepEntries([...sleeps, newSleep]);
     toast.success("Sleep logged! 😴");
     setSleepDialogOpen(false);
-    setSleepForm({ bedTime: "", wakeTime: "", quality: 3, notes: "" });
-    checkTodayStatus();
-    updateCheckInStreak();
+    setSleepForm({ bedTime: "", notes: "" });
+    afterWellnessLogSaved();
   }
 
   function startMeditationTimer() {
@@ -288,8 +271,7 @@ export function CheckIn() {
     resetMeditationTimer();
     setMeditationNotes("");
     meditationNoisePlayer.stop(); // Stop white noise
-    checkTodayStatus();
-    updateCheckInStreak();
+    afterWellnessLogSaved();
   }
 
   function handleWeightLog() {
@@ -311,8 +293,7 @@ export function CheckIn() {
     toast.success("Weight logged! ⚖️");
     setWeightDialogOpen(false);
     setWeightForm({ weight: 0, unit: "kg", notes: "" });
-    checkTodayStatus();
-    updateCheckInStreak();
+    afterWellnessLogSaved();
   }
 
   function handleOptionalNotesSave() {
@@ -356,20 +337,6 @@ export function CheckIn() {
     loadData();
   }
 
-  function updateCheckInStreak() {
-    // Check if all checklist items are completed
-    const allCompleted = Object.values({
-      ...checklistStatus,
-      // We need to check the updated status, so we call checkTodayStatus
-      // But for simplicity, we'll update the streak when all are done
-    }).every(status => status === true);
-    
-    if (allCompleted) {
-      // Streak is already calculated in getCheckInStreak based on daily completions
-      loadData();
-    }
-  }
-
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -388,10 +355,32 @@ export function CheckIn() {
           <p className="text-gray-600 mt-1 text-sm sm:text-base">Complete your daily wellness checklist</p>
         </div>
         <div className="flex items-center gap-4 shrink-0 self-start sm:self-auto">
-          <div className="text-center rounded-xl border border-orange-200 bg-orange-50/80 px-4 py-2">
+          <div className="relative text-center rounded-xl border border-orange-200 bg-orange-50/80 px-4 py-2 pt-5">
+            <AnimatePresence>
+              {streakJustAdded && (
+                <motion.div
+                  className="absolute -top-1 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-orange-500 px-3 py-1 text-xs font-bold text-white shadow-md"
+                  initial={{ opacity: 0, y: 8, scale: 0.85 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ type: "spring", stiffness: 420, damping: 24 }}
+                >
+                  +1 day streak!
+                </motion.div>
+              )}
+            </AnimatePresence>
             <div className="flex items-center gap-2 justify-center mb-1">
               <Flame className="size-6 text-orange-500" />
-              <span className="text-2xl sm:text-3xl font-bold text-orange-600">{streak}</span>
+              <motion.span
+                key={streak}
+                className="text-2xl sm:text-3xl font-bold text-orange-600 tabular-nums"
+                animate={
+                  streakJustAdded ? { scale: [1, 1.28, 1] } : { scale: 1 }
+                }
+                transition={{ duration: 0.55, ease: "easeOut" }}
+              >
+                {streak}
+              </motion.span>
             </div>
             <p className="text-xs text-gray-600">Day Streak</p>
           </div>
@@ -531,7 +520,7 @@ export function CheckIn() {
               <Button 
                 size="sm" 
                 className={checklistStatus.finance ? "bg-green-600 hover:bg-green-700" : "bg-emerald-600 hover:bg-emerald-700"}
-                onClick={() => window.location.href = '/finance'}
+                onClick={() => navigate("/finance")}
               >
                 <DollarSign className="size-4 mr-2" />
                 {checklistStatus.finance ? "Add More" : "Go to Finance"}
@@ -580,32 +569,6 @@ export function CheckIn() {
                         value={sleepForm.bedTime}
                         onChange={(e) => setSleepForm({ ...sleepForm, bedTime: e.target.value })}
                       />
-                    </div>
-                    <div>
-                      <Label>Wake Time</Label>
-                      <Input
-                        type="time"
-                        value={sleepForm.wakeTime}
-                        onChange={(e) => setSleepForm({ ...sleepForm, wakeTime: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label>Sleep Quality: {sleepForm.quality}/5</Label>
-                      <div className="flex gap-2 mt-2">
-                        {[1, 2, 3, 4, 5].map((level) => (
-                          <button
-                            key={level}
-                            onClick={() => setSleepForm({ ...sleepForm, quality: level })}
-                            className={`flex-1 h-10 rounded-lg border-2 font-bold transition-all ${
-                              sleepForm.quality >= level
-                                ? "bg-gradient-to-r from-indigo-400 to-purple-400 border-indigo-500 text-white"
-                                : "bg-white border-gray-200 text-gray-400"
-                            }`}
-                          >
-                            {level}
-                          </button>
-                        ))}
-                      </div>
                     </div>
                     <div>
                       <Label>Notes (optional)</Label>

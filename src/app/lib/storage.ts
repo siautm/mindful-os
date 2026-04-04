@@ -116,9 +116,12 @@ export interface SleepEntry {
   id: string;
   date: string; // date of waking up
   bedTime: string; // HH:MM
-  wakeTime: string; // HH:MM
-  duration: number; // hours (calculated)
-  quality: number; // 1-5 rating
+  /** Optional; omitted when user only logs bed time. */
+  wakeTime?: string;
+  /** Hours asleep; set when wake time was logged. */
+  duration?: number;
+  /** Optional 1–5; omitted when not rated. */
+  quality?: number;
   notes: string;
 }
 
@@ -556,31 +559,80 @@ export function getTodayCheckIn(): CheckInEntry | null {
   return checkIns.find(c => new Date(c.date).toDateString() === today) || null;
 }
 
-export function getCheckInStreak(): number {
-  const checkIns = getCheckIns();
-  if (checkIns.length === 0) return 0;
+/** Daily wellness checklist: same rules as the Check-In page. */
+export interface WellnessChecklistDayStatus {
+  exercise: boolean;
+  finance: boolean;
+  sleep: boolean;
+  meditation: boolean;
+  weight: boolean;
+}
 
-  // Sort by date descending
-  const sorted = [...checkIns].sort((a, b) => 
-    new Date(b.date).getTime() - new Date(a.date).getTime()
+function financeEntryOnCalendarDay(entry: FinanceEntry, day: Date): boolean {
+  const dayStr = day.toDateString();
+  const parts = entry.date.trim().split("-");
+  if (parts.length === 3) {
+    const y = Number(parts[0]);
+    const m = Number(parts[1]) - 1;
+    const d = Number(parts[2]);
+    if (Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)) {
+      return new Date(y, m, d).toDateString() === dayStr;
+    }
+  }
+  return new Date(entry.date).toDateString() === dayStr;
+}
+
+/** Snapshot of the five checklist items for a given calendar day (local). */
+export function getWellnessChecklistStatusForDate(day: Date): WellnessChecklistDayStatus {
+  const dayStr = day.toDateString();
+
+  const exerciseEntries = getExerciseEntries();
+  const exercise = exerciseEntries.some((e) => new Date(e.date).toDateString() === dayStr);
+
+  const finance = getFinanceEntries().some((e) => financeEntryOnCalendarDay(e, day));
+
+  const sleepEntries = getSleepEntries();
+  const sleep = sleepEntries.some((e) => new Date(e.date).toDateString() === dayStr);
+
+  const meditationEntries = getMeditationEntries();
+  const meditation = meditationEntries.some(
+    (e) => new Date(e.date).toDateString() === dayStr && e.duration >= 0.5
   );
 
-  let streak = 0;
+  const weightEntries = getWeightEntries();
+  const weight = weightEntries.some((e) => new Date(e.date).toDateString() === dayStr);
+
+  return { exercise, finance, sleep, meditation, weight };
+}
+
+export function isWellnessChecklistCompleteForDate(day: Date): boolean {
+  const s = getWellnessChecklistStatusForDate(day);
+  return s.exercise && s.finance && s.sleep && s.meditation && s.weight;
+}
+
+/** True when today's five wellness items are all done (independent of journal check-ins). */
+export function hasCompletedTodayWellnessChecklist(): boolean {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  return isWellnessChecklistCompleteForDate(today);
+}
 
-  for (let i = 0; i < sorted.length; i++) {
-    const checkInDate = new Date(sorted[i].date);
-    checkInDate.setHours(0, 0, 0, 0);
+/**
+ * Consecutive days with a full wellness checklist, same UX as typical habit apps:
+ * if today is not done yet, the streak still reflects yesterday and prior completed days.
+ */
+export function getCheckInStreak(): number {
+  let streak = 0;
+  const cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
 
-    const expectedDate = new Date(today);
-    expectedDate.setDate(expectedDate.getDate() - i);
+  if (!isWellnessChecklistCompleteForDate(new Date(cursor))) {
+    cursor.setDate(cursor.getDate() - 1);
+  }
 
-    if (checkInDate.getTime() === expectedDate.getTime()) {
-      streak++;
-    } else {
-      break;
-    }
+  while (isWellnessChecklistCompleteForDate(new Date(cursor))) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
   }
 
   return streak;
