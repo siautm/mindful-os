@@ -1,37 +1,33 @@
 import type { NoiseType } from "./whiteNoise";
 
 /**
- * Mixkit stock video clip IDs → fullscreen loop in focus view.
- * License: https://mixkit.co/license/#videoFree (free for commercial & personal use).
- * Stream URL pattern documented by Mixkit player: /videos/{id}/{id}-720.mp4
+ * Local looping videos in `public/live-wallpaper/` (served at `/live-wallpaper/…`).
+ * Each ambient sound maps to a clip from your bundled library.
  */
-export const FOCUS_WALLPAPER_MIXKIT_ID: Record<NoiseType, number | null> = {
+function wallpaperUrl(file: string): string {
+  const base = import.meta.env.BASE_URL;
+  return `${base}live-wallpaper/${file}`;
+}
+
+export const FOCUS_WALLPAPER_VIDEO: Record<NoiseType, string | null> = {
   none: null,
-  white: 106, // water ripples — abstract, neutral
-  pink: 1751, // rain in fountain — soft motion
-  brown: 570, // water among rocks — deep, warm tones
-  rain: 2846, // rain on window
-  thunderstorm: 4422, // night storm sky
-  ocean: 1164, // gentle waves
-  waterfall: 2213, // forest waterfall
-  forest: 6890, // tropical forest rain
-  cafe: 4809, // office / collaborative space (café chatter vibe)
-  library: 3148, // calm abstract loop (ID verified 200; swap via PR if you prefer another clip)
-  fireplace: 5101, // warm fire / embers-style loop (Mixkit ID)
-  crickets: 3149, // night / low-light loop
-  train: 3152, // urban motion / travel feel
-  wind: 118, // cloudy sky time-lapse
+  white: wallpaperUrl("field-grass-in-the-wind.1920x1080.mp4"),
+  pink: wallpaperUrl("yellow-water-lilies.3840x2160.mp4"),
+  brown: wallpaperUrl("blurred-sunset-while-raining.3840x2160.mp4"),
+  rain: wallpaperUrl("rainy-pine-forest.1920x1080.mp4"),
+  thunderstorm: wallpaperUrl("mountain-rain-landscape.3840x2160.mp4"),
+  ocean: wallpaperUrl("wave-symphony.1920x1080.mp4"),
+  waterfall: wallpaperUrl("river-flowing.3840x2160.mp4"),
+  forest: wallpaperUrl("rainy-forest.3840x2160.mp4"),
+  cafe: wallpaperUrl("minecraft-sunset-farm.3840x2160.mp4"),
+  library: wallpaperUrl("nature-in-minecraft.3840x2160.mp4"),
+  fireplace: wallpaperUrl("minecraft-snowy-campfire.3840x2160.mp4"),
+  crickets: wallpaperUrl("minecraft-northern-light.3840x2160.mp4"),
+  train: wallpaperUrl("abandoned-railway-station.1920x1080.mp4"),
+  wind: wallpaperUrl("field-grass-in-the-wind.1920x1080.mp4"),
 };
 
-export function mixkitVideoUrl(id: number): string {
-  return `https://assets.mixkit.co/videos/${id}/${id}-720.mp4`;
-}
-
-export function mixkitPosterUrl(id: number): string {
-  return `https://assets.mixkit.co/videos/${id}/${id}-thumb-720-0.jpg`;
-}
-
-/** CSS-only fallback if video fails to load (network/CORS) — not the old “aurora” orbs. */
+/** CSS-only fallback if video fails to load. */
 export const FOCUS_WALLPAPER_FALLBACK: Record<
   NoiseType,
   { base: string; a: string; b: string; speed: number }

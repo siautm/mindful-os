@@ -1,38 +1,33 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import type { NoiseType } from "../lib/whiteNoise";
-import {
-  FOCUS_WALLPAPER_FALLBACK,
-  FOCUS_WALLPAPER_MIXKIT_ID,
-  mixkitPosterUrl,
-  mixkitVideoUrl,
-} from "../lib/focusWallpapers";
+import { FOCUS_WALLPAPER_FALLBACK, FOCUS_WALLPAPER_VIDEO } from "../lib/focusWallpapers";
 
 interface FocusLiveWallpaperProps {
   noiseType: NoiseType;
 }
 
 /**
- * Fullscreen looping video matched to the selected ambient sound; soft vignette for timer readability.
- * Falls back to a simple dual-orb gradient if the stream fails.
+ * Fullscreen looping video from `public/live-wallpaper/`; soft vignette for timer readability.
+ * Falls back to a simple dual-orb gradient if playback fails.
  */
 export function FocusLiveWallpaper({ noiseType }: FocusLiveWallpaperProps) {
-  const mixkitId = FOCUS_WALLPAPER_MIXKIT_ID[noiseType];
+  const videoSrc = FOCUS_WALLPAPER_VIDEO[noiseType];
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoFailed, setVideoFailed] = useState(false);
 
   useEffect(() => {
     setVideoFailed(false);
-  }, [noiseType, mixkitId]);
+  }, [noiseType, videoSrc]);
 
   useEffect(() => {
     const el = videoRef.current;
-    if (!el || mixkitId == null || videoFailed) return;
+    if (!el || videoSrc == null || videoFailed) return;
     el.muted = true;
     void el.play().catch(() => setVideoFailed(true));
-  }, [mixkitId, noiseType, videoFailed]);
+  }, [videoSrc, noiseType, videoFailed]);
 
-  const showVideo = mixkitId != null && !videoFailed;
+  const showVideo = videoSrc != null && !videoFailed;
   const fb = FOCUS_WALLPAPER_FALLBACK[noiseType];
 
   return (
@@ -40,11 +35,10 @@ export function FocusLiveWallpaper({ noiseType }: FocusLiveWallpaperProps) {
       {showVideo && (
         <video
           ref={videoRef}
-          key={`${mixkitId}-${noiseType}`}
+          key={`${videoSrc}-${noiseType}`}
           className="absolute inset-0 h-full w-full object-cover"
           style={{ transform: "scale(1.06)" }}
-          src={mixkitVideoUrl(mixkitId)}
-          poster={mixkitPosterUrl(mixkitId)}
+          src={videoSrc}
           muted
           playsInline
           loop
