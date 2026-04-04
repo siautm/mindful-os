@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -49,7 +49,11 @@ import { motion } from "motion/react";
 import { LoadingQuoteScreen } from "../components/LoadingQuoteScreen";
 import { useTheme } from "../contexts/ThemeContext";
 import { useQuoteLocale } from "../contexts/QuoteLocaleContext";
-import { fetchRandomQuote } from "../lib/quotesApi";
+import {
+  fetchQuoteFromNetwork,
+  getInstantQuote,
+  scheduleIdleQuotePrefetch,
+} from "../lib/quotesApi";
 
 type TimeOfDay = "morning" | "afternoon" | "evening";
 
@@ -106,7 +110,21 @@ export function Dashboard() {
   const [favoriteQuotes, setFavoriteQuotes] = useState<QuoteEntry[]>([]);
   const [hasCheckedIn, setHasCheckedIn] = useState(false);
   const [checkInStreak, setCheckInStreak] = useState(0);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const cursorGlowRef = useRef<HTMLDivElement>(null);
+
+  const particleConfigs = useMemo(
+    () =>
+      Array.from({ length: 15 }, (_, i) => ({
+        id: i,
+        w: Math.random() * 6 + 3,
+        h: Math.random() * 6 + 3,
+        left: Math.random() * 100,
+        top: Math.random() * 100,
+        duration: Math.random() * 4 + 3,
+        delay: Math.random() * 2,
+      })),
+    []
+  );
 
   // Stats
   const [stats, setStats] = useState({
@@ -140,13 +158,24 @@ export function Dashboard() {
 
     determineTimeOfDay();
     loadAllData();
+    scheduleIdleQuotePrefetch();
+  }, []);
 
-    // Mouse move effect
-    const handleMouseMove = (e: MouseEvent) => {
-      setMousePosition({ x: e.clientX, y: e.clientY });
+  useEffect(() => {
+    const el = cursorGlowRef.current;
+    if (!el) return;
+    let raf = 0;
+    const onMove = (e: PointerEvent) => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        el.style.transform = `translate3d(${e.clientX - 192}px, ${e.clientY - 192}px, 0)`;
+      });
     };
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
+    window.addEventListener("pointermove", onMove, { passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("pointermove", onMove);
+    };
   }, []);
 
   useEffect(() => {
@@ -154,16 +183,15 @@ export function Dashboard() {
   }, [quote]);
 
   useEffect(() => {
+    const favorites = getFavoriteQuotes();
+    const instant = getInstantQuote(locale, favorites);
+    setQuote(instant);
+    setQuoteLoading(false);
+
     let cancelled = false;
-    async function load() {
-      setQuoteLoading(true);
-      const q = await fetchRandomQuote(locale);
-      if (!cancelled) {
-        setQuote(q);
-        setQuoteLoading(false);
-      }
-    }
-    void load();
+    void fetchQuoteFromNetwork(locale).then((q) => {
+      if (!cancelled) setQuote(q);
+    });
     return () => {
       cancelled = true;
     };
@@ -293,7 +321,7 @@ export function Dashboard() {
 
   async function refreshQuote() {
     setQuoteLoading(true);
-    const q = await fetchRandomQuote(locale);
+    const q = await fetchQuoteFromNetwork(locale);
     setQuote(q);
     setQuoteLoading(false);
   }
@@ -341,35 +369,33 @@ export function Dashboard() {
         ? "bg-gray-900" 
         : "bg-gradient-to-br from-gray-50 to-gray-100"
     }`}>
-      {/* Cursor Glow Effect */}
       <div
-        className="pointer-events-none fixed size-96 rounded-full opacity-20 blur-3xl transition-all duration-300"
+        ref={cursorGlowRef}
+        className="pointer-events-none fixed left-0 top-0 size-96 rounded-full opacity-20 blur-3xl will-change-transform"
         style={{
           background: currentTheme.glowColor,
-          left: mousePosition.x - 192,
-          top: mousePosition.y - 192,
+          transform: "translate3d(-9999px, -9999px, 0)",
         }}
       />
 
-      {/* Floating Particles */}
-      {Array.from({ length: 15 }, (_, i) => (
+      {particleConfigs.map((p) => (
         <motion.div
-          key={i}
+          key={p.id}
           className={`absolute rounded-full ${theme === "dark" ? "bg-white/10" : "bg-black/5"}`}
           style={{
-            width: Math.random() * 6 + 3,
-            height: Math.random() * 6 + 3,
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
+            width: p.w,
+            height: p.h,
+            left: `${p.left}%`,
+            top: `${p.top}%`,
           }}
           animate={{
             y: [0, -40, 0],
             opacity: [0.1, 0.3, 0.1],
           }}
           transition={{
-            duration: Math.random() * 4 + 3,
+            duration: p.duration,
             repeat: Infinity,
-            delay: Math.random() * 2,
+            delay: p.delay,
           }}
         />
       ))}

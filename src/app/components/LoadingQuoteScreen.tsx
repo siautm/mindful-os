@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Sparkles } from "lucide-react";
-import { fetchRandomQuote, type FetchedQuote } from "../lib/quotesApi";
+import { fetchQuoteFromNetwork, getInstantQuote, type FetchedQuote } from "../lib/quotesApi";
 import { useQuoteLocale } from "../contexts/QuoteLocaleContext";
+import { getFavoriteQuotes } from "../lib/storage";
 
 interface LoadingQuoteScreenProps {
   onComplete: () => void;
@@ -10,15 +11,17 @@ interface LoadingQuoteScreenProps {
 
 export function LoadingQuoteScreen({ onComplete }: LoadingQuoteScreenProps) {
   const { locale, setLocale } = useQuoteLocale();
-  const [quote, setQuote] = useState<FetchedQuote | null>(null);
+  const [quote, setQuote] = useState<FetchedQuote | null>(() =>
+    getInstantQuote(locale, getFavoriteQuotes())
+  );
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
+    setQuote(getInstantQuote(locale, getFavoriteQuotes()));
     let cancelled = false;
-    void (async () => {
-      const q = await fetchRandomQuote(locale);
+    void fetchQuoteFromNetwork(locale).then((q) => {
       if (!cancelled) setQuote(q);
-    })();
+    });
     return () => {
       cancelled = true;
     };

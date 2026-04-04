@@ -3,7 +3,13 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabaseClient";
 
 const SESSION_STARTED_AT_KEY = "mindful_session_started_at";
-const SESSION_TTL_MS = 60 * 60 * 1000; // 1 hour
+/** Default 1 min for testing. Set VITE_SESSION_TTL_MS (ms), min 10000. */
+const SESSION_TTL_MS =
+  typeof import.meta.env.VITE_SESSION_TTL_MS === "string" &&
+  import.meta.env.VITE_SESSION_TTL_MS.trim() !== "" &&
+  Number.isFinite(Number(import.meta.env.VITE_SESSION_TTL_MS))
+    ? Math.max(10_000, Number(import.meta.env.VITE_SESSION_TTL_MS))
+    : 60 * 1000;
 
 function getSessionStartedAt(): number | null {
   const raw = localStorage.getItem(SESSION_STARTED_AT_KEY);
@@ -29,7 +35,6 @@ type AuthContextValue = {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  isSessionExpired: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
@@ -46,13 +51,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true;
     void supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
-      setSession(data.session ?? null);
-      // If a session exists but we don't have a start timestamp yet, start now.
-      if (data.session && !getSessionStartedAt()) {
-        const now = Date.now();
-        setSessionStartedAt(now);
-        setStartedAt(now);
+      if (data.session) {
+        let t0 = getSessionStartedAt();
+        if (!t0) {
+          t0 = Date.now();
+          setSessionStartedAt(t0);
+        }
+        setStartedAt(t0);
+        if (isExpired(Date.now(), t0)) {
+          void supabase.auth.signOut();
+          setSession(null);
+          setLoading(false);
+          return;
+        }
       }
+      setSession(data.session ?? null);
       setLoading(false);
     });
 
@@ -75,12 +88,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!session?.user || startedAt == null) return;
+    const logoutAt = startedAt + SESSION_TTL_MS;
+    const schedule = (): ReturnType<typeof setTimeout> | undefined => {
+      const delay = logoutAt - Date.now();
+      if (delay <= 0) {
+        void supabase.auth.signOut();
+        return undefined;
+      }
+      return window.setTimeout(() => void supabase.auth.signOut(), delay);
+    };
+    let timer = schedule();
+    const onVis = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() >= logoutAt) {
+        void supabase.auth.signOut();
+        return;
+      }
+      if (timer !== undefined) clearTimeout(timer);
+      timer = schedule();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      if (timer !== undefined) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [session?.user?.id, startedAt]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user: session?.user ?? null,
       session,
       loading,
-      isSessionExpired: isExpired(Date.now(), startedAt),
       signIn: async (email, password) => {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         return { error: error?.message ?? null };
@@ -93,7 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await supabase.auth.signOut();
       },
     }),
-    [session, loading, startedAt]
+    [session, loading]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -104,4 +144,3 @@ export function useAuth() {
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
-

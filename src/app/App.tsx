@@ -10,7 +10,7 @@ import { AuthScreen } from "./components/AuthScreen";
 import { LoadingQuoteScreen } from "./components/LoadingQuoteScreen";
 
 function AppInner() {
-  const { user, session, loading, isSessionExpired, signOut } = useAuth();
+  const { user, session, loading } = useAuth();
   const [ready, setReady] = useState(false);
   const [gateDone, setGateDone] = useState(false);
 
@@ -22,13 +22,6 @@ function AppInner() {
   useEffect(() => {
     if (loading) return;
 
-    if (isSessionExpired && user) {
-      setCloudAuth(null, null);
-      setReady(false);
-      void signOut();
-      return;
-    }
-
     if (!user || !session?.access_token) {
       setCloudAuth(null, null);
       setReady(false);
@@ -37,7 +30,7 @@ function AppInner() {
 
     setCloudAuth(user.id, session.access_token);
     void initializeCloudStorage().finally(() => setReady(true));
-  }, [loading, user, session, isSessionExpired, signOut]);
+  }, [loading, user, session]);
 
   if (!gateDone) {
     return <LoadingQuoteScreen onComplete={() => setGateDone(true)} />;
