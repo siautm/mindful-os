@@ -1,7 +1,21 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import type { QuoteLocale, QuoteSourceTag } from "../lib/quotesApi";
 import { QUOTE_SOURCE_TAGS } from "../lib/quotesApi";
-import { getQuoteLocale, getQuoteTags, saveQuoteLocale, saveQuoteTags } from "../lib/storage";
+import {
+  getQuoteLocale,
+  getQuoteTags,
+  saveQuoteLocale,
+  saveQuoteTags,
+  STORAGE_HYDRATED_EVENT,
+} from "../lib/storage";
 
 interface QuoteLocaleContextValue {
   locale: QuoteLocale;
@@ -17,6 +31,16 @@ const QuoteLocaleContext = createContext<QuoteLocaleContextValue | undefined>(un
 export function QuoteLocaleProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<QuoteLocale>(() => getQuoteLocale());
   const [quoteTags, setQuoteTagsState] = useState<QuoteSourceTag[]>(() => getQuoteTags());
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sync = () => {
+      setLocaleState(getQuoteLocale());
+      setQuoteTagsState(getQuoteTags());
+    };
+    window.addEventListener(STORAGE_HYDRATED_EVENT, sync);
+    return () => window.removeEventListener(STORAGE_HYDRATED_EVENT, sync);
+  }, []);
 
   const setLocale = useCallback((next: QuoteLocale) => {
     setLocaleState(next);

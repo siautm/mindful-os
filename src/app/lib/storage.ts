@@ -218,11 +218,19 @@ let lastCloudErrorAt = 0;
 let cloudUserId: string | null = null;
 let cloudToken: string | null = null;
 
+export const STORAGE_HYDRATED_EVENT = "mindful-storage-hydrated";
+
+function dispatchStorageHydrated(): void {
+  if (typeof window === "undefined") return;
+  queueMicrotask(() => window.dispatchEvent(new CustomEvent(STORAGE_HYDRATED_EVENT)));
+}
+
 export function setCloudAuth(userId: string | null, accessToken: string | null): void {
   cloudUserId = userId;
   cloudToken = accessToken;
   cloudState = {};
   isCloudStateInitialized = false;
+  dispatchStorageHydrated();
 }
 
 function showCloudError(message: string): void {
@@ -256,6 +264,7 @@ export async function initializeCloudStorage(): Promise<void> {
   if (!cloudUserId || !cloudToken) {
     showCloudError("Please sign in to load cloud data.");
     isCloudStateInitialized = true;
+    dispatchStorageHydrated();
     return;
   }
   try {
@@ -273,6 +282,7 @@ export async function initializeCloudStorage(): Promise<void> {
     showCloudError("Cloud DB is not ready. Please fix backend/Supabase setup.");
   } finally {
     isCloudStateInitialized = true;
+    dispatchStorageHydrated();
   }
 }
 
@@ -967,25 +977,49 @@ export function saveLoadingShownDate(date: string): void {
   setToStorage("mindful_loading_shown", date);
 }
 
+const QUOTE_LOCALE_KEY = "mindful_quote_locale";
+const QUOTE_TAGS_KEY = "mindful_quote_tags";
+
+/**
+ * localStorage first (always written on save) so refresh survives cloud lag/failed sync;
+ * then cloud when signed in.
+ */
 export function getQuoteLocale(): QuoteLocale {
-  const v = getFromStorage<string>("mindful_quote_locale", "en");
-  return v === "zh" ? "zh" : "en";
+  const local = readLocalFallback<string | null>(QUOTE_LOCALE_KEY, null);
+  if (local === "zh" || local === "en") return local === "zh" ? "zh" : "en";
+  if (isCloudReady()) {
+    const raw = cloudState[QUOTE_LOCALE_KEY];
+    if (raw !== undefined && raw !== null) {
+      const s = String(raw);
+      return s === "zh" ? "zh" : "en";
+    }
+  }
+  return "en";
 }
 
 export function saveQuoteLocale(locale: QuoteLocale): void {
-  setToStorage("mindful_quote_locale", locale);
+  writeLocalFallback(QUOTE_LOCALE_KEY, locale);
+  setToStorage(QUOTE_LOCALE_KEY, locale);
 }
 
-const QUOTE_TAGS_KEY = "mindful_quote_tags";
-
 export function getQuoteTags(): QuoteSourceTag[] {
-  const raw = getFromStorage<string[] | null>(QUOTE_TAGS_KEY, null);
-  if (!raw || !Array.isArray(raw)) return [...QUOTE_SOURCE_TAGS];
-  return normalizeQuoteTags(raw);
+  const local = readLocalFallback<unknown>(QUOTE_TAGS_KEY, null);
+  if (Array.isArray(local) && local.length > 0) {
+    return normalizeQuoteTags(local as string[]);
+  }
+  if (isCloudReady()) {
+    const raw = cloudState[QUOTE_TAGS_KEY];
+    if (raw !== undefined && raw !== null && Array.isArray(raw)) {
+      return normalizeQuoteTags(raw as string[]);
+    }
+  }
+  if (Array.isArray(local)) return normalizeQuoteTags(local as string[]);
+  return [...QUOTE_SOURCE_TAGS];
 }
 
 export function saveQuoteTags(tags: readonly QuoteSourceTag[]): void {
   const next = normalizeQuoteTags(tags);
+  writeLocalFallback(QUOTE_TAGS_KEY, next);
   setToStorage(QUOTE_TAGS_KEY, next);
 }
 
