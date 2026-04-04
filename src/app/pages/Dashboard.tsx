@@ -35,7 +35,6 @@ import {
   hasCompletedTodayWellnessChecklist,
   getCheckInStreak,
   Task,
-  EventEntry,
   TimetableEntry,
   QuoteEntry,
   getFavoriteQuotes,
@@ -46,6 +45,8 @@ import {
   saveLoadingShownDate,
   resolveTaskCourseLabel,
   formatTaskDueDateTime,
+  eventStartMs,
+  formatEventTimeRange,
 } from "../lib/storage";
 import { motion } from "motion/react";
 import { LoadingQuoteScreen } from "../components/LoadingQuoteScreen";
@@ -314,7 +315,7 @@ export function Dashboard() {
     const today = new Date().toDateString();
     const todayEvents = events
       .filter(e => new Date(e.date).toDateString() === today)
-      .sort((a, b) => a.startTime.localeCompare(b.startTime))
+      .sort((a, b) => eventStartMs(a) - eventStartMs(b))
       .slice(0, 2);
     
     todayEvents.forEach(event => {
@@ -322,7 +323,7 @@ export function Dashboard() {
         type: "event",
         title: event.title,
         subtitle: event.category,
-        time: `${event.startTime} - ${event.endTime}`,
+        time: formatEventTimeRange(event),
         color: "blue",
       });
     });

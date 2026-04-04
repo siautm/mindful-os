@@ -31,8 +31,11 @@ export interface Task {
   /** Optional due time same calendar day as `dueDate`, 24h `HH:mm` from time input. */
   dueTime?: string;
   completed: boolean;
-  estimatedMinutes: number;
+  /** @deprecated Optional; UI no longer collects this (defaults to 0). */
+  estimatedMinutes?: number;
   createdAt: string;
+  /** study | game | hobby | other */
+  category?: string;
   /** Optional link to a Timetable row (representative slot for this course). */
   linkedTimetableEntryId?: string;
   /** Denormalized label, e.g. "PSY101 — Intro"; kept if the timetable row is removed. */
@@ -46,6 +49,10 @@ export interface FocusSession {
   duration: number;
   completed: boolean;
   date: string;
+  studyPlanId?: string;
+  studyPartId?: string;
+  studyPlanName?: string;
+  studyPartTitle?: string;
 }
 
 export interface FinanceEntry {
@@ -96,8 +103,11 @@ export interface EventEntry {
   title: string;
   description: string;
   date: string;
-  startTime: string;
-  endTime: string;
+  /** Optional; omit or empty for all-day style events. */
+  startTime?: string;
+  endTime?: string;
+  /** Optional duration in minutes (informational). */
+  durationMinutes?: number;
   category: string;
   location?: string;
 }
@@ -167,6 +177,23 @@ export interface WeightEntry {
 export interface QuoteEntry {
   text: string;
   author: string;
+}
+
+export interface StudyPlanPart {
+  id: string;
+  title: string;
+  detail: string;
+  order: number;
+  completed: boolean;
+}
+
+export interface StudyPlan {
+  id: string;
+  name: string;
+  description: string;
+  durationHours: number;
+  parts: StudyPlanPart[];
+  createdAt: string;
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.trim() || "";
@@ -345,9 +372,18 @@ export function formatTaskDueDateTime(task: Task, locale = "en-US"): string {
   return `${datePart} · ${timePart}`;
 }
 
+function normalizeTask(t: Task): Task {
+  return {
+    ...t,
+    category: t.category ?? "other",
+    estimatedMinutes: t.estimatedMinutes ?? 0,
+  };
+}
+
 // Task functions
 export function getTasks(): Task[] {
-  return getFromStorage<Task[]>("mindful_tasks", []);
+  const raw = getFromStorage<Task[]>("mindful_tasks", []);
+  return raw.map(normalizeTask);
 }
 
 export function saveTasks(tasks: Task[]): void {
@@ -388,14 +424,13 @@ export function getTaskSuggestions(tasks: Task[]): string[] {
     suggestions.push(`⏰ ${urgentTasks.length} task(s) due within 2 days. Consider tackling them today!`);
   }
 
-  // Quick wins
-  const quickTasks = incompleteTasks.filter(t => t.estimatedMinutes <= 15);
+  // Quick wins (legacy estimated minutes only)
+  const quickTasks = incompleteTasks.filter(t => (t.estimatedMinutes ?? 0) > 0 && (t.estimatedMinutes ?? 0) <= 15);
   if (quickTasks.length > 0) {
     suggestions.push(`⚡ ${quickTasks.length} quick task(s) (<15 min). Perfect for a short focus session!`);
   }
 
-  // Time-intensive tasks
-  const longTasks = incompleteTasks.filter(t => t.estimatedMinutes > 60);
+  const longTasks = incompleteTasks.filter(t => (t.estimatedMinutes ?? 0) > 60);
   if (longTasks.length > 0) {
     suggestions.push(`📚 ${longTasks.length} time-intensive task(s). Break them into smaller chunks for better progress.`);
   }
@@ -497,12 +532,99 @@ export function saveIdeas(ideas: IdeaEntry[]): void {
 }
 
 // Event functions
+function normalizeEvent(e: EventEntry): EventEntry {
+  return {
+    ...e,
+    startTime: e.startTime?.trim() || undefined,
+    endTime: e.endTime?.trim() || undefined,
+    durationMinutes:
+      e.durationMinutes != null && Number.isFinite(e.durationMinutes)
+        ? e.durationMinutes
+        : undefined,
+  };
+}
+
 export function getEvents(): EventEntry[] {
-  return getFromStorage<EventEntry[]>("mindful_events", []);
+  const raw = getFromStorage<EventEntry[]>("mindful_events", []);
+  return raw.map(normalizeEvent);
 }
 
 export function saveEvents(events: EventEntry[]): void {
   setToStorage("mindful_events", events);
+}
+
+/** Start of event in ms (local); midnight if no start time. */
+export function eventStartMs(e: EventEntry): number {
+  const d = e.date.split("T")[0];
+  const st = e.startTime?.trim();
+  if (st) {
+    const t = new Date(`${d}T${st}`).getTime();
+    if (!Number.isNaN(t)) return t;
+  }
+  return new Date(`${d}T00:00:00`).getTime();
+}
+
+/** End of event in ms; end of calendar day if no times/duration. */
+export function eventEndMs(e: EventEntry): number {
+  const d = e.date.split("T")[0];
+  const en = e.endTime?.trim();
+  if (en) {
+    const t = new Date(`${d}T${en}`).getTime();
+    if (!Number.isNaN(t)) return t;
+  }
+  const st = e.startTime?.trim();
+  if (st) {
+    const start = new Date(`${d}T${st}`).getTime();
+    if (!Number.isNaN(start)) {
+      if (e.durationMinutes != null && e.durationMinutes > 0) {
+        return start + e.durationMinutes * 60000;
+      }
+      return start + 3600000;
+    }
+  }
+  if (e.durationMinutes != null && e.durationMinutes > 0) {
+    return eventStartMs(e) + e.durationMinutes * 60000;
+  }
+  return new Date(`${d}T23:59:59.999`).getTime();
+}
+
+export function formatEventTimeRange(e: EventEntry): string {
+  const st = e.startTime?.trim();
+  const en = e.endTime?.trim();
+  const dm = e.durationMinutes;
+  if (st && en) return `${st} – ${en}`;
+  if (st && dm != null && dm > 0) return `${st} · ${dm} min`;
+  if (st) return `From ${st}`;
+  if (en) return `Until ${en}`;
+  if (dm != null && dm > 0) return `${dm} min`;
+  return "All day";
+}
+
+// Study plans
+export function getStudyPlans(): StudyPlan[] {
+  return getFromStorage<StudyPlan[]>("mindful_study_plans", []);
+}
+
+export function saveStudyPlans(plans: StudyPlan[]): void {
+  setToStorage("mindful_study_plans", plans);
+}
+
+export function updateStudyPlanPartCompleted(
+  planId: string,
+  partId: string,
+  completed: boolean
+): void {
+  const plans = getStudyPlans();
+  const next = plans.map((p) => {
+    if (p.id !== planId) return p;
+    return {
+      ...p,
+      parts: p.parts.map((part) =>
+        part.id === partId ? { ...part, completed } : part
+      ),
+    };
+  });
+  saveStudyPlans(next);
 }
 
 // Playlist functions

@@ -23,6 +23,8 @@ import {
   formatTaskDueDateTime,
   getFocusWallpaperChoice,
   saveFocusWallpaperChoice,
+  getStudyPlans,
+  type StudyPlan,
 } from "../lib/storage";
 import { toast } from "sonner";
 import {
@@ -37,6 +39,9 @@ export function FocusTimer() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [timetableForTasks, setTimetableForTasks] = useState<TimetableEntry[]>([]);
   const [selectedTask, setSelectedTask] = useState<string>("none");
+  const [studyPlans, setStudyPlans] = useState<StudyPlan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("none");
+  const [selectedPartId, setSelectedPartId] = useState<string>("none");
   const [presets, setPresets] = useState<FocusPreset[]>([]);
   const [selectedPreset, setSelectedPreset] = useState<string>("");
   const [customDuration, setCustomDuration] = useState(25);
@@ -123,6 +128,7 @@ export function FocusTimer() {
     const loadedTasks = getTasks().filter(t => !t.completed);
     setTasks(loadedTasks);
     setTimetableForTasks(getTimetable());
+    setStudyPlans(getStudyPlans());
     
     const loadedPresets = getFocusPresets();
     setPresets(loadedPresets);
@@ -255,6 +261,9 @@ export function FocusTimer() {
     const taskTitle = selectedTask !== "none" 
       ? tasks.find(t => t.id === selectedTask)?.title 
       : undefined;
+
+    const plan = studyPlans.find((p) => p.id === selectedPlanId);
+    const part = plan?.parts.find((x) => x.id === selectedPartId);
     
     const session: FocusSession = {
       id: Date.now().toString(),
@@ -263,6 +272,10 @@ export function FocusTimer() {
       duration: duration,
       completed: true,
       date: new Date().toISOString(),
+      studyPlanId: plan && selectedPlanId !== "none" ? selectedPlanId : undefined,
+      studyPartId: part && selectedPartId !== "none" ? selectedPartId : undefined,
+      studyPlanName: plan?.name,
+      studyPartTitle: part?.title,
     };
 
     const sessions = getFocusSessions();
@@ -288,6 +301,11 @@ export function FocusTimer() {
   const progress = ((duration * 60 - timeLeft) / (duration * 60)) * 100;
 
   const timeLeftLabel = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+
+  const activePlan = studyPlans.find((p) => p.id === selectedPlanId);
+  const planParts = activePlan
+    ? [...activePlan.parts].sort((a, b) => a.order - b.order)
+    : [];
 
   return (
     <div className="px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 md:p-8 md:pb-8 space-y-6 w-full min-w-0 max-w-full">
@@ -439,6 +457,54 @@ export function FocusTimer() {
                 </SelectContent>
               </Select>
             </div>
+
+            <div>
+              <Label htmlFor="studyPlan">Study plan (optional)</Label>
+              <Select
+                value={selectedPlanId}
+                onValueChange={(v) => {
+                  setSelectedPlanId(v);
+                  setSelectedPartId("none");
+                }}
+                disabled={isRunning}
+              >
+                <SelectTrigger id="studyPlan">
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {studyPlans.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedPlanId !== "none" && planParts.length > 0 && (
+              <div>
+                <Label htmlFor="studyPart">Plan part (optional)</Label>
+                <Select
+                  value={selectedPartId}
+                  onValueChange={setSelectedPartId}
+                  disabled={isRunning}
+                >
+                  <SelectTrigger id="studyPart">
+                    <SelectValue placeholder="Select part…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {planParts.map((part) => (
+                      <SelectItem key={part.id} value={part.id}>
+                        {part.completed ? "✓ " : ""}
+                        {part.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div>
               <Label htmlFor="preset">Duration Preset</Label>

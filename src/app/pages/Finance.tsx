@@ -17,25 +17,16 @@ import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Toolti
 
 const EXPENSE_CATEGORIES = [
   "Food & Dining",
-  "Transportation",
   "Shopping",
+  "Online Shopping",
   "Entertainment",
-  "Bills & Utilities",
   "Education",
-  "Healthcare",
   "Other",
 ];
 
-const INCOME_CATEGORIES = [
-  "Salary",
-  "Freelance",
-  "Investment",
-  "Gift",
-  "Refund",
-  "Other",
-];
+const INCOME_CATEGORIES = ["Salary", "Living Expenses", "Other"];
 
-const COLORS = ["#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#ef4444", "#6366f1", "#14b8a6"];
+const COLORS = ["#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#6366f1"];
 
 export function Finance() {
   const [entries, setEntries] = useState<FinanceEntry[]>([]);

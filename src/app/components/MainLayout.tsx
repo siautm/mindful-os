@@ -12,6 +12,7 @@ import {
   Brain,
   ChevronDown,
   Menu,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "./ui/utils";
 import { motion, AnimatePresence } from "motion/react";
@@ -40,6 +41,7 @@ const navigationGroups = [
     collapsible: false,
     items: [
       { name: "Tasks", path: "/tasks", icon: CheckSquare },
+      { name: "Study plans", path: "/study-plans", icon: BookOpen },
       { name: "Events", path: "/events", icon: CalendarDays },
     ],
   },

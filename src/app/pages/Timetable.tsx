@@ -29,6 +29,9 @@ import {
   getEvents,
   Task,
   EventEntry,
+  eventStartMs,
+  eventEndMs,
+  formatEventTimeRange,
   taskDueSortKey,
   formatTaskDueDateTime,
   resolveTaskCourseLabel,
@@ -116,17 +119,10 @@ export function Timetable() {
   );
 
   const upcomingEventsBelow = useMemo(() => {
-    const now = new Date();
+    const now = Date.now();
     return events
-      .filter((e) => {
-        const end = new Date(`${e.date}T${e.endTime}`);
-        return !Number.isNaN(end.getTime()) && end >= now;
-      })
-      .sort(
-        (a, b) =>
-          new Date(`${a.date}T${a.startTime}`).getTime() -
-          new Date(`${b.date}T${b.startTime}`).getTime()
-      )
+      .filter((e) => eventEndMs(e) >= now)
+      .sort((a, b) => eventStartMs(a) - eventStartMs(b))
       .slice(0, 12);
   }, [events]);
 
@@ -303,7 +299,7 @@ export function Timetable() {
         id: event.id,
         title: event.title,
         subtitle: event.category,
-        time: `${event.startTime} - ${event.endTime}`,
+        time: formatEventTimeRange(event),
         location: event.location,
         type: "event",
         color: "bg-purple-100 border-purple-300",
@@ -862,7 +858,7 @@ export function Timetable() {
                       <p className="font-medium text-gray-900">{event.title}</p>
                       <p className="text-xs text-gray-600 mt-0.5 flex flex-wrap items-center gap-x-2">
                         <span>
-                          {dateStr} · {event.startTime}–{event.endTime}
+                          {dateStr} · {formatEventTimeRange(event)}
                         </span>
                         {event.location && (
                           <span className="inline-flex items-center gap-0.5">

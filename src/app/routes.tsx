@@ -10,6 +10,7 @@ import { Events } from "./pages/Events";
 import { Analytics } from "./pages/Analytics";
 import { Minigame } from "./pages/Minigame";
 import { CheckIn } from "./pages/CheckIn";
+import { StudyPlans } from "./pages/StudyPlans";
 
 export const router = createBrowserRouter([
   {
@@ -20,6 +21,7 @@ export const router = createBrowserRouter([
       { path: "checkin", element: <CheckIn /> },
       { path: "timetable", element: <Timetable /> },
       { path: "tasks", element: <Tasks /> },
+      { path: "study-plans", element: <StudyPlans /> },
       { path: "focus", element: <FocusTimer /> },
       { path: "finance", element: <Finance /> },
       { path: "analytics", element: <Analytics /> },

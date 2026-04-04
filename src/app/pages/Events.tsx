@@ -8,28 +8,33 @@ import { Badge } from "../components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Calendar as CalendarIcon, Plus, MapPin, Clock, Edit2, Trash2, Filter } from "lucide-react";
-import { getEvents, saveEvents, EventEntry } from "../lib/storage";
+import {
+  getEvents,
+  saveEvents,
+  EventEntry,
+  eventStartMs,
+  eventEndMs,
+  formatEventTimeRange,
+} from "../lib/storage";
 import { toast } from "sonner";
 
-const CATEGORIES = [
-  "Meeting",
-  "Personal",
-  "Work",
-  "Social",
-  "Health",
-  "Education",
-  "Other",
-];
+const CATEGORIES = ["Game", "Meeting", "Social", "Education", "Other"];
 
 const CATEGORY_COLORS: Record<string, string> = {
+  Game: "bg-violet-100 text-violet-800 border-violet-300",
   Meeting: "bg-blue-100 text-blue-700 border-blue-300",
-  Personal: "bg-purple-100 text-purple-700 border-purple-300",
-  Work: "bg-orange-100 text-orange-700 border-orange-300",
   Social: "bg-pink-100 text-pink-700 border-pink-300",
-  Health: "bg-green-100 text-green-700 border-green-300",
-  Education: "bg-yellow-100 text-yellow-700 border-yellow-300",
+  Education: "bg-yellow-100 text-yellow-800 border-yellow-300",
   Other: "bg-gray-100 text-gray-700 border-gray-300",
 };
+
+function parseOptionalDuration(raw: string): number | undefined {
+  const s = raw.trim();
+  if (!s) return undefined;
+  const n = parseInt(s, 10);
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  return n;
+}
 
 export function Events() {
   const [events, setEvents] = useState<EventEntry[]>([]);
@@ -37,11 +42,10 @@ export function Events() {
   const [editingEvent, setEditingEvent] = useState<EventEntry | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"upcoming" | "past" | "all">("upcoming");
-  const [newEvent, setNewEvent] = useState<Partial<EventEntry>>({
-    category: "Personal",
+  const [newEvent, setNewEvent] = useState<Partial<EventEntry> & { durationInput?: string }>({
+    category: "Other",
     date: new Date().toISOString().split("T")[0],
-    startTime: "09:00",
-    endTime: "10:00",
+    durationInput: "",
   });
 
   useEffect(() => {
@@ -53,20 +57,25 @@ export function Events() {
   }
 
   function handleAddEvent() {
-    if (!newEvent.title?.trim() || !newEvent.date || !newEvent.startTime || !newEvent.endTime) {
-      toast.error("Please fill in all required fields");
+    if (!newEvent.title?.trim() || !newEvent.date) {
+      toast.error("Title and date are required");
       return;
     }
+
+    const startTime = newEvent.startTime?.trim() || undefined;
+    const endTime = newEvent.endTime?.trim() || undefined;
+    const durationMinutes = parseOptionalDuration(newEvent.durationInput ?? "");
 
     const event: EventEntry = {
       id: Date.now().toString(),
       title: newEvent.title.trim(),
-      description: newEvent.description || "",
+      description: newEvent.description?.trim() || "",
       date: newEvent.date,
-      startTime: newEvent.startTime,
-      endTime: newEvent.endTime,
-      category: newEvent.category || "Personal",
-      location: newEvent.location?.trim(),
+      startTime,
+      endTime,
+      durationMinutes,
+      category: newEvent.category || "Other",
+      location: newEvent.location?.trim() || undefined,
     };
 
     const updatedEvents = [...events, event];
@@ -74,24 +83,38 @@ export function Events() {
     saveEvents(updatedEvents);
 
     setNewEvent({
-      category: "Personal",
+      category: "Other",
       date: new Date().toISOString().split("T")[0],
-      startTime: "09:00",
-      endTime: "10:00",
+      durationInput: "",
     });
     setIsAddDialogOpen(false);
     toast.success("Event added!");
   }
 
   function handleUpdateEvent() {
-    if (!editingEvent || !editingEvent.title.trim()) {
-      toast.error("Please fill in all required fields");
+    if (!editingEvent || !editingEvent.title.trim() || !editingEvent.date) {
+      toast.error("Title and date are required");
       return;
     }
 
-    const updatedEvents = events.map(e =>
-      e.id === editingEvent.id ? editingEvent : e
-    );
+    const startTime = editingEvent.startTime?.trim() || undefined;
+    const endTime = editingEvent.endTime?.trim() || undefined;
+    const durationMinutes =
+      editingEvent.durationMinutes != null && editingEvent.durationMinutes > 0
+        ? editingEvent.durationMinutes
+        : undefined;
+
+    const next: EventEntry = {
+      ...editingEvent,
+      title: editingEvent.title.trim(),
+      description: editingEvent.description?.trim() || "",
+      startTime,
+      endTime,
+      durationMinutes,
+      location: editingEvent.location?.trim() || undefined,
+    };
+
+    const updatedEvents = events.map((e) => (e.id === next.id ? next : e));
     setEvents(updatedEvents);
     saveEvents(updatedEvents);
     setEditingEvent(null);
@@ -99,50 +122,41 @@ export function Events() {
   }
 
   function handleDeleteEvent(id: string) {
-    const updatedEvents = events.filter(e => e.id !== id);
+    const updatedEvents = events.filter((e) => e.id !== id);
     setEvents(updatedEvents);
     saveEvents(updatedEvents);
     toast.success("Event deleted");
   }
 
-  // Filter and sort events
   const now = new Date();
   const filteredEvents = events
-    .filter(event => {
-      const eventDateTime = new Date(`${event.date}T${event.startTime}`);
-      
-      // Category filter
+    .filter((event) => {
       if (filterCategory !== "all" && event.category !== filterCategory) {
         return false;
       }
-
-      // Time filter
+      const endMs = eventEndMs(event);
+      const startMs = eventStartMs(event);
       if (viewMode === "upcoming") {
-        return eventDateTime >= now;
-      } else if (viewMode === "past") {
-        return eventDateTime < now;
+        return endMs >= now.getTime();
+      }
+      if (viewMode === "past") {
+        return endMs < now.getTime();
       }
       return true;
     })
     .sort((a, b) => {
-      const dateA = new Date(`${a.date}T${a.startTime}`);
-      const dateB = new Date(`${b.date}T${b.startTime}`);
-      return viewMode === "past" 
-        ? dateB.getTime() - dateA.getTime()
-        : dateA.getTime() - dateB.getTime();
+      const cmp = eventStartMs(a) - eventStartMs(b);
+      return viewMode === "past" ? -cmp : cmp;
     });
 
-  const upcomingCount = events.filter(e => 
-    new Date(`${e.date}T${e.startTime}`) >= now
-  ).length;
+  const upcomingCount = events.filter((e) => eventEndMs(e) >= now.getTime()).length;
 
-  const todayEvents = events.filter(e => 
-    e.date === new Date().toISOString().split("T")[0]
+  const todayEvents = events.filter(
+    (e) => e.date === new Date().toISOString().split("T")[0]
   ).length;
 
   return (
     <div className="px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 md:p-8 md:pb-8 space-y-6 w-full min-w-0 max-w-full">
-      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between min-w-0">
         <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900">Events</h1>
@@ -185,14 +199,14 @@ export function Events() {
                   <Input
                     id="eventDate"
                     type="date"
-                    value={newEvent.date}
+                    value={newEvent.date || ""}
                     onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
                   />
                 </div>
                 <div>
                   <Label htmlFor="eventCategory">Category *</Label>
                   <Select
-                    value={newEvent.category}
+                    value={newEvent.category || "Other"}
                     onValueChange={(value) => setNewEvent({ ...newEvent, category: value })}
                   >
                     <SelectTrigger id="eventCategory">
@@ -210,23 +224,39 @@ export function Events() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="eventStartTime">Start Time *</Label>
+                  <Label htmlFor="eventStartTime">Start time (optional)</Label>
                   <Input
                     id="eventStartTime"
                     type="time"
-                    value={newEvent.startTime}
-                    onChange={(e) => setNewEvent({ ...newEvent, startTime: e.target.value })}
+                    value={newEvent.startTime || ""}
+                    onChange={(e) =>
+                      setNewEvent({ ...newEvent, startTime: e.target.value || undefined })
+                    }
                   />
                 </div>
                 <div>
-                  <Label htmlFor="eventEndTime">End Time *</Label>
+                  <Label htmlFor="eventEndTime">End time (optional)</Label>
                   <Input
                     id="eventEndTime"
                     type="time"
-                    value={newEvent.endTime}
-                    onChange={(e) => setNewEvent({ ...newEvent, endTime: e.target.value })}
+                    value={newEvent.endTime || ""}
+                    onChange={(e) =>
+                      setNewEvent({ ...newEvent, endTime: e.target.value || undefined })
+                    }
                   />
                 </div>
+              </div>
+              <div>
+                <Label htmlFor="eventDuration">Duration (minutes, optional)</Label>
+                <Input
+                  id="eventDuration"
+                  type="number"
+                  min={1}
+                  step={1}
+                  placeholder="e.g. 90"
+                  value={newEvent.durationInput ?? ""}
+                  onChange={(e) => setNewEvent({ ...newEvent, durationInput: e.target.value })}
+                />
               </div>
               <div>
                 <Label htmlFor="eventLocation">Location</Label>
@@ -245,7 +275,6 @@ export function Events() {
         </Dialog>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <Card>
           <CardContent className="px-2.5 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-6">
@@ -294,7 +323,6 @@ export function Events() {
         </Card>
       </div>
 
-      {/* Filters */}
       <Card>
         <CardContent className="pt-4 sm:pt-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-4">
@@ -337,20 +365,17 @@ export function Events() {
         </CardContent>
       </Card>
 
-      {/* Events List */}
       {filteredEvents.length > 0 ? (
         <div className="grid gap-4">
           {filteredEvents.map((event) => {
             const eventDate = new Date(event.date);
-            const isPast = new Date(`${event.date}T${event.endTime}`) < now;
+            const isPast = eventEndMs(event) < now.getTime();
             const isToday = event.date === new Date().toISOString().split("T")[0];
 
             return (
               <Card
                 key={event.id}
-                className={`hover:shadow-md transition-shadow ${
-                  isPast ? "opacity-60" : ""
-                }`}
+                className={`hover:shadow-md transition-shadow ${isPast ? "opacity-60" : ""}`}
               >
                 <CardHeader className="space-y-3 pb-2 sm:pb-3">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -377,7 +402,7 @@ export function Events() {
                         </div>
                         <div className="flex items-center gap-1">
                           <Clock className="size-4" />
-                          {event.startTime} - {event.endTime}
+                          {formatEventTimeRange(event)}
                         </div>
                         {event.location && (
                           <div className="flex items-center gap-1">
@@ -436,15 +461,14 @@ export function Events() {
                 {viewMode === "upcoming"
                   ? "You have no upcoming events"
                   : viewMode === "past"
-                  ? "No past events to show"
-                  : "Click 'New Event' to add your first event!"}
+                    ? "No past events to show"
+                    : "Click 'New Event' to add your first event!"}
               </p>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Edit Dialog */}
       {editingEvent && (
         <Dialog open={!!editingEvent} onOpenChange={() => setEditingEvent(null)}>
           <DialogContent className="max-w-2xl">
@@ -457,9 +481,7 @@ export function Events() {
                 <Input
                   id="editTitle"
                   value={editingEvent.title}
-                  onChange={(e) =>
-                    setEditingEvent({ ...editingEvent, title: e.target.value })
-                  }
+                  onChange={(e) => setEditingEvent({ ...editingEvent, title: e.target.value })}
                 />
               </div>
               <div>
@@ -480,18 +502,14 @@ export function Events() {
                     id="editDate"
                     type="date"
                     value={editingEvent.date}
-                    onChange={(e) =>
-                      setEditingEvent({ ...editingEvent, date: e.target.value })
-                    }
+                    onChange={(e) => setEditingEvent({ ...editingEvent, date: e.target.value })}
                   />
                 </div>
                 <div>
                   <Label htmlFor="editCategory">Category *</Label>
                   <Select
                     value={editingEvent.category}
-                    onValueChange={(value) =>
-                      setEditingEvent({ ...editingEvent, category: value })
-                    }
+                    onValueChange={(value) => setEditingEvent({ ...editingEvent, category: value })}
                   >
                     <SelectTrigger id="editCategory">
                       <SelectValue />
@@ -508,27 +526,51 @@ export function Events() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="editStartTime">Start Time *</Label>
+                  <Label htmlFor="editStartTime">Start time (optional)</Label>
                   <Input
                     id="editStartTime"
                     type="time"
-                    value={editingEvent.startTime}
+                    value={editingEvent.startTime || ""}
                     onChange={(e) =>
-                      setEditingEvent({ ...editingEvent, startTime: e.target.value })
+                      setEditingEvent({
+                        ...editingEvent,
+                        startTime: e.target.value || undefined,
+                      })
                     }
                   />
                 </div>
                 <div>
-                  <Label htmlFor="editEndTime">End Time *</Label>
+                  <Label htmlFor="editEndTime">End time (optional)</Label>
                   <Input
                     id="editEndTime"
                     type="time"
-                    value={editingEvent.endTime}
+                    value={editingEvent.endTime || ""}
                     onChange={(e) =>
-                      setEditingEvent({ ...editingEvent, endTime: e.target.value })
+                      setEditingEvent({
+                        ...editingEvent,
+                        endTime: e.target.value || undefined,
+                      })
                     }
                   />
                 </div>
+              </div>
+              <div>
+                <Label htmlFor="editDuration">Duration (minutes, optional)</Label>
+                <Input
+                  id="editDuration"
+                  type="number"
+                  min={1}
+                  step={1}
+                  placeholder="e.g. 90"
+                  value={editingEvent.durationMinutes ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setEditingEvent({
+                      ...editingEvent,
+                      durationMinutes: v ? parseInt(v, 10) : undefined,
+                    });
+                  }}
+                />
               </div>
               <div>
                 <Label htmlFor="editLocation">Location</Label>
@@ -544,11 +586,7 @@ export function Events() {
                 <Button onClick={handleUpdateEvent} className="flex-1">
                   Save Changes
                 </Button>
-                <Button
-                  onClick={() => setEditingEvent(null)}
-                  variant="outline"
-                  className="flex-1"
-                >
+                <Button onClick={() => setEditingEvent(null)} variant="outline" className="flex-1">
                   Cancel
                 </Button>
               </div>

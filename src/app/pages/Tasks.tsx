@@ -25,6 +25,20 @@ import { toast } from "sonner";
 
 const NO_COURSE = "none";
 
+const TASK_CATEGORIES = [
+  { value: "study", label: "Study" },
+  { value: "game", label: "Game" },
+  { value: "hobby", label: "Hobby" },
+  { value: "other", label: "Other" },
+] as const;
+
+const CATEGORY_BADGE: Record<string, string> = {
+  study: "border-indigo-200 bg-indigo-50 text-indigo-900",
+  game: "border-violet-200 bg-violet-50 text-violet-900",
+  hobby: "border-teal-200 bg-teal-50 text-teal-900",
+  other: "border-gray-200 bg-gray-50 text-gray-800",
+};
+
 export function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [timetableEntries, setTimetableEntries] = useState<TimetableEntry[]>([]);
@@ -35,7 +49,7 @@ export function Tasks() {
   const [newTask, setNewTask] = useState<Partial<Task>>({
     urgency: 5,
     importance: 5,
-    estimatedMinutes: 30,
+    category: "other",
   });
 
   useEffect(() => {
@@ -84,7 +98,8 @@ export function Tasks() {
       newTask.importance || 5
     );
 
-    const cid = newTask.linkedTimetableEntryId;
+    const cat = newTask.category || "other";
+    const cid = cat === "study" ? newTask.linkedTimetableEntryId : undefined;
     let linkedTimetableEntryId: string | undefined;
     let courseLabel: string | undefined;
     if (cid && cid !== NO_COURSE) {
@@ -103,8 +118,8 @@ export function Tasks() {
       dueDate: newTask.dueDate!,
       dueTime: dueTimeRaw || undefined,
       completed: false,
-      estimatedMinutes: newTask.estimatedMinutes || 30,
       createdAt: new Date().toISOString(),
+      category: cat,
       linkedTimetableEntryId,
       courseLabel,
     };
@@ -116,7 +131,7 @@ export function Tasks() {
     setNewTask({
       urgency: 5,
       importance: 5,
-      estimatedMinutes: 30,
+      category: "other",
       linkedTimetableEntryId: undefined,
       dueTime: undefined,
     });
@@ -149,7 +164,8 @@ export function Tasks() {
       return;
     }
     const priority = calculatePriority(editingTask.urgency, editingTask.importance);
-    const cid = editingTask.linkedTimetableEntryId;
+    const cat = editingTask.category || "other";
+    const cid = cat === "study" ? editingTask.linkedTimetableEntryId : undefined;
     let linkedTimetableEntryId: string | undefined;
     let courseLabel: string | undefined;
     if (cid && cid !== NO_COURSE) {
@@ -162,10 +178,10 @@ export function Tasks() {
       title: editingTask.title.trim(),
       description: editingTask.description?.trim() || "",
       priority,
-      estimatedMinutes: Math.max(5, editingTask.estimatedMinutes || 30),
+      category: cat,
       dueTime: dueTimeRaw || undefined,
       linkedTimetableEntryId,
-      courseLabel,
+      courseLabel: cat === "study" ? courseLabel : undefined,
     };
     const updatedTasks = tasks.map((t) => (t.id === updatedTask.id ? updatedTask : t));
     setTasks(updatedTasks);
@@ -229,7 +245,7 @@ export function Tasks() {
         <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900">Task Manager</h1>
           <p className="text-gray-600 mt-1 text-sm sm:text-base">
-            Link tasks to a course from your Timetable (optional), plus urgency & importance scoring
+            Categories, optional course link for study tasks, and urgency & importance scoring
           </p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -268,34 +284,60 @@ export function Tasks() {
                 />
               </div>
               <div>
-                <Label htmlFor="task-course">Course (optional)</Label>
+                <Label htmlFor="task-category">Category</Label>
                 <Select
-                  value={newTask.linkedTimetableEntryId ?? NO_COURSE}
+                  value={newTask.category || "other"}
                   onValueChange={(v) =>
                     setNewTask({
                       ...newTask,
-                      linkedTimetableEntryId: v === NO_COURSE ? undefined : v,
+                      category: v,
+                      linkedTimetableEntryId: v === "study" ? newTask.linkedTimetableEntryId : undefined,
                     })
                   }
                 >
-                  <SelectTrigger id="task-course">
-                    <SelectValue placeholder="No course" />
+                  <SelectTrigger id="task-category">
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={NO_COURSE}>No course</SelectItem>
-                    {addCourseOptions.map((o) => (
-                      <SelectItem key={o.timetableEntryId} value={o.timetableEntryId}>
-                        {o.label}
+                    {TASK_CATEGORIES.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>
+                        {c.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {addCourseOptions.length === 0 && (
-                  <p className="text-xs text-amber-700 mt-1.5">
-                    Add classes in Timetable to pick a course here.
-                  </p>
-                )}
               </div>
+              {(newTask.category || "other") === "study" && (
+                <div>
+                  <Label htmlFor="task-course">Course (optional)</Label>
+                  <Select
+                    value={newTask.linkedTimetableEntryId ?? NO_COURSE}
+                    onValueChange={(v) =>
+                      setNewTask({
+                        ...newTask,
+                        linkedTimetableEntryId: v === NO_COURSE ? undefined : v,
+                      })
+                    }
+                  >
+                    <SelectTrigger id="task-course">
+                      <SelectValue placeholder="No course" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_COURSE}>No course</SelectItem>
+                      {addCourseOptions.map((o) => (
+                        <SelectItem key={o.timetableEntryId} value={o.timetableEntryId}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {addCourseOptions.length === 0 && (
+                    <p className="text-xs text-amber-700 mt-1.5">
+                      Add classes in Timetable to pick a course here.
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="dueDate">Due date *</Label>
@@ -322,24 +364,6 @@ export function Tasks() {
                     }
                   />
                 </div>
-              </div>
-              <div>
-                <Label htmlFor="estimatedMinutes">
-                  Estimated Time (minutes)
-                </Label>
-                <Input
-                  id="estimatedMinutes"
-                  type="number"
-                  value={newTask.estimatedMinutes || 30}
-                  onChange={(e) =>
-                    setNewTask({
-                      ...newTask,
-                      estimatedMinutes: parseInt(e.target.value) || 30,
-                    })
-                  }
-                  min={5}
-                  step={5}
-                />
               </div>
               <div>
                 <Label htmlFor="urgency">
@@ -519,6 +543,9 @@ export function Tasks() {
             const isDueSoon = !pastDeadline && daysUntil >= 0 && daysUntil <= 2;
             const courseLine = resolveTaskCourseLabel(task, timetableEntries);
             const dueLine = formatTaskDueDateTime(task);
+            const taskCat = task.category || "other";
+            const catLabel =
+              TASK_CATEGORIES.find((c) => c.value === taskCat)?.label ?? "Other";
 
             return (
               <Card
@@ -543,6 +570,14 @@ export function Tasks() {
                             >
                               {task.title}
                             </h3>
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] sm:text-xs font-normal max-w-full truncate ${
+                                CATEGORY_BADGE[taskCat] || CATEGORY_BADGE.other
+                              }`}
+                            >
+                              {catLabel}
+                            </Badge>
                             {courseLine && (
                               <Badge
                                 variant="outline"
@@ -585,10 +620,6 @@ export function Tasks() {
                         </div>
                       </div>
                       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-4 sm:gap-y-1 mt-3 text-xs sm:text-sm text-gray-600">
-                        <div className="flex items-center gap-1">
-                          <Clock className="size-4" />
-                          <span>{task.estimatedMinutes} min</span>
-                        </div>
                         <div className="flex items-center gap-1">
                           <AlertCircle className="size-4" />
                           <span>Urgency: {task.urgency}/10</span>
@@ -658,29 +689,56 @@ export function Tasks() {
                 />
               </div>
               <div>
-                <Label htmlFor="edit-course">Course (optional)</Label>
+                <Label htmlFor="edit-category">Category</Label>
                 <Select
-                  value={editingTask.linkedTimetableEntryId ?? NO_COURSE}
+                  value={editingTask.category || "other"}
                   onValueChange={(v) =>
                     setEditingTask({
                       ...editingTask,
-                      linkedTimetableEntryId: v === NO_COURSE ? undefined : v,
+                      category: v,
+                      linkedTimetableEntryId: v === "study" ? editingTask.linkedTimetableEntryId : undefined,
+                      courseLabel: v === "study" ? editingTask.courseLabel : undefined,
                     })
                   }
                 >
-                  <SelectTrigger id="edit-course">
-                    <SelectValue placeholder="No course" />
+                  <SelectTrigger id="edit-category">
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={NO_COURSE}>No course</SelectItem>
-                    {editCourseOptions.map((o) => (
-                      <SelectItem key={o.timetableEntryId} value={o.timetableEntryId}>
-                        {o.label}
+                    {TASK_CATEGORIES.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>
+                        {c.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+              {(editingTask.category || "other") === "study" && (
+                <div>
+                  <Label htmlFor="edit-course">Course (optional)</Label>
+                  <Select
+                    value={editingTask.linkedTimetableEntryId ?? NO_COURSE}
+                    onValueChange={(v) =>
+                      setEditingTask({
+                        ...editingTask,
+                        linkedTimetableEntryId: v === NO_COURSE ? undefined : v,
+                      })
+                    }
+                  >
+                    <SelectTrigger id="edit-course">
+                      <SelectValue placeholder="No course" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_COURSE}>No course</SelectItem>
+                      {editCourseOptions.map((o) => (
+                        <SelectItem key={o.timetableEntryId} value={o.timetableEntryId}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-dueDate">Due date *</Label>
@@ -707,22 +765,6 @@ export function Tasks() {
                     }
                   />
                 </div>
-              </div>
-              <div>
-                <Label htmlFor="edit-estimated">Estimated time (minutes)</Label>
-                <Input
-                  id="edit-estimated"
-                  type="number"
-                  min={5}
-                  step={5}
-                  value={editingTask.estimatedMinutes}
-                  onChange={(e) =>
-                    setEditingTask({
-                      ...editingTask,
-                      estimatedMinutes: parseInt(e.target.value, 10) || 30,
-                    })
-                  }
-                />
               </div>
               <div>
                 <Label>Urgency: {editingTask.urgency}/10</Label>
