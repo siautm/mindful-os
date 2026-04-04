@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useReducer } from "react";
 import { Link } from "react-router";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -36,6 +36,7 @@ export function Habits() {
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [, bumpCompletionUi] = useReducer((n: number) => n + 1, 0);
   const todayYmd = toYmdLocal(new Date());
 
   useEffect(() => {
@@ -73,6 +74,7 @@ export function Habits() {
 
   function toggleToday(habitId: string, done: boolean) {
     setHabitCompletedOnDate(habitId, todayYmd, done);
+    bumpCompletionUi();
   }
 
   return (

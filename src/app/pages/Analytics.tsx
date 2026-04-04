@@ -539,7 +539,7 @@ export function Analytics() {
   }
 
   function cellClass(theme: DayCellTheme, isSelected: boolean) {
-    const ring = isSelected ? " ring-2 ring-offset-1 ring-emerald-600 z-[1]" : "";
+    const ring = isSelected ? " ring-1 ring-offset-1 ring-emerald-600 z-[1]" : "";
     switch (theme) {
       case "green":
         return `bg-emerald-500 text-white font-semibold hover:bg-emerald-600${ring}`;
@@ -547,15 +547,15 @@ export function Analytics() {
         return `bg-red-500 text-white font-semibold hover:bg-red-600${ring}`;
       case "amber":
         return `bg-amber-400 text-amber-950 font-semibold hover:bg-amber-500${ring}`;
-      default:
-        return `bg-gray-100 text-gray-400${isSelected ? " ring-2 ring-offset-1 ring-gray-500" : ""}`;
+        default:
+        return `bg-gray-100 text-gray-400${isSelected ? " ring-1 ring-offset-1 ring-gray-500" : ""}`;
     }
   }
 
   function monthStripButtonClass(s: MonthStripStatus, isCurrentMonth: boolean) {
     const base =
-      "min-w-0 min-h-[2.25rem] sm:min-h-0 sm:flex-1 rounded-md px-0.5 py-1.5 sm:px-1 sm:py-2 text-[9px] sm:text-xs font-medium transition-colors border";
-    const cur = isCurrentMonth ? " ring-2 ring-emerald-500 ring-offset-1" : "";
+      "min-w-0 min-h-7 rounded px-1 py-1 text-[8px] sm:text-[10px] font-medium transition-colors border leading-tight";
+    const cur = isCurrentMonth ? " ring-1 ring-emerald-500 ring-offset-1" : "";
     switch (s) {
       case "green":
         return `${base} border-emerald-600 bg-emerald-500 text-white${cur}`;
@@ -1067,82 +1067,83 @@ export function Analytics() {
         </TabsContent>
 
         <TabsContent value="checkin" className="space-y-4">
-          <Card>
-            <CardHeader className="space-y-2">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Heart className="size-5 text-rose-500" />
+          <Card className="max-w-md mx-auto w-full">
+            <CardHeader className="space-y-1.5 pb-2 pt-4 px-4">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Heart className="size-4 text-rose-500 shrink-0" />
                 Wellness calendar
               </CardTitle>
-              <p className="text-sm text-gray-600 font-normal leading-relaxed">
-                Each day shows whether you completed all five wellness items (exercise, finance, sleep, meditation,
-                weight). Tracking since <span className="font-medium text-gray-800">{trackingStartYmd}</span>.
+              <p className="text-xs text-gray-600 font-normal leading-snug">
+                Five wellness items per day. Since <span className="font-medium text-gray-800">{trackingStartYmd}</span>.
               </p>
-              <div className="flex flex-wrap gap-3 pt-1 text-xs text-gray-700">
-                <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-2.5 py-1 border border-emerald-100">
-                  <span className="size-2.5 rounded-full bg-emerald-500" />
-                  Complete
+              <div className="flex flex-wrap gap-1.5 pt-1 text-[10px] text-gray-700">
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 border border-emerald-100">
+                  <span className="size-1.5 rounded-full bg-emerald-500" />
+                  Done
                 </span>
-                <span className="inline-flex items-center gap-2 rounded-full bg-red-50 px-2.5 py-1 border border-red-100">
-                  <span className="size-2.5 rounded-full bg-red-500" />
-                  Missed (past)
+                <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 border border-red-100">
+                  <span className="size-1.5 rounded-full bg-red-500" />
+                  Missed
                 </span>
-                <span className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-2.5 py-1 border border-amber-100">
-                  <span className="size-2.5 rounded-full bg-amber-400" />
-                  In progress
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 border border-amber-100">
+                  <span className="size-1.5 rounded-full bg-amber-400" />
+                  Today
                 </span>
-                <span className="inline-flex items-center gap-2 rounded-full bg-gray-50 px-2.5 py-1 border border-gray-200">
-                  <span className="size-2.5 rounded-full bg-gray-200" />
-                  Out of range
+                <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 px-2 py-0.5 border border-gray-200">
+                  <span className="size-1.5 rounded-full bg-gray-200" />
+                  N/A
                 </span>
               </div>
             </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center justify-center gap-2 sm:justify-start">
+            <CardContent className="space-y-3 px-4 pb-4 pt-0">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center justify-center gap-1 sm:justify-start">
                   <Button
                     type="button"
                     variant="outline"
                     size="icon"
+                    className="size-8 shrink-0"
                     aria-label="Previous month"
                     onClick={() =>
                       setCheckinCalYM((p) => (p.m === 0 ? { y: p.y - 1, m: 11 } : { y: p.y, m: p.m - 1 }))
                     }
                   >
-                    <ChevronLeft className="size-4" />
+                    <ChevronLeft className="size-3.5" />
                   </Button>
-                  <span className="min-w-[10rem] text-center text-base font-semibold text-gray-900">
+                  <span className="min-w-[7.5rem] text-center text-sm font-semibold text-gray-900">
                     {monthNames[checkinCalYM.m]} {checkinCalYM.y}
                   </span>
                   <Button
                     type="button"
                     variant="outline"
                     size="icon"
+                    className="size-8 shrink-0"
                     aria-label="Next month"
                     onClick={() =>
                       setCheckinCalYM((p) => (p.m === 11 ? { y: p.y + 1, m: 0 } : { y: p.y, m: p.m + 1 }))
                     }
                   >
-                    <ChevronRight className="size-4" />
+                    <ChevronRight className="size-3.5" />
                   </Button>
                 </div>
                 <Button
                   type="button"
                   variant="secondary"
                   size="sm"
-                  className="w-full sm:w-auto"
+                  className="h-8 text-xs w-full sm:w-auto"
                   onClick={() => {
                     const [y, m, d] = todayYmd.split("-").map(Number);
                     setCheckinCalYM({ y, m: m - 1 });
                     setSelectedCheckinYmd(todayYmd);
                   }}
                 >
-                  Go to today
+                  Today
                 </Button>
               </div>
 
               <div>
-                <p className="text-xs font-medium text-gray-500 mb-2">Jump to month</p>
-                <div className="flex flex-wrap gap-1.5">
+                <p className="text-[10px] font-medium text-gray-500 mb-1">Month</p>
+                <div className="flex flex-wrap gap-1 max-w-full">
                   {monthNames.map((name, mi) => {
                     const s = monthStripStatus(checkinCalYM.y, mi, trackingStartYmd, todayYmd);
                     return (
@@ -1152,23 +1153,23 @@ export function Analytics() {
                         className={monthStripButtonClass(s, mi === checkinCalYM.m)}
                         onClick={() => setCheckinCalYM({ y: checkinCalYM.y, m: mi })}
                       >
-                        {name}
+                        {name.slice(0, 3)}
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-2 sm:p-3">
-                <div className="grid grid-cols-7 gap-1 text-center text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-                    <div key={d} className="py-1 truncate">
+              <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-1.5 mx-auto w-full max-w-[260px]">
+                <div className="grid grid-cols-7 gap-px text-center text-[8px] font-semibold text-gray-500 uppercase">
+                  {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
+                    <div key={`${d}-${i}`} className="py-0.5 truncate">
                       {d}
                     </div>
                   ))}
                   {checkinMonthCells.map((cell, idx) => {
                     if (cell.ymd == null || cell.dayNum == null) {
-                      return <div key={`pad-${idx}`} className="aspect-square min-h-[2.5rem] sm:min-h-10" />;
+                      return <div key={`pad-${idx}`} className="min-h-[1.5rem]" />;
                     }
                     const theme = dayCellTheme(cell.ymd, trackingStartYmd, todayYmd);
                     const selectable = cell.ymd >= trackingStartYmd && cell.ymd <= todayYmd;
@@ -1178,7 +1179,7 @@ export function Analytics() {
                         type="button"
                         disabled={!selectable}
                         onClick={() => selectable && setSelectedCheckinYmd(cell.ymd!)}
-                        className={`aspect-square min-h-[2.5rem] sm:min-h-10 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 ${cellClass(
+                        className={`min-h-[1.5rem] w-full rounded text-[10px] font-semibold flex items-center justify-center transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 ${cellClass(
                           theme,
                           cell.ymd === effectiveSelectedYmd
                         )}`}
@@ -1190,16 +1191,16 @@ export function Analytics() {
                 </div>
               </div>
 
-              <details className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
-                <summary className="cursor-pointer font-medium text-gray-800 py-1">Pick a date</summary>
-                <div className="pt-3 pb-1">
-                  <Label htmlFor="checkin-date-pick" className="text-xs">
+              <details className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs">
+                <summary className="cursor-pointer font-medium text-gray-800 py-0.5">Pick a date</summary>
+                <div className="pt-2 pb-0">
+                  <Label htmlFor="checkin-date-pick" className="text-[10px]">
                     Date
                   </Label>
                   <Input
                     id="checkin-date-pick"
                     type="date"
-                    className="mt-1 max-w-xs"
+                    className="mt-1 h-8 text-xs max-w-full"
                     min={trackingStartYmd}
                     max={todayYmd}
                     value={effectiveSelectedYmd}
@@ -1217,13 +1218,13 @@ export function Analytics() {
 
               {completedCheckinYmds.length > 0 && (
                 <div>
-                  <p className="text-xs font-medium text-gray-500 mb-2">Recent perfect days (newest first)</p>
-                  <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-                    {completedCheckinYmds.slice(0, 14).map((ymd) => (
+                  <p className="text-[10px] font-medium text-gray-500 mb-1">Recent perfect days</p>
+                  <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1">
+                    {completedCheckinYmds.slice(0, 10).map((ymd) => (
                       <button
                         key={ymd}
                         type="button"
-                        className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors ${
                           ymd === effectiveSelectedYmd
                             ? "border-emerald-600 bg-emerald-50 text-emerald-900"
                             : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300"
@@ -1243,11 +1244,11 @@ export function Analytics() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex flex-wrap items-center gap-2">
-                <Calendar className="size-5 text-emerald-600" />
-                <span>Status for {selectedRow.label}</span>
+          <Card className="max-w-md mx-auto w-full">
+            <CardHeader className="py-3 px-4">
+              <CardTitle className="flex flex-wrap items-center gap-2 text-sm">
+                <Calendar className="size-4 text-emerald-600 shrink-0" />
+                <span>{selectedRow.label}</span>
                 {selectedRow.complete ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
                     <CheckCircle2 className="size-3.5" />

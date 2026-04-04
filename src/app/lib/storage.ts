@@ -276,16 +276,47 @@ export async function initializeCloudStorage(): Promise<void> {
   }
 }
 
-// Generic storage functions (Supabase-backed via /api/state)
+function isCloudReady(): boolean {
+  return !!(cloudUserId && cloudToken);
+}
+
+function readLocalFallback<T>(key: string, defaultValue: T): T {
+  if (typeof localStorage === "undefined") return defaultValue;
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw == null) return defaultValue;
+    return JSON.parse(raw) as T;
+  } catch {
+    return defaultValue;
+  }
+}
+
+function writeLocalFallback(key: string, value: unknown): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    console.error("localStorage set failed", key, e);
+  }
+}
+
+// Generic storage: cloud when signed in; otherwise localStorage so prefs & data persist offline.
 function getFromStorage<T>(key: string, defaultValue: T): T {
-  const value = cloudState[key];
-  if (value === undefined) return defaultValue;
-  return value as T;
+  if (isCloudReady()) {
+    const value = cloudState[key];
+    if (value !== undefined) return value as T;
+    return defaultValue;
+  }
+  return readLocalFallback(key, defaultValue);
 }
 
 function setToStorage<T>(key: string, value: T): void {
   const previousValue = cloudState[key];
   cloudState[key] = value as unknown;
+  if (!isCloudReady()) {
+    writeLocalFallback(key, value);
+    return;
+  }
   void postState(key, value).catch((error) => {
     cloudState[key] = previousValue;
     console.error(`Cloud save failed for ${key}:`, error);
