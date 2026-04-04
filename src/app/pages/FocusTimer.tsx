@@ -17,14 +17,19 @@ import {
   saveFocusPresets,
   FocusPreset,
   Task,
+  getFocusWallpaperChoice,
+  saveFocusWallpaperChoice,
 } from "../lib/storage";
 import { toast } from "sonner";
+import {
+  FOCUS_LIVE_WALLPAPER_OPTIONS,
+  FOCUS_WALLPAPER_MATCH_SOUND,
+  type FocusWallpaperChoice,
+} from "../lib/focusWallpapers";
 import { getWhiteNoisePlayer, NoiseType, noiseCategories } from "../lib/whiteNoise";
 import { FocusImmersiveOverlay } from "../components/FocusImmersiveOverlay";
-import { useQuoteLocale } from "../contexts/QuoteLocaleContext";
 
 export function FocusTimer() {
-  const { locale } = useQuoteLocale();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTask, setSelectedTask] = useState<string>("none");
   const [presets, setPresets] = useState<FocusPreset[]>([]);
@@ -48,6 +53,9 @@ export function FocusTimer() {
   const noisePlayerRef = useRef(getWhiteNoisePlayer());
 
   const [immersiveOpen, setImmersiveOpen] = useState(false);
+  const [wallpaperChoice, setWallpaperChoice] = useState<FocusWallpaperChoice>(() =>
+    getFocusWallpaperChoice()
+  );
 
   const intervalRef = useRef<number>();
 
@@ -281,8 +289,9 @@ export function FocusTimer() {
         open={immersiveOpen && isRunning}
         onClose={() => setImmersiveOpen(false)}
         noiseType={noiseType}
+        wallpaperChoice={wallpaperChoice}
         timeLeftLabel={timeLeftLabel}
-        clockLocale={locale === "zh" ? "zh-CN" : "en-US"}
+        clockLocale="en-US"
       />
 
       {/* Header */}
@@ -332,9 +341,7 @@ export function FocusTimer() {
         <CardHeader>
           <CardTitle>Focus Session</CardTitle>
           <p className="text-xs text-gray-500 pt-1">
-            {locale === "zh"
-              ? "专注视图中的动态壁纸会与上方「环境音效」一致（无声时为柔和渐变）。"
-              : "Immersive focus view uses a live loop matched to your ambient sound above (soft gradient when silent)."}
+            Pick “Match ambient” or a fixed live wallpaper below; it updates in focus view right away.
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -347,15 +354,9 @@ export function FocusTimer() {
             <Progress value={progress} className="h-3 mb-6" />
             <div className="text-sm text-gray-600">
               {isRunning
-                ? locale === "zh"
-                  ? "保持专注 💪"
-                  : "Stay focused! 💪"
+                ? "Stay focused! 💪"
                 : timeLeft === duration * 60
-                ? locale === "zh"
-                  ? "准备开始"
-                  : "Ready to start"
-                : locale === "zh"
-                  ? "已暂停"
+                  ? "Ready to start"
                   : "Paused"}
             </div>
           </div>
@@ -369,7 +370,7 @@ export function FocusTimer() {
                 className="px-8"
               >
                 <Play className="size-5 mr-2" />
-                {locale === "zh" ? "开始" : "Start"}
+                Start
               </Button>
             ) : (
               <>
@@ -380,7 +381,7 @@ export function FocusTimer() {
                   className="px-8"
                 >
                   <Pause className="size-5 mr-2" />
-                  {locale === "zh" ? "暂停" : "Pause"}
+                  Pause
                 </Button>
                 {!immersiveOpen && (
                   <Button
@@ -390,7 +391,7 @@ export function FocusTimer() {
                     className="px-8"
                   >
                     <Maximize2 className="size-5 mr-2" />
-                    {locale === "zh" ? "专注视图" : "Focus view"}
+                    Focus view
                   </Button>
                 )}
               </>
@@ -530,6 +531,37 @@ export function FocusTimer() {
                   </p>
                 </div>
               )}
+
+              <div>
+                <Label htmlFor="focusWallpaper" className="text-sm text-blue-800">
+                  Live wallpaper
+                </Label>
+                <Select
+                  value={wallpaperChoice}
+                  onValueChange={(value) => {
+                    const next = value as FocusWallpaperChoice;
+                    setWallpaperChoice(next);
+                    saveFocusWallpaperChoice(next);
+                  }}
+                >
+                  <SelectTrigger id="focusWallpaper" className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[min(70vh,420px)]">
+                    <SelectItem value={FOCUS_WALLPAPER_MATCH_SOUND}>
+                      Match ambient sound
+                    </SelectItem>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 bg-gray-50">
+                      Fixed clips
+                    </div>
+                    {FOCUS_LIVE_WALLPAPER_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.id} value={opt.id}>
+                        {opt.labelEn}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         </CardContent>

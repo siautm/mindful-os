@@ -2,11 +2,141 @@ import type { NoiseType } from "./whiteNoise";
 
 /**
  * Local looping videos in `public/live-wallpaper/` (served at `/live-wallpaper/…`).
- * Each ambient sound maps to a clip from your bundled library.
  */
 function wallpaperUrl(file: string): string {
   const base = import.meta.env.BASE_URL;
   return `${base}live-wallpaper/${file}`;
+}
+
+/** Pick a clip yourself, or keep wallpaper in sync with ambient sound. */
+export const FOCUS_WALLPAPER_MATCH_SOUND = "match" as const;
+
+export const FOCUS_LIVE_WALLPAPER_OPTIONS = [
+  {
+    id: "grass-wind",
+    file: "field-grass-in-the-wind.1920x1080.mp4",
+    labelEn: "Grass in the wind",
+    labelZh: "风中草地",
+    fallbackNoise: "wind" as const,
+  },
+  {
+    id: "water-lilies",
+    file: "yellow-water-lilies.3840x2160.mp4",
+    labelEn: "Water lilies",
+    labelZh: "睡莲池塘",
+    fallbackNoise: "pink" as const,
+  },
+  {
+    id: "sunset-rain",
+    file: "blurred-sunset-while-raining.3840x2160.mp4",
+    labelEn: "Sunset in the rain",
+    labelZh: "雨中暮色",
+    fallbackNoise: "brown" as const,
+  },
+  {
+    id: "rainy-pine",
+    file: "rainy-pine-forest.1920x1080.mp4",
+    labelEn: "Rainy pine forest",
+    labelZh: "雨中松林",
+    fallbackNoise: "rain" as const,
+  },
+  {
+    id: "mountain-rain",
+    file: "mountain-rain-landscape.3840x2160.mp4",
+    labelEn: "Mountain rain",
+    labelZh: "山间雨景",
+    fallbackNoise: "thunderstorm" as const,
+  },
+  {
+    id: "waves",
+    file: "wave-symphony.1920x1080.mp4",
+    labelEn: "Ocean waves",
+    labelZh: "海浪",
+    fallbackNoise: "ocean" as const,
+  },
+  {
+    id: "river",
+    file: "river-flowing.3840x2160.mp4",
+    labelEn: "Flowing river",
+    labelZh: "河流",
+    fallbackNoise: "waterfall" as const,
+  },
+  {
+    id: "rainy-forest",
+    file: "rainy-forest.3840x2160.mp4",
+    labelEn: "Rainy forest",
+    labelZh: "雨林",
+    fallbackNoise: "forest" as const,
+  },
+  {
+    id: "mc-farm",
+    file: "minecraft-sunset-farm.3840x2160.mp4",
+    labelEn: "Sunset farm (blocky)",
+    labelZh: "方块日落农场",
+    fallbackNoise: "cafe" as const,
+  },
+  {
+    id: "mc-nature",
+    file: "nature-in-minecraft.3840x2160.mp4",
+    labelEn: "Calm blocky nature",
+    labelZh: "方块自然",
+    fallbackNoise: "library" as const,
+  },
+  {
+    id: "mc-campfire",
+    file: "minecraft-snowy-campfire.3840x2160.mp4",
+    labelEn: "Snowy campfire",
+    labelZh: "雪夜篝火",
+    fallbackNoise: "fireplace" as const,
+  },
+  {
+    id: "mc-aurora",
+    file: "minecraft-northern-light.3840x2160.mp4",
+    labelEn: "Northern lights",
+    labelZh: "极光夜空",
+    fallbackNoise: "crickets" as const,
+  },
+  {
+    id: "railway",
+    file: "abandoned-railway-station.1920x1080.mp4",
+    labelEn: "Abandoned railway",
+    labelZh: "旧车站",
+    fallbackNoise: "train" as const,
+  },
+] as const;
+
+export type FocusWallpaperId = (typeof FOCUS_LIVE_WALLPAPER_OPTIONS)[number]["id"];
+
+export type FocusWallpaperChoice = typeof FOCUS_WALLPAPER_MATCH_SOUND | FocusWallpaperId;
+
+const OPTION_BY_ID = Object.fromEntries(
+  FOCUS_LIVE_WALLPAPER_OPTIONS.map((o) => [o.id, o])
+) as Record<FocusWallpaperId, (typeof FOCUS_LIVE_WALLPAPER_OPTIONS)[number]>;
+
+export function normalizeFocusWallpaperChoice(raw: unknown): FocusWallpaperChoice {
+  if (raw === FOCUS_WALLPAPER_MATCH_SOUND) return FOCUS_WALLPAPER_MATCH_SOUND;
+  if (typeof raw === "string" && raw in OPTION_BY_ID) return raw as FocusWallpaperId;
+  return FOCUS_WALLPAPER_MATCH_SOUND;
+}
+
+export function resolveFocusWallpaperSrc(
+  choice: FocusWallpaperChoice,
+  noiseType: NoiseType
+): string | null {
+  if (choice === FOCUS_WALLPAPER_MATCH_SOUND) {
+    return FOCUS_WALLPAPER_VIDEO[noiseType];
+  }
+  const opt = OPTION_BY_ID[choice];
+  return opt ? wallpaperUrl(opt.file) : FOCUS_WALLPAPER_VIDEO[noiseType];
+}
+
+/** Gradient fallback uses the mood tied to the clip (or current sound in match mode). */
+export function resolveFocusWallpaperFallbackNoise(
+  choice: FocusWallpaperChoice,
+  noiseType: NoiseType
+): NoiseType {
+  if (choice === FOCUS_WALLPAPER_MATCH_SOUND) return noiseType;
+  return OPTION_BY_ID[choice]?.fallbackNoise ?? noiseType;
 }
 
 export const FOCUS_WALLPAPER_VIDEO: Record<NoiseType, string | null> = {

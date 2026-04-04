@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Mindful OS">
+  <defs>
+    <linearGradient id="bg" x1="6" y1="4" x2="26" y2="28" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#34d399"/>
+      <stop offset="1" stop-color="#0891b2"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="url(#bg)"/>
+  <path fill="#fff" fill-opacity="0.92" d="M16 6l1.35 4.9 5.05 1.35-5.05 1.35L16 18.4l-1.35-4.8-5.05-1.35 5.05-1.35L16 6zm0 10.5l.95 3.5 3.55.95-3.55.95L16 25.9l-.95-3.5-3.55-.95 3.55-.95.95-3.5z"/>
+</svg>

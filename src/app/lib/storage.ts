@@ -1,6 +1,11 @@
 import { toast } from "sonner";
 import type { QuoteLocale, QuoteSourceTag } from "./quotesApi";
 import { normalizeQuoteTags, QUOTE_SOURCE_TAGS } from "./quotesApi";
+import {
+  FOCUS_WALLPAPER_MATCH_SOUND,
+  normalizeFocusWallpaperChoice,
+  type FocusWallpaperChoice,
+} from "./focusWallpapers";
 
 // Storage utility functions for Mindful OS
 
@@ -436,6 +441,15 @@ export function getFocusPresets(): FocusPreset[] {
 
 export function saveFocusPresets(presets: FocusPreset[]): void {
   setToStorage("mindful_focus_presets", presets);
+}
+
+export function getFocusWallpaperChoice(): FocusWallpaperChoice {
+  const raw = getFromStorage<string>("mindful_focus_wallpaper", FOCUS_WALLPAPER_MATCH_SOUND);
+  return normalizeFocusWallpaperChoice(raw);
+}
+
+export function saveFocusWallpaperChoice(choice: FocusWallpaperChoice): void {
+  setToStorage("mindful_focus_wallpaper", normalizeFocusWallpaperChoice(choice));
 }
 
 // Check-in functions

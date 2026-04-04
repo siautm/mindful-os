@@ -5,11 +5,13 @@ import { X } from "lucide-react";
 import { Button } from "./ui/button";
 import { FocusLiveWallpaper } from "./FocusLiveWallpaper";
 import type { NoiseType } from "../lib/whiteNoise";
+import type { FocusWallpaperChoice } from "../lib/focusWallpapers";
 
 interface FocusImmersiveOverlayProps {
   open: boolean;
   onClose: () => void;
   noiseType: NoiseType;
+  wallpaperChoice: FocusWallpaperChoice;
   /** Countdown mm:ss */
   timeLeftLabel: string;
   /** e.g. "en-US" or "zh-CN" */
@@ -33,6 +35,7 @@ export function FocusImmersiveOverlay({
   open,
   onClose,
   noiseType,
+  wallpaperChoice,
   timeLeftLabel,
   clockLocale = typeof navigator !== "undefined" && navigator.language.startsWith("zh")
     ? "zh-CN"
@@ -58,7 +61,7 @@ export function FocusImmersiveOverlay({
       aria-modal="true"
       aria-label="Focus mode"
     >
-      <FocusLiveWallpaper noiseType={noiseType} />
+      <FocusLiveWallpaper noiseType={noiseType} wallpaperChoice={wallpaperChoice} />
 
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pb-24 pt-16">
         <p className="mb-2 text-sm font-medium uppercase tracking-[0.2em] text-white/60">

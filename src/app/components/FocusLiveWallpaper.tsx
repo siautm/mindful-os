@@ -1,41 +1,48 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import type { NoiseType } from "../lib/whiteNoise";
-import { FOCUS_WALLPAPER_FALLBACK, FOCUS_WALLPAPER_VIDEO } from "../lib/focusWallpapers";
+import {
+  FOCUS_WALLPAPER_FALLBACK,
+  type FocusWallpaperChoice,
+  resolveFocusWallpaperFallbackNoise,
+  resolveFocusWallpaperSrc,
+} from "../lib/focusWallpapers";
 
 interface FocusLiveWallpaperProps {
   noiseType: NoiseType;
+  wallpaperChoice: FocusWallpaperChoice;
 }
 
 /**
  * Fullscreen looping video from `public/live-wallpaper/`; soft vignette for timer readability.
  * Falls back to a simple dual-orb gradient if playback fails.
  */
-export function FocusLiveWallpaper({ noiseType }: FocusLiveWallpaperProps) {
-  const videoSrc = FOCUS_WALLPAPER_VIDEO[noiseType];
+export function FocusLiveWallpaper({ noiseType, wallpaperChoice }: FocusLiveWallpaperProps) {
+  const videoSrc = resolveFocusWallpaperSrc(wallpaperChoice, noiseType);
+  const fallbackNoise = resolveFocusWallpaperFallbackNoise(wallpaperChoice, noiseType);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoFailed, setVideoFailed] = useState(false);
 
   useEffect(() => {
     setVideoFailed(false);
-  }, [noiseType, videoSrc]);
+  }, [noiseType, wallpaperChoice, videoSrc]);
 
   useEffect(() => {
     const el = videoRef.current;
     if (!el || videoSrc == null || videoFailed) return;
     el.muted = true;
     void el.play().catch(() => setVideoFailed(true));
-  }, [videoSrc, noiseType, videoFailed]);
+  }, [videoSrc, noiseType, wallpaperChoice, videoFailed]);
 
   const showVideo = videoSrc != null && !videoFailed;
-  const fb = FOCUS_WALLPAPER_FALLBACK[noiseType];
+  const fb = FOCUS_WALLPAPER_FALLBACK[fallbackNoise];
 
   return (
     <div className={`absolute inset-0 overflow-hidden ${fb.base}`}>
       {showVideo && (
         <video
           ref={videoRef}
-          key={`${videoSrc}-${noiseType}`}
+          key={`${videoSrc}-${wallpaperChoice}-${noiseType}`}
           className="absolute inset-0 h-full w-full object-cover"
           style={{ transform: "scale(1.06)" }}
           src={videoSrc}
