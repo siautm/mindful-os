@@ -7,7 +7,7 @@ import { Label } from "../components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
-import { Plus, Upload, Trash2, Download, Calendar as CalendarIcon, ListTodo, Grid3x3 } from "lucide-react";
+import { Plus, Upload, Trash2, Download, Calendar as CalendarIcon, ListTodo, Grid3x3, Edit2 } from "lucide-react";
 import { getTimetable, saveTimetable, TimetableEntry, getTasks, getEvents, Task, EventEntry } from "../lib/storage";
 import { toast } from "sonner";
 
@@ -49,6 +49,7 @@ export function Timetable() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [events, setEvents] = useState<EventEntry[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<TimetableEntry | null>(null);
   const [newEntry, setNewEntry] = useState<Partial<TimetableEntry>>({
     day: "Monday",
   });
@@ -86,6 +87,33 @@ export function Timetable() {
     setIsAddDialogOpen(false);
     setNewEntry({ day: "Monday" });
     toast.success("Class added successfully");
+  }
+
+  function handleUpdateEntry() {
+    if (!editingEntry) return;
+    if (
+      !editingEntry.courseName?.trim() ||
+      !editingEntry.startTime ||
+      !editingEntry.endTime
+    ) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    const updated = entries.map((e) =>
+      e.id === editingEntry.id
+        ? {
+            ...editingEntry,
+            courseName: editingEntry.courseName.trim(),
+            courseCode: editingEntry.courseCode?.trim() || "",
+            location: editingEntry.location?.trim() || "",
+            instructor: editingEntry.instructor?.trim() || "",
+          }
+        : e
+    );
+    setEntries(updated);
+    saveTimetable(updated);
+    setEditingEntry(null);
+    toast.success("Class updated");
   }
 
   function handleDeleteEntry(id: string) {
@@ -647,13 +675,24 @@ export function Timetable() {
                                   <p className="text-xs text-gray-600">{entry.courseCode}</p>
                                 )}
                               </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteEntry(entry.id)}
-                              >
-                                <Trash2 className="size-4 text-red-500" />
-                              </Button>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setEditingEntry(entry)}
+                                  aria-label="Edit class"
+                                >
+                                  <Edit2 className="size-4 text-gray-600" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteEntry(entry.id)}
+                                  aria-label="Delete class"
+                                >
+                                  <Trash2 className="size-4 text-red-500" />
+                                </Button>
+                              </div>
                             </div>
                             <div className="text-sm text-gray-600 space-y-1">
                               <div>
@@ -673,6 +712,110 @@ export function Timetable() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {editingEntry && (
+        <Dialog open={!!editingEntry} onOpenChange={() => setEditingEntry(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit class</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-courseName">Course name *</Label>
+                <Input
+                  id="edit-courseName"
+                  value={editingEntry.courseName}
+                  onChange={(e) =>
+                    setEditingEntry({ ...editingEntry, courseName: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-courseCode">Course code</Label>
+                <Input
+                  id="edit-courseCode"
+                  value={editingEntry.courseCode}
+                  onChange={(e) =>
+                    setEditingEntry({ ...editingEntry, courseCode: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-day">Day *</Label>
+                <Select
+                  value={editingEntry.day}
+                  onValueChange={(value) =>
+                    setEditingEntry({ ...editingEntry, day: value })
+                  }
+                >
+                  <SelectTrigger id="edit-day">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DAYS.map((day) => (
+                      <SelectItem key={day} value={day}>
+                        {day}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-startTime">Start *</Label>
+                  <Input
+                    id="edit-startTime"
+                    type="time"
+                    value={editingEntry.startTime}
+                    onChange={(e) =>
+                      setEditingEntry({ ...editingEntry, startTime: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-endTime">End *</Label>
+                  <Input
+                    id="edit-endTime"
+                    type="time"
+                    value={editingEntry.endTime}
+                    onChange={(e) =>
+                      setEditingEntry({ ...editingEntry, endTime: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="edit-location">Location</Label>
+                <Input
+                  id="edit-location"
+                  value={editingEntry.location}
+                  onChange={(e) =>
+                    setEditingEntry({ ...editingEntry, location: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-instructor">Instructor</Label>
+                <Input
+                  id="edit-instructor"
+                  value={editingEntry.instructor}
+                  onChange={(e) =>
+                    setEditingEntry({ ...editingEntry, instructor: e.target.value })
+                  }
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleUpdateEntry} className="flex-1">
+                  Save changes
+                </Button>
+                <Button variant="outline" className="flex-1" onClick={() => setEditingEntry(null)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

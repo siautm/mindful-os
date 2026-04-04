@@ -5,7 +5,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
-import { Plus, TrendingUp, TrendingDown, Wallet, Trash2 } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, Wallet, Trash2, Edit2 } from "lucide-react";
 import {
   getFinanceEntries,
   saveFinanceEntries,
@@ -40,6 +40,7 @@ const COLORS = ["#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#ef4444"
 export function Finance() {
   const [entries, setEntries] = useState<FinanceEntry[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<FinanceEntry | null>(null);
   const [newEntry, setNewEntry] = useState<Partial<FinanceEntry>>({
     type: "expense",
     date: new Date().toISOString().split("T")[0],
@@ -85,6 +86,30 @@ export function Finance() {
     setEntries(updatedEntries);
     saveFinanceEntries(updatedEntries);
     toast.success("Entry deleted");
+  }
+
+  function handleUpdateEntry() {
+    if (!editingEntry) return;
+    if (!editingEntry.amount || !editingEntry.category?.trim() || !editingEntry.date) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    const amount = Number(editingEntry.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+    const next: FinanceEntry = {
+      ...editingEntry,
+      amount,
+      category: editingEntry.category.trim(),
+      description: editingEntry.description?.trim() || "",
+    };
+    const updatedEntries = entries.map((e) => (e.id === next.id ? next : e));
+    setEntries(updatedEntries);
+    saveFinanceEntries(updatedEntries);
+    setEditingEntry(null);
+    toast.success("Entry updated");
   }
 
   const summary = getFinanceSummary(entries);
@@ -421,7 +446,16 @@ export function Finance() {
                     <Button
                       variant="ghost"
                       size="sm"
+                      onClick={() => setEditingEntry({ ...entry })}
+                      aria-label="Edit entry"
+                    >
+                      <Edit2 className="size-4 text-gray-600" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleDeleteEntry(entry.id)}
+                      aria-label="Delete entry"
                     >
                       <Trash2 className="size-4 text-red-500" />
                     </Button>
@@ -432,6 +466,106 @@ export function Finance() {
           )}
         </CardContent>
       </Card>
+
+      {editingEntry && (
+        <Dialog open={!!editingEntry} onOpenChange={() => setEditingEntry(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit transaction</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Type</Label>
+                <Tabs
+                  value={editingEntry.type}
+                  onValueChange={(value) =>
+                    setEditingEntry({
+                      ...editingEntry,
+                      type: value as "income" | "expense",
+                      category: "",
+                    })
+                  }
+                >
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="expense">Expense</TabsTrigger>
+                    <TabsTrigger value="income">Income</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+              <div>
+                <Label htmlFor="edit-finance-amount">Amount *</Label>
+                <Input
+                  id="edit-finance-amount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editingEntry.amount}
+                  onChange={(e) =>
+                    setEditingEntry({
+                      ...editingEntry,
+                      amount: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-finance-category">Category *</Label>
+                <select
+                  id="edit-finance-category"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  value={editingEntry.category}
+                  onChange={(e) =>
+                    setEditingEntry({ ...editingEntry, category: e.target.value })
+                  }
+                >
+                  <option value="">Select category…</option>
+                  {(editingEntry.type === "expense"
+                    ? EXPENSE_CATEGORIES
+                    : INCOME_CATEGORIES
+                  ).map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="edit-finance-desc">Description</Label>
+                <Input
+                  id="edit-finance-desc"
+                  value={editingEntry.description}
+                  onChange={(e) =>
+                    setEditingEntry({ ...editingEntry, description: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-finance-date">Date *</Label>
+                <Input
+                  id="edit-finance-date"
+                  type="date"
+                  value={editingEntry.date}
+                  onChange={(e) =>
+                    setEditingEntry({ ...editingEntry, date: e.target.value })
+                  }
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleUpdateEntry} className="flex-1">
+                  Save changes
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setEditingEntry(null)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

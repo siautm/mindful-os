@@ -7,13 +7,14 @@ import { Textarea } from "../components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
 import { Checkbox } from "../components/ui/checkbox";
 import { Badge } from "../components/ui/badge";
-import { Plus, Trash2, AlertCircle, Clock, TrendingUp } from "lucide-react";
+import { Plus, Trash2, AlertCircle, Clock, TrendingUp, Edit2 } from "lucide-react";
 import { getTasks, saveTasks, Task, calculatePriority } from "../lib/storage";
 import { toast } from "sonner";
 
 export function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
   const [sortBy, setSortBy] = useState<"priority" | "dueDate">("priority");
   const [newTask, setNewTask] = useState<Partial<Task>>({
@@ -84,6 +85,26 @@ export function Tasks() {
     setTasks(updatedTasks);
     saveTasks(updatedTasks);
     toast.success("Task deleted");
+  }
+
+  function handleUpdateTask() {
+    if (!editingTask?.title?.trim() || !editingTask.dueDate) {
+      toast.error("Please fill in title and due date");
+      return;
+    }
+    const priority = calculatePriority(editingTask.urgency, editingTask.importance);
+    const updatedTask: Task = {
+      ...editingTask,
+      title: editingTask.title.trim(),
+      description: editingTask.description?.trim() || "",
+      priority,
+      estimatedMinutes: Math.max(5, editingTask.estimatedMinutes || 30),
+    };
+    const updatedTasks = tasks.map((t) => (t.id === updatedTask.id ? updatedTask : t));
+    setTasks(updatedTasks);
+    saveTasks(updatedTasks);
+    setEditingTask(null);
+    toast.success("Task updated");
   }
 
   function getFilteredTasks() {
@@ -415,7 +436,16 @@ export function Tasks() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => setEditingTask(task)}
+                            aria-label="Edit task"
+                          >
+                            <Edit2 className="size-4 text-gray-600" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleDeleteTask(task.id)}
+                            aria-label="Delete task"
                           >
                             <Trash2 className="size-4 text-red-500" />
                           </Button>
@@ -463,6 +493,127 @@ export function Tasks() {
           })
         )}
       </div>
+
+      {editingTask && (
+        <Dialog open={!!editingTask} onOpenChange={() => setEditingTask(null)}>
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit task</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-title">Task title *</Label>
+                <Input
+                  id="edit-title"
+                  value={editingTask.title}
+                  onChange={(e) =>
+                    setEditingTask({ ...editingTask, title: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-description">Description</Label>
+                <Textarea
+                  id="edit-description"
+                  value={editingTask.description}
+                  onChange={(e) =>
+                    setEditingTask({ ...editingTask, description: e.target.value })
+                  }
+                  rows={3}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-dueDate">Due date *</Label>
+                <Input
+                  id="edit-dueDate"
+                  type="date"
+                  value={editingTask.dueDate.split("T")[0]}
+                  onChange={(e) =>
+                    setEditingTask({ ...editingTask, dueDate: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-estimated">Estimated time (minutes)</Label>
+                <Input
+                  id="edit-estimated"
+                  type="number"
+                  min={5}
+                  step={5}
+                  value={editingTask.estimatedMinutes}
+                  onChange={(e) =>
+                    setEditingTask({
+                      ...editingTask,
+                      estimatedMinutes: parseInt(e.target.value, 10) || 30,
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <Label>Urgency: {editingTask.urgency}/10</Label>
+                <input
+                  type="range"
+                  min={1}
+                  max={10}
+                  value={editingTask.urgency}
+                  onChange={(e) =>
+                    setEditingTask({
+                      ...editingTask,
+                      urgency: parseInt(e.target.value, 10),
+                    })
+                  }
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <Label>Importance: {editingTask.importance}/10</Label>
+                <input
+                  type="range"
+                  min={1}
+                  max={10}
+                  value={editingTask.importance}
+                  onChange={(e) =>
+                    setEditingTask({
+                      ...editingTask,
+                      importance: parseInt(e.target.value, 10),
+                    })
+                  }
+                  className="w-full"
+                />
+              </div>
+              <div className="p-3 bg-purple-50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-purple-900">
+                    Calculated priority
+                  </span>
+                  <Badge
+                    className={getPriorityColor(
+                      calculatePriority(editingTask.urgency, editingTask.importance)
+                    )}
+                  >
+                    {calculatePriority(
+                      editingTask.urgency,
+                      editingTask.importance
+                    ).toFixed(1)}
+                  </Badge>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleUpdateTask} className="flex-1">
+                  Save changes
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setEditingTask(null)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
