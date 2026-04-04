@@ -548,7 +548,7 @@ export function Analytics() {
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
   return (
-    <div className="w-full min-w-0 max-w-full space-y-6 px-2 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-3 sm:py-6 md:px-4 md:py-8 md:pb-8">
+    <div className="w-full min-w-0 max-w-full space-y-6 px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-6 md:px-6 md:py-8 md:pb-8 lg:px-8">
       {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between min-w-0">
         <div className="min-w-0">
@@ -1042,10 +1042,7 @@ export function Analytics() {
           </Card>
         </TabsContent>
 
-        <TabsContent
-          value="checkin"
-          className="-mx-2 min-w-0 w-[calc(100%+1rem)] sm:-mx-3 sm:w-[calc(100%+1.5rem)] md:-mx-4 md:w-[calc(100%+2rem)]"
-        >
+        <TabsContent value="checkin" className="min-w-0">
           <div className="grid w-full min-w-0 max-w-none grid-cols-1 overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-sm lg:grid-cols-[minmax(17rem,34%)_minmax(0,1fr)]">
             <div className="border-b border-gray-100 bg-gradient-to-b from-rose-50/50 to-white p-5 sm:p-6 lg:border-b-0 lg:border-r lg:border-gray-100 lg:p-7 xl:p-8">
               <div className="mb-4 flex items-center gap-3">
