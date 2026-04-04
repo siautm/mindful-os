@@ -789,6 +789,21 @@ export function getMinigameHighScore(): number {
   return getFromStorage<number>("minigame-highscore", 0);
 }
 
+const CHECKIN_TRACKING_START_KEY = "mindful_checkin_tracking_start";
+
+/**
+ * Calendar day `YYYY-MM-DD` (local) when check-in analytics tracking began.
+ * On first read, persists today's date so past days before that stay neutral (not "missed").
+ */
+export function getCheckInTrackingStartYmd(): string {
+  const existing = getFromStorage<string | null>(CHECKIN_TRACKING_START_KEY, null);
+  if (existing && /^\d{4}-\d{2}-\d{2}$/.test(existing)) return existing;
+  const t = new Date();
+  const ymd = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+  setToStorage(CHECKIN_TRACKING_START_KEY, ymd);
+  return ymd;
+}
+
 export function saveMinigameHighScore(score: number): void {
   setToStorage("minigame-highscore", score);
 }

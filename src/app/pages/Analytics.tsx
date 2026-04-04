@@ -1,5 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
@@ -15,6 +18,8 @@ import {
   Brain,
   Scale,
   Circle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   getFocusSessions,
@@ -25,6 +30,8 @@ import {
   getMeditationEntries,
   getWeightEntries,
   getWellnessChecklistStatusForDate,
+  isWellnessChecklistCompleteForDate,
+  getCheckInTrackingStartYmd,
   FocusSession,
   Task,
   FinanceEntry,
@@ -37,6 +44,131 @@ import {
 type TimePeriod = "daily" | "weekly" | "monthly" | "yearly" | "total";
 
 const COLORS = ["#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#ef4444"];
+
+function toYmdLocal(d: Date): string {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+}
+
+function parseYmdLocal(ymd: string): Date {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+type WellnessDetailRow = {
+  day: Date;
+  label: string;
+  checklist: ReturnType<typeof getWellnessChecklistStatusForDate>;
+  complete: boolean;
+  exercises: ExerciseEntry[];
+  sleeps: SleepEntry[];
+  meditations: MeditationEntry[];
+  weights: WeightEntry[];
+  finance: FinanceEntry[];
+};
+
+type DayCellTheme = "green" | "red" | "amber" | "neutral";
+
+function sameCalendarDay(isoOrDate: string, day: Date): boolean {
+  return new Date(isoOrDate).toDateString() === day.toDateString();
+}
+
+function financeEntryOnCalendarDay(entry: FinanceEntry, day: Date): boolean {
+  const dayStr = day.toDateString();
+  const parts = entry.date.trim().split("-");
+  if (parts.length === 3) {
+    const y = Number(parts[0]);
+    const m = Number(parts[1]) - 1;
+    const d = Number(parts[2]);
+    if (Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)) {
+      return new Date(y, m, d).toDateString() === dayStr;
+    }
+  }
+  return new Date(entry.date).toDateString() === dayStr;
+}
+
+function buildWellnessDetailRow(d0: Date): WellnessDetailRow {
+  const exercises = getExerciseEntries();
+  const sleeps = getSleepEntries();
+  const meditations = getMeditationEntries();
+  const weights = getWeightEntries();
+  const finances = getFinanceEntries();
+
+  const checklist = getWellnessChecklistStatusForDate(d0);
+  const exercisesDay = exercises.filter((e) => sameCalendarDay(e.date, d0));
+  const sleepsDay = sleeps.filter((e) => sameCalendarDay(e.date, d0));
+  const meditationsDay = meditations.filter(
+    (e) => sameCalendarDay(e.date, d0) && e.duration >= 0.5
+  );
+  const weightsDay = weights.filter((e) => sameCalendarDay(e.date, d0));
+  const financeDay = finances.filter((e) => financeEntryOnCalendarDay(e, d0));
+  const label = d0.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    ...(d0.getFullYear() !== new Date().getFullYear() ? { year: "numeric" as const } : {}),
+  });
+  const complete =
+    checklist.exercise &&
+    checklist.finance &&
+    checklist.sleep &&
+    checklist.meditation &&
+    checklist.weight;
+  return {
+    day: d0,
+    label,
+    checklist,
+    complete,
+    exercises: exercisesDay,
+    sleeps: sleepsDay,
+    meditations: meditationsDay,
+    weights: weightsDay,
+    finance: financeDay,
+  };
+}
+
+function dayCellTheme(ymd: string, trackingStartYmd: string, todayYmd: string): DayCellTheme {
+  if (ymd < trackingStartYmd || ymd > todayYmd) return "neutral";
+  const d = parseYmdLocal(ymd);
+  if (isWellnessChecklistCompleteForDate(d)) return "green";
+  if (ymd < todayYmd) return "red";
+  return "amber";
+}
+
+type MonthStripStatus = "green" | "red" | "amber" | "neutral";
+
+function monthStripStatus(
+  year: number,
+  month: number,
+  trackingStartYmd: string,
+  todayYmd: string
+): MonthStripStatus {
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  let inRange = false;
+  let missPast = false;
+  let completeAny = false;
+
+  for (let day = 1; day <= lastDay; day++) {
+    const ymd = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    if (ymd < trackingStartYmd || ymd > todayYmd) continue;
+    inRange = true;
+    const d = parseYmdLocal(ymd);
+    const complete = isWellnessChecklistCompleteForDate(d);
+    if (complete) {
+      completeAny = true;
+      continue;
+    }
+    if (ymd < todayYmd) {
+      missPast = true;
+    }
+  }
+
+  if (!inRange) return "neutral";
+  if (missPast) return "red";
+  if (completeAny) return "green";
+  return "amber";
+}
 
 export function Analytics() {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>("weekly");
@@ -247,94 +379,86 @@ export function Analytics() {
     };
   }
 
-  function sameCalendarDay(isoOrDate: string, day: Date): boolean {
-    return new Date(isoOrDate).toDateString() === day.toDateString();
-  }
-
-  function financeEntryOnCalendarDay(entry: FinanceEntry, day: Date): boolean {
-    const dayStr = day.toDateString();
-    const parts = entry.date.trim().split("-");
-    if (parts.length === 3) {
-      const y = Number(parts[0]);
-      const m = Number(parts[1]) - 1;
-      const d = Number(parts[2]);
-      if (Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)) {
-        return new Date(y, m, d).toDateString() === dayStr;
-      }
-    }
-    return new Date(entry.date).toDateString() === dayStr;
-  }
-
-  /** One row per calendar day in range: checklist + exercise, sleep, meditation, weight, finance. */
-  function getWellnessCheckInRows() {
-    const { start, end } = getDateRange(timePeriod);
-    const startDay = new Date(start);
-    startDay.setHours(0, 0, 0, 0);
-    const endDay = new Date(end);
-    endDay.setHours(0, 0, 0, 0);
-    if (timePeriod === "total") {
-      const cap = new Date(endDay);
-      cap.setDate(cap.getDate() - 365);
-      if (startDay.getTime() < cap.getTime()) {
-        startDay.setTime(cap.getTime());
-      }
-    }
-
-    const exercises = getExerciseEntries();
-    const sleeps = getSleepEntries();
-    const meditations = getMeditationEntries();
-    const weights = getWeightEntries();
-    const finances = getFinanceEntries();
-
-    const days: Date[] = [];
-    const cur = new Date(startDay);
-    while (cur.getTime() <= endDay.getTime()) {
-      days.push(new Date(cur));
-      cur.setDate(cur.getDate() + 1);
-    }
-    days.reverse();
-
-    return days.map((day) => {
-      const d0 = new Date(day);
-      d0.setHours(0, 0, 0, 0);
-      const checklist = getWellnessChecklistStatusForDate(d0);
-      const exercisesDay = exercises.filter((e) => sameCalendarDay(e.date, d0));
-      const sleepsDay = sleeps.filter((e) => sameCalendarDay(e.date, d0));
-      const meditationsDay = meditations.filter(
-        (e) => sameCalendarDay(e.date, d0) && e.duration >= 0.5
-      );
-      const weightsDay = weights.filter((e) => sameCalendarDay(e.date, d0));
-      const financeDay = finances.filter((e) => financeEntryOnCalendarDay(e, d0));
-      const label = d0.toLocaleDateString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        ...(d0.getFullYear() !== new Date().getFullYear() ? { year: "numeric" as const } : {}),
-      });
-      const complete =
-        checklist.exercise &&
-        checklist.finance &&
-        checklist.sleep &&
-        checklist.meditation &&
-        checklist.weight;
-      return {
-        day: d0,
-        label,
-        checklist,
-        complete,
-        exercises: exercisesDay,
-        sleeps: sleepsDay,
-        meditations: meditationsDay,
-        weights: weightsDay,
-        finance: financeDay,
-      };
-    });
-  }
-
   const pomodoroData = getPomodoroData();
   const tasksData = getTasksData();
   const financeData = getFinanceData();
-  const wellnessRows = getWellnessCheckInRows();
+
+  const trackingStartYmd = useMemo(() => getCheckInTrackingStartYmd(), []);
+  const todayYmd = toYmdLocal(new Date());
+
+  const [checkinCalYM, setCheckinCalYM] = useState(() => {
+    const t = new Date();
+    return { y: t.getFullYear(), m: t.getMonth() };
+  });
+  const [selectedCheckinYmd, setSelectedCheckinYmd] = useState(() => toYmdLocal(new Date()));
+
+  const completedCheckinYmds: string[] = (() => {
+    const out: string[] = [];
+    const today = parseYmdLocal(todayYmd);
+    const start = parseYmdLocal(trackingStartYmd);
+    const d = new Date(today);
+    while (d.getTime() >= start.getTime()) {
+      if (isWellnessChecklistCompleteForDate(d)) {
+        out.push(toYmdLocal(d));
+      }
+      d.setDate(d.getDate() - 1);
+    }
+    return out;
+  })();
+
+  const effectiveSelectedYmd =
+    selectedCheckinYmd >= trackingStartYmd && selectedCheckinYmd <= todayYmd
+      ? selectedCheckinYmd
+      : todayYmd;
+  const selectedRow = buildWellnessDetailRow(parseYmdLocal(effectiveSelectedYmd));
+
+  function monthGridCells(year: number, month: number) {
+    const first = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const startPad = first.getDay();
+    const cells: { ymd: string | null; dayNum: number | null }[] = [];
+    for (let i = 0; i < startPad; i++) {
+      cells.push({ ymd: null, dayNum: null });
+    }
+    for (let day = 1; day <= lastDay; day++) {
+      const ymd = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      cells.push({ ymd, dayNum: day });
+    }
+    return cells;
+  }
+
+  function cellClass(theme: DayCellTheme, isSelected: boolean) {
+    const ring = isSelected ? " ring-2 ring-offset-1 ring-emerald-600 z-[1]" : "";
+    switch (theme) {
+      case "green":
+        return `bg-emerald-500 text-white font-semibold hover:bg-emerald-600${ring}`;
+      case "red":
+        return `bg-red-500 text-white font-semibold hover:bg-red-600${ring}`;
+      case "amber":
+        return `bg-amber-400 text-amber-950 font-semibold hover:bg-amber-500${ring}`;
+      default:
+        return `bg-gray-100 text-gray-400${isSelected ? " ring-2 ring-offset-1 ring-gray-500" : ""}`;
+    }
+  }
+
+  function monthStripButtonClass(s: MonthStripStatus, isCurrentMonth: boolean) {
+    const base =
+      "min-w-0 flex-1 rounded-md px-1 py-2 text-[10px] sm:text-xs font-medium transition-colors border";
+    const cur = isCurrentMonth ? " ring-2 ring-emerald-500 ring-offset-1" : "";
+    switch (s) {
+      case "green":
+        return `${base} border-emerald-600 bg-emerald-500 text-white${cur}`;
+      case "red":
+        return `${base} border-red-600 bg-red-500 text-white${cur}`;
+      case "amber":
+        return `${base} border-amber-500 bg-amber-400 text-amber-950${cur}`;
+      default:
+        return `${base} border-gray-200 bg-gray-100 text-gray-500${cur}`;
+    }
+  }
+
+  const checkinMonthCells = monthGridCells(checkinCalYM.y, checkinCalYM.m);
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
   return (
     <div className="px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 md:p-8 md:pb-8 space-y-6 w-full min-w-0 max-w-full">
@@ -670,166 +794,303 @@ export function Analytics() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Heart className="size-5 text-rose-500" />
-                Daily check-in log
+                Check-in calendar
               </CardTitle>
               <p className="text-sm text-gray-600 font-normal">
-                Checklist progress, exercise, sleep, meditation, weight, and finance entries per day
-                (same rules as the Check-In page).
+                Tracking starts from{" "}
+                <span className="font-medium text-gray-800">{trackingStartYmd}</span> (set the first time you open
+                Analytics). Green = full five-item check-in, red = missed past day, amber = today still in progress.
+                Gray = before tracking or future.
               </p>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {wellnessRows.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">No days in this range.</p>
-              ) : (
-                wellnessRows.map((row) => (
-                  <div
-                    key={row.day.toISOString()}
-                    className="rounded-xl border border-gray-200 bg-gray-50/80 p-4 space-y-3"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 pb-2">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="size-4 text-emerald-600" />
-                        <span className="font-semibold text-gray-900">{row.label}</span>
-                      </div>
-                      {row.complete ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                          <CheckCircle2 className="size-3.5" />
-                          Full check-in
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-500">Checklist incomplete</span>
-                      )}
-                    </div>
+            <CardContent className="space-y-6">
+              <div className="flex flex-wrap gap-3 text-xs text-gray-600">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="size-3 rounded-sm bg-emerald-500" />
+                  Done
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="size-3 rounded-sm bg-red-500" />
+                  Missed
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="size-3 rounded-sm bg-amber-400" />
+                  Today
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="size-3 rounded-sm bg-gray-200 border border-gray-300" />
+                  N/A
+                </span>
+              </div>
 
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
-                      {(
-                        [
-                          ["Exercise", row.checklist.exercise],
-                          ["Finance", row.checklist.finance],
-                          ["Sleep", row.checklist.sleep],
-                          ["Meditation", row.checklist.meditation],
-                          ["Weight", row.checklist.weight],
-                        ] as const
-                      ).map(([name, ok]) => (
-                        <span key={name} className="inline-flex items-center gap-1">
-                          {ok ? (
-                            <CheckCircle2 className="size-3.5 text-green-600" />
-                          ) : (
-                            <Circle className="size-3.5 text-gray-300" />
-                          )}
-                          {name}
-                        </span>
-                      ))}
-                    </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-2">{checkinCalYM.y} — tap a month</p>
+                <div className="flex flex-wrap gap-1">
+                  {monthNames.map((name, mi) => {
+                    const s = monthStripStatus(checkinCalYM.y, mi, trackingStartYmd, todayYmd);
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        className={monthStripButtonClass(s, mi === checkinCalYM.m)}
+                        onClick={() => setCheckinCalYM({ y: checkinCalYM.y, m: mi })}
+                      >
+                        {name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-lg bg-white/90 border border-gray-100 p-3">
-                        <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                          <Dumbbell className="size-3.5 text-emerald-600" />
-                          Exercise
-                        </p>
-                        {row.exercises.length === 0 ? (
-                          <p className="text-xs text-gray-400">No entries</p>
-                        ) : (
-                          <ul className="text-xs text-gray-700 space-y-1">
-                            {row.exercises.map((e: ExerciseEntry) => (
-                              <li key={e.id}>
-                                {e.type} · {e.duration} min · {e.intensity}
-                                {e.notes ? ` — ${e.notes}` : ""}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
+              <div className="flex items-center justify-between gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Previous month"
+                  onClick={() =>
+                    setCheckinCalYM((p) => (p.m === 0 ? { y: p.y - 1, m: 11 } : { y: p.y, m: p.m - 1 }))
+                  }
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
+                <span className="text-sm font-semibold text-gray-900">
+                  {monthNames[checkinCalYM.m]} {checkinCalYM.y}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Next month"
+                  onClick={() =>
+                    setCheckinCalYM((p) => (p.m === 11 ? { y: p.y + 1, m: 0 } : { y: p.y, m: p.m + 1 }))
+                  }
+                >
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
 
-                      <div className="rounded-lg bg-white/90 border border-gray-100 p-3">
-                        <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                          <Moon className="size-3.5 text-indigo-600" />
-                          Sleep
-                        </p>
-                        {row.sleeps.length === 0 ? (
-                          <p className="text-xs text-gray-400">No entries</p>
-                        ) : (
-                          <ul className="text-xs text-gray-700 space-y-1">
-                            {row.sleeps.map((s: SleepEntry) => (
-                              <li key={s.id}>
-                                Bed {s.bedTime}
-                                {s.wakeTime != null && s.wakeTime !== ""
-                                  ? ` → wake ${s.wakeTime}`
-                                  : ""}
-                                {s.duration != null ? ` · ${s.duration}h` : ""}
-                                {s.quality != null ? ` · quality ${s.quality}/5` : ""}
-                                {s.notes ? ` — ${s.notes}` : ""}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-
-                      <div className="rounded-lg bg-white/90 border border-gray-100 p-3">
-                        <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                          <Brain className="size-3.5 text-purple-600" />
-                          Meditation
-                        </p>
-                        {row.meditations.length === 0 ? (
-                          <p className="text-xs text-gray-400">No entries</p>
-                        ) : (
-                          <ul className="text-xs text-gray-700 space-y-1">
-                            {row.meditations.map((m: MeditationEntry) => (
-                              <li key={m.id}>
-                                {m.duration} min · {m.type}
-                                {m.notes ? ` — ${m.notes}` : ""}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-
-                      <div className="rounded-lg bg-white/90 border border-gray-100 p-3">
-                        <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                          <Scale className="size-3.5 text-teal-600" />
-                          Weight
-                        </p>
-                        {row.weights.length === 0 ? (
-                          <p className="text-xs text-gray-400">No entries</p>
-                        ) : (
-                          <ul className="text-xs text-gray-700 space-y-1">
-                            {row.weights.map((w: WeightEntry) => (
-                              <li key={w.id}>
-                                {w.weight} {w.unit}
-                                {w.notes ? ` — ${w.notes}` : ""}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="rounded-lg bg-white/90 border border-gray-100 p-3">
-                      <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                        <DollarSign className="size-3.5 text-amber-600" />
-                        Finance ({row.finance.length}{" "}
-                        {row.finance.length === 1 ? "entry" : "entries"})
-                      </p>
-                      {row.finance.length === 0 ? (
-                        <p className="text-xs text-gray-400">No entries</p>
-                      ) : (
-                        <ul className="text-xs text-gray-700 space-y-1 max-h-32 overflow-y-auto">
-                          {row.finance.map((f: FinanceEntry) => (
-                            <li key={f.id}>
-                              <span className={f.type === "income" ? "text-green-700" : "text-red-700"}>
-                                {f.type === "income" ? "+" : "-"}${f.amount.toFixed(2)}
-                              </span>{" "}
-                              · {f.category}
-                              {f.description ? ` — ${f.description}` : ""}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
+              <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-gray-500">
+                {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
+                  <div key={d} className="py-1">
+                    {d}
                   </div>
-                ))
-              )}
+                ))}
+                {checkinMonthCells.map((cell, idx) => {
+                  if (cell.ymd == null || cell.dayNum == null) {
+                    return <div key={`pad-${idx}`} className="aspect-square" />;
+                  }
+                  const theme = dayCellTheme(cell.ymd, trackingStartYmd, todayYmd);
+                  const selectable = cell.ymd >= trackingStartYmd && cell.ymd <= todayYmd;
+                  return (
+                    <button
+                      key={cell.ymd}
+                      type="button"
+                      disabled={!selectable}
+                      onClick={() => selectable && setSelectedCheckinYmd(cell.ymd!)}
+                      className={`aspect-square rounded-md text-xs flex items-center justify-center transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${cellClass(
+                        theme,
+                        cell.ymd === effectiveSelectedYmd
+                      )}`}
+                    >
+                      {cell.dayNum}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                <div className="space-y-1.5 flex-1">
+                  <Label htmlFor="checkin-date-pick">Choose day</Label>
+                  <Input
+                    id="checkin-date-pick"
+                    type="date"
+                    min={trackingStartYmd}
+                    max={todayYmd}
+                    value={effectiveSelectedYmd}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v && v >= trackingStartYmd && v <= todayYmd) {
+                        setSelectedCheckinYmd(v);
+                        const [yy, mm] = v.split("-").map(Number);
+                        setCheckinCalYM({ y: yy, m: mm - 1 });
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium text-gray-800 mb-2">Completed check-ins only</p>
+                {completedCheckinYmds.length === 0 ? (
+                  <p className="text-sm text-gray-500">No full check-ins recorded yet since {trackingStartYmd}.</p>
+                ) : (
+                  <ul className="flex flex-wrap gap-2">
+                    {completedCheckinYmds.map((ymd) => (
+                      <li key={ymd}>
+                        <button
+                          type="button"
+                          className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                            ymd === effectiveSelectedYmd
+                              ? "border-emerald-600 bg-emerald-50 text-emerald-900"
+                              : "border-gray-200 bg-white text-gray-700 hover:border-emerald-300"
+                          }`}
+                          onClick={() => {
+                            setSelectedCheckinYmd(ymd);
+                            const [yy, mm] = ymd.split("-").map(Number);
+                            setCheckinCalYM({ y: yy, m: mm - 1 });
+                          }}
+                        >
+                          {ymd}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex flex-wrap items-center gap-2">
+                <Calendar className="size-5 text-emerald-600" />
+                <span>Status for {selectedRow.label}</span>
+                {selectedRow.complete ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                    <CheckCircle2 className="size-3.5" />
+                    Full check-in
+                  </span>
+                ) : (
+                  <span className="text-xs font-normal text-gray-500">Checklist incomplete</span>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
+                {(
+                  [
+                    ["Exercise", selectedRow.checklist.exercise],
+                    ["Finance", selectedRow.checklist.finance],
+                    ["Sleep", selectedRow.checklist.sleep],
+                    ["Meditation", selectedRow.checklist.meditation],
+                    ["Weight", selectedRow.checklist.weight],
+                  ] as const
+                ).map(([name, ok]) => (
+                  <span key={name} className="inline-flex items-center gap-1">
+                    {ok ? (
+                      <CheckCircle2 className="size-3.5 text-green-600" />
+                    ) : (
+                      <Circle className="size-3.5 text-gray-300" />
+                    )}
+                    {name}
+                  </span>
+                ))}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-lg bg-gray-50 border border-gray-100 p-3">
+                  <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                    <Dumbbell className="size-3.5 text-emerald-600" />
+                    Exercise
+                  </p>
+                  {selectedRow.exercises.length === 0 ? (
+                    <p className="text-xs text-gray-400">No entries</p>
+                  ) : (
+                    <ul className="text-xs text-gray-700 space-y-1">
+                      {selectedRow.exercises.map((e: ExerciseEntry) => (
+                        <li key={e.id}>
+                          {e.type} · {e.duration} min · {e.intensity}
+                          {e.notes ? ` — ${e.notes}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="rounded-lg bg-gray-50 border border-gray-100 p-3">
+                  <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                    <Moon className="size-3.5 text-indigo-600" />
+                    Sleep
+                  </p>
+                  {selectedRow.sleeps.length === 0 ? (
+                    <p className="text-xs text-gray-400">No entries</p>
+                  ) : (
+                    <ul className="text-xs text-gray-700 space-y-1">
+                      {selectedRow.sleeps.map((s: SleepEntry) => (
+                        <li key={s.id}>
+                          Bed {s.bedTime}
+                          {s.wakeTime != null && s.wakeTime !== "" ? ` → wake ${s.wakeTime}` : ""}
+                          {s.duration != null ? ` · ${s.duration}h` : ""}
+                          {s.quality != null ? ` · quality ${s.quality}/5` : ""}
+                          {s.notes ? ` — ${s.notes}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="rounded-lg bg-gray-50 border border-gray-100 p-3">
+                  <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                    <Brain className="size-3.5 text-purple-600" />
+                    Meditation
+                  </p>
+                  {selectedRow.meditations.length === 0 ? (
+                    <p className="text-xs text-gray-400">No entries</p>
+                  ) : (
+                    <ul className="text-xs text-gray-700 space-y-1">
+                      {selectedRow.meditations.map((m: MeditationEntry) => (
+                        <li key={m.id}>
+                          {m.duration} min · {m.type}
+                          {m.notes ? ` — ${m.notes}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="rounded-lg bg-gray-50 border border-gray-100 p-3">
+                  <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                    <Scale className="size-3.5 text-teal-600" />
+                    Weight
+                  </p>
+                  {selectedRow.weights.length === 0 ? (
+                    <p className="text-xs text-gray-400">No entries</p>
+                  ) : (
+                    <ul className="text-xs text-gray-700 space-y-1">
+                      {selectedRow.weights.map((w: WeightEntry) => (
+                        <li key={w.id}>
+                          {w.weight} {w.unit}
+                          {w.notes ? ` — ${w.notes}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-lg bg-gray-50 border border-gray-100 p-3">
+                <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                  <DollarSign className="size-3.5 text-amber-600" />
+                  Finance ({selectedRow.finance.length}{" "}
+                  {selectedRow.finance.length === 1 ? "entry" : "entries"})
+                </p>
+                {selectedRow.finance.length === 0 ? (
+                  <p className="text-xs text-gray-400">No entries</p>
+                ) : (
+                  <ul className="text-xs text-gray-700 space-y-1 max-h-32 overflow-y-auto">
+                    {selectedRow.finance.map((f: FinanceEntry) => (
+                      <li key={f.id}>
+                        <span className={f.type === "income" ? "text-green-700" : "text-red-700"}>
+                          {f.type === "income" ? "+" : "-"}${f.amount.toFixed(2)}
+                        </span>{" "}
+                        · {f.category}
+                        {f.description ? ` — ${f.description}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
