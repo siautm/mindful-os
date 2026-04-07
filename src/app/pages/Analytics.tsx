@@ -234,40 +234,66 @@ export function Analytics() {
     const { start, end } = getDateRange(timePeriod);
     const filtered = focusSessions.filter(s => {
       const date = new Date(s.date);
-      return s.completed && date >= start && date <= end;
+      return date >= start && date <= end;
     });
 
+    const completedSessions = filtered.filter((s) => s.completed);
+    const incompleteSessions = filtered.filter((s) => !s.completed);
+
     if (timePeriod === "total") {
-      const totalMinutes = filtered.reduce((sum, s) => sum + s.duration, 0);
+      const totalMinutes = completedSessions.reduce((sum, s) => sum + s.duration, 0);
       const totalSessions = filtered.length;
       return {
-        chart: [{ name: "Total", minutes: totalMinutes, sessions: totalSessions }],
-        total: { minutes: totalMinutes, sessions: totalSessions },
+        chart: [{
+          name: "Total",
+          minutes: totalMinutes,
+          sessions: totalSessions,
+          completedSessions: completedSessions.length,
+          incompleteSessions: incompleteSessions.length,
+        }],
+        total: {
+          minutes: totalMinutes,
+          sessions: totalSessions,
+          completedSessions: completedSessions.length,
+          incompleteSessions: incompleteSessions.length,
+        },
       };
     }
 
-    const grouped: Record<string, { minutes: number; sessions: number }> = {};
+    const grouped: Record<string, { minutes: number; sessions: number; completedSessions: number; incompleteSessions: number }> = {};
     filtered.forEach(session => {
       const key = getDateKey(new Date(session.date), timePeriod);
       if (!grouped[key]) {
-        grouped[key] = { minutes: 0, sessions: 0 };
+        grouped[key] = { minutes: 0, sessions: 0, completedSessions: 0, incompleteSessions: 0 };
       }
-      grouped[key].minutes += session.duration;
       grouped[key].sessions += 1;
+      if (session.completed) {
+        grouped[key].minutes += session.duration;
+        grouped[key].completedSessions += 1;
+      } else {
+        grouped[key].incompleteSessions += 1;
+      }
     });
 
     const chart = Object.entries(grouped).map(([name, data]) => ({
       name,
       minutes: data.minutes,
       sessions: data.sessions,
+      completedSessions: data.completedSessions,
+      incompleteSessions: data.incompleteSessions,
     }));
 
-    const totalMinutes = filtered.reduce((sum, s) => sum + s.duration, 0);
+    const totalMinutes = completedSessions.reduce((sum, s) => sum + s.duration, 0);
     const totalSessions = filtered.length;
 
     return {
       chart,
-      total: { minutes: totalMinutes, sessions: totalSessions },
+      total: {
+        minutes: totalMinutes,
+        sessions: totalSessions,
+        completedSessions: completedSessions.length,
+        incompleteSessions: incompleteSessions.length,
+      },
     };
   }
 
@@ -682,7 +708,8 @@ export function Analytics() {
                     <Tooltip />
                     <Legend />
                     <Bar dataKey="minutes" fill="#8b5cf6" name="Minutes" />
-                    <Bar dataKey="sessions" fill="#ec4899" name="Sessions" />
+                    <Bar dataKey="completedSessions" fill="#10b981" name="Completed" />
+                    <Bar dataKey="incompleteSessions" fill="#ef4444" name="Incomplete" />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -709,17 +736,14 @@ export function Analytics() {
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">Average Session Length</CardTitle>
+                <CardTitle className="text-sm">Session Status</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-pink-600">
-                  {pomodoroData.total.sessions > 0
-                    ? Math.round(pomodoroData.total.minutes / pomodoroData.total.sessions)
-                    : 0}{" "}
-                  min
+                  {pomodoroData.total.completedSessions}/{pomodoroData.total.sessions}
                 </div>
                 <p className="text-sm text-gray-600 mt-1">
-                  Across {pomodoroData.total.sessions} sessions
+                  Completed / Total (incomplete: {pomodoroData.total.incompleteSessions})
                 </p>
               </CardContent>
             </Card>

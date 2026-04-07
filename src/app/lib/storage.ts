@@ -758,6 +758,14 @@ export function saveFocusWallpaperChoice(choice: FocusWallpaperChoice): void {
   setToStorage("mindful_focus_wallpaper", normalizeFocusWallpaperChoice(choice));
 }
 
+export function getFocusNoiseTypeChoice(): string {
+  return getFromStorage<string>("mindful_focus_noise_type", "none");
+}
+
+export function saveFocusNoiseTypeChoice(noiseType: string): void {
+  setToStorage("mindful_focus_noise_type", noiseType);
+}
+
 // Check-in functions
 export function getCheckIns(): CheckInEntry[] {
   return getFromStorage<CheckInEntry[]>("mindful_checkins", []);

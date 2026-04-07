@@ -3,13 +3,13 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabaseClient";
 
 const SESSION_STARTED_AT_KEY = "mindful_session_started_at";
-/** Default 1 hour. Override with VITE_SESSION_TTL_MS (ms), min 10000. */
+/** Default 6 hours. Override with VITE_SESSION_TTL_MS (ms), min 10000. */
 const SESSION_TTL_MS =
   typeof import.meta.env.VITE_SESSION_TTL_MS === "string" &&
   import.meta.env.VITE_SESSION_TTL_MS.trim() !== "" &&
   Number.isFinite(Number(import.meta.env.VITE_SESSION_TTL_MS))
     ? Math.max(10_000, Number(import.meta.env.VITE_SESSION_TTL_MS))
-    : 60 * 60 * 1000;
+    : 6 * 60 * 60 * 1000;
 
 function getSessionStartedAt(): number | null {
   const raw = localStorage.getItem(SESSION_STARTED_AT_KEY);

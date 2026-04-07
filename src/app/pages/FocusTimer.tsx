@@ -6,7 +6,7 @@ import { Progress } from "../components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Input } from "../components/ui/input";
 import { Slider } from "../components/ui/slider";
-import { Play, Pause, RotateCcw, Coffee, Target, Plus, Trash2, Edit2, Volume2, VolumeX, Maximize2 } from "lucide-react";
+import { Play, Pause, RotateCcw, Coffee, Target, Plus, Trash2, Edit2, Volume2, VolumeX, Maximize2, Square } from "lucide-react";
 import {
   getTasks,
   getTimetable,
@@ -25,6 +25,8 @@ import {
   saveFocusWallpaperChoice,
   getStudyPlans,
   type StudyPlan,
+  getFocusNoiseTypeChoice,
+  saveFocusNoiseTypeChoice,
 } from "../lib/storage";
 import { toast } from "sonner";
 import {
@@ -57,7 +59,7 @@ export function FocusTimer() {
   const [editPresetDuration, setEditPresetDuration] = useState(0);
   
   // White noise state
-  const [noiseType, setNoiseType] = useState<NoiseType>("none");
+  const [noiseType, setNoiseType] = useState<NoiseType>(() => getFocusNoiseTypeChoice() as NoiseType);
   const [noiseVolume, setNoiseVolume] = useState(0.3);
   const [isNoisePlaying, setIsNoisePlaying] = useState(false);
   const noisePlayerRef = useRef(getWhiteNoisePlayer());
@@ -255,6 +257,43 @@ export function FocusTimer() {
     setTimeLeft(duration * 60);
   }
 
+  function handleStop() {
+    const elapsedSeconds = duration * 60 - timeLeft;
+    if (elapsedSeconds <= 0) {
+      setIsRunning(false);
+      setTimeLeft(duration * 60);
+      return;
+    }
+
+    setIsRunning(false);
+
+    const taskTitle = selectedTask !== "none"
+      ? tasks.find(t => t.id === selectedTask)?.title
+      : undefined;
+    const plan = studyPlans.find((p) => p.id === selectedPlanId);
+    const part = plan?.parts.find((x) => x.id === selectedPartId);
+
+    const elapsedMinutes = Math.max(1, Math.round(elapsedSeconds / 60));
+    const session: FocusSession = {
+      id: Date.now().toString(),
+      taskId: selectedTask !== "none" ? selectedTask : undefined,
+      taskTitle,
+      duration: elapsedMinutes,
+      completed: false,
+      date: new Date().toISOString(),
+      studyPlanId: plan && selectedPlanId !== "none" ? selectedPlanId : undefined,
+      studyPartId: part && selectedPartId !== "none" ? selectedPartId : undefined,
+      studyPlanName: plan?.name,
+      studyPartTitle: part?.title,
+    };
+
+    const sessions = getFocusSessions();
+    saveFocusSessions([...sessions, session]);
+    loadTodayStats();
+    setTimeLeft(duration * 60);
+    toast.info("Session stopped and saved as incomplete.");
+  }
+
   function handleComplete() {
     setIsRunning(false);
     
@@ -428,6 +467,15 @@ export function FocusTimer() {
             >
               <RotateCcw className="size-5" />
             </Button>
+            <Button
+              size="lg"
+              variant="destructive"
+              onClick={handleStop}
+              disabled={timeLeft === duration * 60}
+            >
+              <Square className="size-5 mr-2" />
+              Stop
+            </Button>
           </div>
 
           {/* Settings */}
@@ -557,7 +605,10 @@ export function FocusTimer() {
                 <Label htmlFor="noiseType" className="text-sm text-blue-800">Ambient Sound</Label>
                 <Select
                   value={noiseType}
-                  onValueChange={(value) => setNoiseType(value as NoiseType)}
+                  onValueChange={(value) => {
+                    setNoiseType(value as NoiseType);
+                    saveFocusNoiseTypeChoice(value);
+                  }}
                   disabled={isRunning}
                 >
                   <SelectTrigger id="noiseType">
