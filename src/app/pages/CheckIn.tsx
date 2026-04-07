@@ -49,6 +49,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { getWhiteNoisePlayer, NoiseType, noiseCategories } from "../lib/whiteNoise";
 
 export function CheckIn() {
+  const MEDITATION_AUTO_STOP_SECONDS = 5 * 60;
   const navigate = useNavigate();
   const location = useLocation();
   const [streak, setStreak] = useState(0);
@@ -164,6 +165,16 @@ export function CheckIn() {
       meditationNoisePlayer.setVolume(meditationNoiseVolume);
     }
   }, [meditationNoiseVolume, meditationTimerRunning, meditationNoiseType]);
+
+  useEffect(() => {
+    if (!meditationTimerRunning) return;
+    if (meditationTimer < MEDITATION_AUTO_STOP_SECONDS) return;
+
+    setMeditationTimerRunning(false);
+    meditationNoisePlayer.stop();
+    setMeditationNoisePlaying(false);
+    toast.success("5 minutes completed. Meditation timer stopped.");
+  }, [meditationTimer, meditationTimerRunning]);
 
   function loadData() {
     setStreak(getCheckInStreak());
