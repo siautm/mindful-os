@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -48,6 +48,20 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 import { getWhiteNoisePlayer, NoiseType, noiseCategories } from "../lib/whiteNoise";
 
+const PREDEFINED_EXERCISE_TYPES = [
+  "Running",
+  "Walking",
+  "Cycling",
+  "Gym",
+  "Strength Training",
+  "Yoga",
+  "Stretching",
+  "Swimming",
+  "Jump Rope",
+  "Other",
+] as const;
+const CREATE_NEW_TYPE_VALUE = "__create_new__";
+
 export function CheckIn() {
   const MEDITATION_AUTO_STOP_SECONDS = 5 * 60;
   const navigate = useNavigate();
@@ -68,9 +82,10 @@ export function CheckIn() {
   // Exercise dialog
   const [exerciseDialogOpen, setExerciseDialogOpen] = useState(false);
   const [exerciseForm, setExerciseForm] = useState({
-    type: "",
+    selectedType: PREDEFINED_EXERCISE_TYPES[0],
+    customType: "",
     duration: "",
-    times: 1,
+    timesText: "1",
     notes: "",
   });
 
@@ -105,6 +120,14 @@ export function CheckIn() {
   // Optional notes
   const [optionalNotes, setOptionalNotes] = useState("");
   const [notesExpanded, setNotesExpanded] = useState(false);
+  const [userExerciseTypes, setUserExerciseTypes] = useState<string[]>([]);
+
+  const exerciseTypeOptions = useMemo(() => {
+    const fromHistory = userExerciseTypes.filter(
+      (t) => !PREDEFINED_EXERCISE_TYPES.some((p) => p.toLowerCase() === t.toLowerCase())
+    );
+    return [...PREDEFINED_EXERCISE_TYPES, ...fromHistory];
+  }, [userExerciseTypes]);
 
   const syncChecklistFromStorage = useCallback(() => {
     const today = new Date();
@@ -184,6 +207,14 @@ export function CheckIn() {
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
     setPastCheckIns(sorted.slice(0, 7));
+    const knownTypes = Array.from(
+      new Set(
+        getExerciseEntries()
+          .map((e) => e.type.trim())
+          .filter((t) => t !== "")
+      )
+    );
+    setUserExerciseTypes(knownTypes);
 
     syncChecklistFromStorage();
   }
@@ -205,13 +236,22 @@ export function CheckIn() {
   }
 
   function handleExerciseLog() {
-    const type = exerciseForm.type.trim();
-    if (!type) {
+    const type =
+      exerciseForm.selectedType === CREATE_NEW_TYPE_VALUE
+        ? exerciseForm.customType.trim()
+        : exerciseForm.selectedType.trim();
+    if (type === "") {
       toast.error("Please enter exercise type");
       return;
     }
 
-    if (!Number.isFinite(exerciseForm.times) || exerciseForm.times <= 0) {
+    const timesRaw = exerciseForm.timesText.trim();
+    if (!/^\d+$/.test(timesRaw)) {
+      toast.error("Please enter a valid times value");
+      return;
+    }
+    const times = Number(timesRaw);
+    if (!Number.isFinite(times) || times <= 0) {
       toast.error("Please enter a valid times value");
       return;
     }
@@ -233,14 +273,25 @@ export function CheckIn() {
       date: new Date().toISOString(),
       type,
       duration: parsedDuration,
-      times: Math.floor(exerciseForm.times),
+      times: Math.floor(times),
       notes: exerciseForm.notes,
     };
 
-    saveExerciseEntries([...exercises, newExercise]);
+    const nextEntries = [...exercises, newExercise];
+    saveExerciseEntries(nextEntries);
     toast.success("Exercise logged! 💪");
     setExerciseDialogOpen(false);
-    setExerciseForm({ type: "", duration: "", times: 1, notes: "" });
+    setExerciseForm({
+      selectedType: PREDEFINED_EXERCISE_TYPES[0],
+      customType: "",
+      duration: "",
+      timesText: "1",
+      notes: "",
+    });
+    const knownTypes = Array.from(
+      new Set(nextEntries.map((e) => e.type.trim()).filter((t) => t !== ""))
+    );
+    setUserExerciseTypes(knownTypes);
     afterWellnessLogSaved();
   }
 
@@ -478,10 +529,53 @@ export function CheckIn() {
                   <div className="space-y-4">
                     <div>
                       <Label>Type</Label>
+                      <select
+                        value={exerciseForm.selectedType}
+                        onChange={(e) =>
+                          setExerciseForm({
+                            ...exerciseForm,
+                            selectedType: e.target.value,
+                          })
+                        }
+                        className="w-full mt-1 p-2 border rounded-lg"
+                      >
+                        {exerciseTypeOptions.map((type) => (
+                          <option key={type} value={type}>
+                            {type}
+                          </option>
+                        ))}
+                        <option value={CREATE_NEW_TYPE_VALUE}>+ Create new type</option>
+                      </select>
+                    </div>
+                    {exerciseForm.selectedType === CREATE_NEW_TYPE_VALUE && (
+                      <div>
+                        <Label>New Type Name</Label>
+                        <Input
+                          value={exerciseForm.customType}
+                          onChange={(e) =>
+                            setExerciseForm({
+                              ...exerciseForm,
+                              customType: e.target.value,
+                            })
+                          }
+                          placeholder="e.g. Push-up, Squat, Dance"
+                        />
+                      </div>
+                    )}
+                    <div>
+                      <Label>Times</Label>
                       <Input
-                        value={exerciseForm.type}
-                        onChange={(e) => setExerciseForm({ ...exerciseForm, type: e.target.value })}
-                        placeholder="e.g. Running, Push-up, Jump rope"
+                        type="text"
+                        inputMode="numeric"
+                        value={exerciseForm.timesText}
+                        onChange={(e) =>
+                          setExerciseForm({
+                            ...exerciseForm,
+                            timesText: e.target.value,
+                          })
+                        }
+                        onFocus={(e) => e.currentTarget.select()}
+                        placeholder="1"
                       />
                     </div>
                     <div>
@@ -491,20 +585,6 @@ export function CheckIn() {
                         min={1}
                         value={exerciseForm.duration}
                         onChange={(e) => setExerciseForm({ ...exerciseForm, duration: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label>Times</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={exerciseForm.times}
-                        onChange={(e) =>
-                          setExerciseForm({
-                            ...exerciseForm,
-                            times: Math.max(1, parseInt(e.target.value || "1", 10) || 1),
-                          })
-                        }
                       />
                     </div>
                     <div>
