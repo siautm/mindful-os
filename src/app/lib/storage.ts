@@ -1047,6 +1047,84 @@ export function saveLoadingShownDate(date: string): void {
   setToStorage("mindful_loading_shown", date);
 }
 
+/** Personal daily list (not tasks/events). Excluded from Analytics. */
+export interface DailyMemoItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+export interface DailyMemoState {
+  dateYmd: string;
+  items: DailyMemoItem[];
+}
+
+function localTodayYmd(): string {
+  const x = new Date();
+  x.setHours(0, 0, 0, 0);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+}
+
+export function getDailyMemoState(): DailyMemoState {
+  const ymd = localTodayYmd();
+  const raw = getFromStorage<DailyMemoState | null>("mindful_daily_memo", null);
+  if (!raw || typeof raw !== "object") {
+    return { dateYmd: ymd, items: [] };
+  }
+  if (raw.dateYmd !== ymd) {
+    return { dateYmd: ymd, items: [] };
+  }
+  const items = Array.isArray(raw.items) ? raw.items : [];
+  return {
+    dateYmd: ymd,
+    items: items
+      .filter((i) => i && typeof i === "object")
+      .map((i) => ({
+        id: typeof (i as DailyMemoItem).id === "string" ? (i as DailyMemoItem).id : `${Date.now()}`,
+        text: typeof (i as DailyMemoItem).text === "string" ? (i as DailyMemoItem).text : "",
+        done: Boolean((i as DailyMemoItem).done),
+      })),
+  };
+}
+
+function persistDailyMemo(state: DailyMemoState): void {
+  setToStorage("mindful_daily_memo", state);
+}
+
+export function saveDailyMemoItems(items: DailyMemoItem[]): void {
+  persistDailyMemo({ dateYmd: localTodayYmd(), items });
+}
+
+export function addDailyMemoItem(text: string): void {
+  const t = text.trim();
+  if (!t) return;
+  const s = getDailyMemoState();
+  persistDailyMemo({
+    dateYmd: localTodayYmd(),
+    items: [
+      ...s.items,
+      {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        text: t,
+        done: false,
+      },
+    ],
+  });
+}
+
+export function removeDailyMemoItem(id: string): void {
+  const s = getDailyMemoState();
+  persistDailyMemo({ dateYmd: localTodayYmd(), items: s.items.filter((i) => i.id !== id) });
+}
+
+export function toggleDailyMemoItem(id: string): void {
+  const s = getDailyMemoState();
+  persistDailyMemo({
+    dateYmd: localTodayYmd(),
+    items: s.items.map((i) => (i.id === id ? { ...i, done: !i.done } : i)),
+  });
+}
+
 const QUOTE_LOCALE_KEY = "mindful_quote_locale";
 const QUOTE_TAGS_KEY = "mindful_quote_tags";
 

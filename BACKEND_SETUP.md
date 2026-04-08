@@ -13,7 +13,8 @@ This project now includes backend routes in `api/` for:
 
 1. Create a new Supabase project.
 2. Open SQL Editor and run `supabase/schema.sql`.
-3. In project settings, copy:
+3. Run `supabase/rls_policies.sql` in the same SQL Editor (enables Row Level Security so tables are not publicly readable/writable with the anon key). Serverless routes using the **service_role** key are unaffected.
+4. In project settings, copy:
    - `Project URL` -> `SUPABASE_URL`
    - `service_role key` -> `SUPABASE_SERVICE_ROLE_KEY`
 

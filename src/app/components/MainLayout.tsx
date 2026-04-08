@@ -7,6 +7,7 @@ import {
   Timer,
   DollarSign,
   Lightbulb,
+  StickyNote,
   CalendarDays,
   BarChart3,
   Brain,
@@ -37,6 +38,7 @@ const routePreloaders: Record<string, () => Promise<unknown>> = {
   "/finance": () => import("../pages/Finance"),
   "/habits": () => import("../pages/Habits"),
   "/analytics": () => import("../pages/Analytics"),
+  "/memo": () => import("../pages/Memo"),
   "/ideas": () => import("../pages/Ideas"),
   "/events": () => import("../pages/Events"),
   "/minigame": () => import("../pages/Minigame"),
@@ -87,6 +89,7 @@ const navigationGroups = [
     name: "More",
     collapsible: true,
     items: [
+      { name: "Memo", path: "/memo", icon: StickyNote },
       { name: "Ideas", path: "/ideas", icon: Lightbulb },
       { name: "Brain Break", path: "/minigame", icon: Brain },
     ],

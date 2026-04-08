@@ -70,6 +70,13 @@ export const router = createBrowserRouter([
         },
       },
       {
+        path: "memo",
+        lazy: async () => {
+          const m = await import("./pages/Memo");
+          return { Component: m.Memo };
+        },
+      },
+      {
         path: "ideas",
         lazy: async () => {
           const m = await import("./pages/Ideas");
