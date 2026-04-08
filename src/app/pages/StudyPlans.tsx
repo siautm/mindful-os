@@ -24,12 +24,25 @@ import { toast } from "sonner";
 
 const PARTS_PREVIEW_COUNT = 5;
 
-/** Completed parts first (by order), then rest; used for the 5-item preview. */
 function orderPartsForDisplay(parts: StudyPlanPart[]): StudyPlanPart[] {
-  const sorted = [...parts].sort((a, b) => a.order - b.order);
-  const done = sorted.filter((p) => p.completed);
-  const todo = sorted.filter((p) => !p.completed);
-  return done.length > 0 ? [...done, ...todo] : sorted;
+  return [...parts].sort((a, b) => a.order - b.order);
+}
+
+/** Preview: latest completed part + next 4 incomplete parts. */
+function buildPreviewParts(parts: StudyPlanPart[]): StudyPlanPart[] {
+  const sorted = orderPartsForDisplay(parts);
+  const completed = sorted.filter((p) => p.completed);
+  const latestCompleted = completed.length > 0 ? completed[completed.length - 1] : null;
+
+  if (!latestCompleted) {
+    return sorted.filter((p) => !p.completed).slice(0, PARTS_PREVIEW_COUNT);
+  }
+
+  const incompleted = sorted.filter((p) => !p.completed);
+  const afterLatest = incompleted.filter((p) => p.order > latestCompleted.order);
+  const beforeLatest = incompleted.filter((p) => p.order <= latestCompleted.order);
+  const nextFour = [...afterLatest, ...beforeLatest].slice(0, PARTS_PREVIEW_COUNT - 1);
+  return [latestCompleted, ...nextFour];
 }
 
 function newPart(title: string, detail: string, order: number): StudyPlanPart {
@@ -299,7 +312,7 @@ export function StudyPlans() {
             const done = plan.parts.filter((p) => p.completed).length;
             const ordered = orderPartsForDisplay(plan.parts);
             const showAll = showAllParts[plan.id] === true;
-            const visibleParts = showAll ? ordered : ordered.slice(0, PARTS_PREVIEW_COUNT);
+            const visibleParts = showAll ? ordered : buildPreviewParts(plan.parts);
             const hiddenCount = Math.max(0, ordered.length - visibleParts.length);
 
             return (
@@ -329,7 +342,7 @@ export function StudyPlans() {
                   <CardContent className="pt-0 space-y-3 border-t bg-slate-50/50">
                     <p className="text-xs text-gray-500 pt-3">
                       Showing {visibleParts.length} of {plan.parts.length} parts
-                      {done > 0 ? " (completed listed first)" : ""}.
+                      {showAll ? "" : " (latest completed + next incompleted)"}.
                     </p>
                     {visibleParts.map((part) => (
                       <label
