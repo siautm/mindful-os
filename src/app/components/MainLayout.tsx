@@ -27,6 +27,34 @@ import {
   SheetTitle,
 } from "./ui/sheet";
 
+const routePreloaders: Record<string, () => Promise<unknown>> = {
+  "/": () => import("../pages/Dashboard"),
+  "/checkin": () => import("../pages/CheckIn"),
+  "/timetable": () => import("../pages/Timetable"),
+  "/tasks": () => import("../pages/Tasks"),
+  "/study-plans": () => import("../pages/StudyPlans"),
+  "/focus": () => import("../pages/FocusTimer"),
+  "/finance": () => import("../pages/Finance"),
+  "/habits": () => import("../pages/Habits"),
+  "/analytics": () => import("../pages/Analytics"),
+  "/ideas": () => import("../pages/Ideas"),
+  "/events": () => import("../pages/Events"),
+  "/minigame": () => import("../pages/Minigame"),
+};
+
+const preloadedRoutes = new Set<string>();
+
+function prefetchRoute(path: string): void {
+  if (preloadedRoutes.has(path)) return;
+  const preload = routePreloaders[path];
+  if (!preload) return;
+  preloadedRoutes.add(path);
+  void preload().catch(() => {
+    // Ignore prefetch errors; actual navigation will retry.
+    preloadedRoutes.delete(path);
+  });
+}
+
 const navigationGroups = [
   {
     name: "Daily",
@@ -124,6 +152,9 @@ function SidebarNavBlocks({
                               key={item.path}
                               to={item.path}
                               onClick={onNavLinkClick}
+                              onMouseEnter={() => prefetchRoute(item.path)}
+                              onFocus={() => prefetchRoute(item.path)}
+                              onTouchStart={() => prefetchRoute(item.path)}
                               className={cn(
                                 "flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200 group",
                                 isActive
@@ -160,6 +191,9 @@ function SidebarNavBlocks({
                         key={item.path}
                         to={item.path}
                         onClick={onNavLinkClick}
+                        onMouseEnter={() => prefetchRoute(item.path)}
+                        onFocus={() => prefetchRoute(item.path)}
+                        onTouchStart={() => prefetchRoute(item.path)}
                         className={cn(
                           "flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200 group",
                           isActive
