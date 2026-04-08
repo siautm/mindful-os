@@ -723,14 +723,14 @@ export function Analytics() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">Total Focus Time</CardTitle>
+                <CardTitle className="text-sm">Completed Focus Time</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-purple-600">
                   {pomodoroData.total.minutes} minutes
                 </div>
                 <p className="text-sm text-gray-600 mt-1">
-                  ≈ {Math.floor(pomodoroData.total.minutes / 60)}h {pomodoroData.total.minutes % 60}m
+                  Counts completed sessions only
                 </p>
               </CardContent>
             </Card>

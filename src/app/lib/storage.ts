@@ -211,6 +211,8 @@ export interface HabitDayEntry {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.trim() || "";
 const STATE_ENDPOINT = `${API_BASE}/api/state`;
+const STORAGE_SCHEMA_VERSION_KEY = "mindful_schema_version";
+const STORAGE_SCHEMA_LATEST = 2;
 
 let cloudState: Record<string, unknown> = {};
 let isCloudStateInitialized = false;
@@ -259,6 +261,51 @@ async function postState(key: string, value: unknown): Promise<boolean> {
   return true;
 }
 
+function normalizeExerciseEntries(raw: unknown): ExerciseEntry[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((entry) => {
+    const e = (entry ?? {}) as Partial<ExerciseEntry> & Record<string, unknown>;
+    return {
+      id: typeof e.id === "string" && e.id.trim() !== "" ? e.id : Date.now().toString(),
+      date:
+        typeof e.date === "string" && e.date.trim() !== ""
+          ? e.date
+          : new Date().toISOString(),
+      type: typeof e.type === "string" ? e.type : "",
+      duration:
+        typeof e.duration === "number" && Number.isFinite(e.duration) && e.duration > 0
+          ? e.duration
+          : undefined,
+      times:
+        typeof e.times === "number" && Number.isFinite(e.times) && e.times > 0
+          ? Math.floor(e.times)
+          : 1,
+      calories:
+        typeof e.calories === "number" && Number.isFinite(e.calories)
+          ? e.calories
+          : undefined,
+      notes: typeof e.notes === "string" ? e.notes : "",
+    };
+  });
+}
+
+async function runCloudMigrations(): Promise<void> {
+  const currentVersionRaw = cloudState[STORAGE_SCHEMA_VERSION_KEY];
+  const currentVersion =
+    typeof currentVersionRaw === "number" && Number.isFinite(currentVersionRaw)
+      ? currentVersionRaw
+      : 0;
+  if (currentVersion >= STORAGE_SCHEMA_LATEST) return;
+
+  // v2: Exercise schema migration (remove intensity, add times, optional duration)
+  const migratedExercise = normalizeExerciseEntries(cloudState["mindful_exercise"]);
+  cloudState["mindful_exercise"] = migratedExercise;
+  cloudState[STORAGE_SCHEMA_VERSION_KEY] = STORAGE_SCHEMA_LATEST;
+
+  await postState("mindful_exercise", migratedExercise);
+  await postState(STORAGE_SCHEMA_VERSION_KEY, STORAGE_SCHEMA_LATEST);
+}
+
 export async function initializeCloudStorage(): Promise<void> {
   if (isCloudStateInitialized) return;
   if (!cloudUserId || !cloudToken) {
@@ -277,6 +324,7 @@ export async function initializeCloudStorage(): Promise<void> {
     }
     const json = (await response.json()) as { state?: Record<string, unknown> };
     cloudState = json.state ?? {};
+    await runCloudMigrations();
   } catch (error) {
     console.error("Failed to initialize cloud state:", error);
     showCloudError("Cloud DB is not ready. Please fix backend/Supabase setup.");
@@ -301,6 +349,18 @@ function readLocalFallback<T>(key: string, defaultValue: T): T {
   }
 }
 
+function runLocalMigrations(): void {
+  if (typeof localStorage === "undefined") return;
+  const currentRaw = localStorage.getItem(STORAGE_SCHEMA_VERSION_KEY);
+  const currentVersion = currentRaw ? Number(currentRaw) : 0;
+  if (Number.isFinite(currentVersion) && currentVersion >= STORAGE_SCHEMA_LATEST) return;
+
+  const exerciseRaw = readLocalFallback<unknown>("mindful_exercise", []);
+  const migratedExercise = normalizeExerciseEntries(exerciseRaw);
+  writeLocalFallback("mindful_exercise", migratedExercise);
+  writeLocalFallback(STORAGE_SCHEMA_VERSION_KEY, STORAGE_SCHEMA_LATEST);
+}
+
 function writeLocalFallback(key: string, value: unknown): void {
   if (typeof localStorage === "undefined") return;
   try {
@@ -317,6 +377,7 @@ function getFromStorage<T>(key: string, defaultValue: T): T {
     if (value !== undefined) return value as T;
     return defaultValue;
   }
+  runLocalMigrations();
   return readLocalFallback(key, defaultValue);
 }
 
@@ -892,20 +953,8 @@ export function getTodayMeditationEntry(): MeditationEntry | null {
 
 // Exercise functions
 export function getExerciseEntries(): ExerciseEntry[] {
-  const raw = getFromStorage<ExerciseEntry[]>("mindful_exercise", []);
-  return raw.map((e) => ({
-    ...e,
-    type: typeof e.type === "string" ? e.type : "",
-    duration:
-      typeof e.duration === "number" && Number.isFinite(e.duration) && e.duration > 0
-        ? e.duration
-        : undefined,
-    times:
-      typeof e.times === "number" && Number.isFinite(e.times) && e.times > 0
-        ? Math.floor(e.times)
-        : 1,
-    notes: typeof e.notes === "string" ? e.notes : "",
-  }));
+  const raw = getFromStorage<unknown>("mindful_exercise", []);
+  return normalizeExerciseEntries(raw);
 }
 
 export function saveExerciseEntries(entries: ExerciseEntry[]): void {

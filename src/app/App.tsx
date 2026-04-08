@@ -50,7 +50,14 @@ function AppInner() {
 
   return (
     <ThemeProvider>
-      <RouterProvider router={router} />
+      <RouterProvider
+        router={router}
+        fallbackElement={
+          <div className="min-h-screen flex items-center justify-center text-gray-600">
+            Loading page...
+          </div>
+        }
+      />
       <Toaster />
     </ThemeProvider>
   );

@@ -1,35 +1,95 @@
 import { createBrowserRouter } from "react-router";
 import { MainLayout } from "./components/MainLayout";
-import { Dashboard } from "./pages/Dashboard";
-import { Timetable } from "./pages/Timetable";
-import { Tasks } from "./pages/Tasks";
-import { FocusTimer } from "./pages/FocusTimer";
-import { Finance } from "./pages/Finance";
-import { Ideas } from "./pages/Ideas";
-import { Events } from "./pages/Events";
-import { Analytics } from "./pages/Analytics";
-import { Minigame } from "./pages/Minigame";
-import { CheckIn } from "./pages/CheckIn";
-import { StudyPlans } from "./pages/StudyPlans";
-import { Habits } from "./pages/Habits";
 
 export const router = createBrowserRouter([
   {
     path: "/",
     element: <MainLayout />,
     children: [
-      { index: true, element: <Dashboard /> },
-      { path: "checkin", element: <CheckIn /> },
-      { path: "timetable", element: <Timetable /> },
-      { path: "tasks", element: <Tasks /> },
-      { path: "study-plans", element: <StudyPlans /> },
-      { path: "focus", element: <FocusTimer /> },
-      { path: "finance", element: <Finance /> },
-      { path: "habits", element: <Habits /> },
-      { path: "analytics", element: <Analytics /> },
-      { path: "ideas", element: <Ideas /> },
-      { path: "events", element: <Events /> },
-      { path: "minigame", element: <Minigame /> },
+      {
+        index: true,
+        lazy: async () => {
+          const m = await import("./pages/Dashboard");
+          return { Component: m.Dashboard };
+        },
+      },
+      {
+        path: "checkin",
+        lazy: async () => {
+          const m = await import("./pages/CheckIn");
+          return { Component: m.CheckIn };
+        },
+      },
+      {
+        path: "timetable",
+        lazy: async () => {
+          const m = await import("./pages/Timetable");
+          return { Component: m.Timetable };
+        },
+      },
+      {
+        path: "tasks",
+        lazy: async () => {
+          const m = await import("./pages/Tasks");
+          return { Component: m.Tasks };
+        },
+      },
+      {
+        path: "study-plans",
+        lazy: async () => {
+          const m = await import("./pages/StudyPlans");
+          return { Component: m.StudyPlans };
+        },
+      },
+      {
+        path: "focus",
+        lazy: async () => {
+          const m = await import("./pages/FocusTimer");
+          return { Component: m.FocusTimer };
+        },
+      },
+      {
+        path: "finance",
+        lazy: async () => {
+          const m = await import("./pages/Finance");
+          return { Component: m.Finance };
+        },
+      },
+      {
+        path: "habits",
+        lazy: async () => {
+          const m = await import("./pages/Habits");
+          return { Component: m.Habits };
+        },
+      },
+      {
+        path: "analytics",
+        lazy: async () => {
+          const m = await import("./pages/Analytics");
+          return { Component: m.Analytics };
+        },
+      },
+      {
+        path: "ideas",
+        lazy: async () => {
+          const m = await import("./pages/Ideas");
+          return { Component: m.Ideas };
+        },
+      },
+      {
+        path: "events",
+        lazy: async () => {
+          const m = await import("./pages/Events");
+          return { Component: m.Events };
+        },
+      },
+      {
+        path: "minigame",
+        lazy: async () => {
+          const m = await import("./pages/Minigame");
+          return { Component: m.Minigame };
+        },
+      },
     ],
   },
 ]);
