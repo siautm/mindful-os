@@ -68,9 +68,9 @@ export function CheckIn() {
   // Exercise dialog
   const [exerciseDialogOpen, setExerciseDialogOpen] = useState(false);
   const [exerciseForm, setExerciseForm] = useState({
-    type: "cardio",
-    duration: 30,
-    intensity: "moderate",
+    type: "",
+    duration: "",
+    times: 1,
     notes: "",
   });
 
@@ -205,8 +205,25 @@ export function CheckIn() {
   }
 
   function handleExerciseLog() {
-    if (exerciseForm.duration <= 0) {
-      toast.error("Please enter a valid duration");
+    const type = exerciseForm.type.trim();
+    if (!type) {
+      toast.error("Please enter exercise type");
+      return;
+    }
+
+    if (!Number.isFinite(exerciseForm.times) || exerciseForm.times <= 0) {
+      toast.error("Please enter a valid times value");
+      return;
+    }
+
+    const parsedDuration = exerciseForm.duration.trim() === ""
+      ? undefined
+      : Number(exerciseForm.duration);
+    if (
+      parsedDuration !== undefined &&
+      (!Number.isFinite(parsedDuration) || parsedDuration <= 0)
+    ) {
+      toast.error("Duration must be empty or greater than 0");
       return;
     }
 
@@ -214,16 +231,16 @@ export function CheckIn() {
     const newExercise: ExerciseEntry = {
       id: Date.now().toString(),
       date: new Date().toISOString(),
-      type: exerciseForm.type,
-      duration: exerciseForm.duration,
-      intensity: exerciseForm.intensity,
+      type,
+      duration: parsedDuration,
+      times: Math.floor(exerciseForm.times),
       notes: exerciseForm.notes,
     };
 
     saveExerciseEntries([...exercises, newExercise]);
     toast.success("Exercise logged! 💪");
     setExerciseDialogOpen(false);
-    setExerciseForm({ type: "cardio", duration: 30, intensity: "moderate", notes: "" });
+    setExerciseForm({ type: "", duration: "", times: 1, notes: "" });
     afterWellnessLogSaved();
   }
 
@@ -461,38 +478,34 @@ export function CheckIn() {
                   <div className="space-y-4">
                     <div>
                       <Label>Type</Label>
-                      <select
+                      <Input
                         value={exerciseForm.type}
                         onChange={(e) => setExerciseForm({ ...exerciseForm, type: e.target.value })}
-                        className="w-full mt-1 p-2 border rounded-lg"
-                      >
-                        <option value="cardio">Cardio</option>
-                        <option value="strength">Strength Training</option>
-                        <option value="yoga">Yoga</option>
-                        <option value="sports">Sports</option>
-                        <option value="walking">Walking</option>
-                        <option value="other">Other</option>
-                      </select>
-                    </div>
-                    <div>
-                      <Label>Duration (minutes)</Label>
-                      <Input
-                        type="number"
-                        value={exerciseForm.duration}
-                        onChange={(e) => setExerciseForm({ ...exerciseForm, duration: parseInt(e.target.value) || 0 })}
+                        placeholder="e.g. Running, Push-up, Jump rope"
                       />
                     </div>
                     <div>
-                      <Label>Intensity</Label>
-                      <select
-                        value={exerciseForm.intensity}
-                        onChange={(e) => setExerciseForm({ ...exerciseForm, intensity: e.target.value })}
-                        className="w-full mt-1 p-2 border rounded-lg"
-                      >
-                        <option value="light">Light</option>
-                        <option value="moderate">Moderate</option>
-                        <option value="intense">Intense</option>
-                      </select>
+                      <Label>Duration (minutes, optional)</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={exerciseForm.duration}
+                        onChange={(e) => setExerciseForm({ ...exerciseForm, duration: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>Times</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={exerciseForm.times}
+                        onChange={(e) =>
+                          setExerciseForm({
+                            ...exerciseForm,
+                            times: Math.max(1, parseInt(e.target.value || "1", 10) || 1),
+                          })
+                        }
+                      />
                     </div>
                     <div>
                       <Label>Notes (optional)</Label>

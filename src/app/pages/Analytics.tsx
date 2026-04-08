@@ -1289,7 +1289,9 @@ export function Analytics() {
                     <ul className="space-y-1.5 text-sm leading-relaxed text-gray-700">
                       {selectedRow.exercises.map((e: ExerciseEntry) => (
                         <li key={e.id}>
-                          {e.type} · {e.duration} min · {e.intensity}
+                          {e.type}
+                          {e.duration != null ? ` · ${e.duration} min` : ""}
+                          {` · ${e.times ?? 1} time${(e.times ?? 1) > 1 ? "s" : ""}`}
                           {e.notes ? ` — ${e.notes}` : ""}
                         </li>
                       ))}

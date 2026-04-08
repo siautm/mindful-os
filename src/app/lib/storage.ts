@@ -146,9 +146,9 @@ export interface MeditationEntry {
 export interface ExerciseEntry {
   id: string;
   date: string;
-  type: string; // cardio, strength, yoga, sports, walking, other
-  duration: number; // minutes
-  intensity: string; // light, moderate, intense
+  type: string; // custom exercise name
+  duration?: number; // optional minutes
+  times: number; // how many times
   calories?: number;
   notes: string;
 }
@@ -892,7 +892,20 @@ export function getTodayMeditationEntry(): MeditationEntry | null {
 
 // Exercise functions
 export function getExerciseEntries(): ExerciseEntry[] {
-  return getFromStorage<ExerciseEntry[]>("mindful_exercise", []);
+  const raw = getFromStorage<ExerciseEntry[]>("mindful_exercise", []);
+  return raw.map((e) => ({
+    ...e,
+    type: typeof e.type === "string" ? e.type : "",
+    duration:
+      typeof e.duration === "number" && Number.isFinite(e.duration) && e.duration > 0
+        ? e.duration
+        : undefined,
+    times:
+      typeof e.times === "number" && Number.isFinite(e.times) && e.times > 0
+        ? Math.floor(e.times)
+        : 1,
+    notes: typeof e.notes === "string" ? e.notes : "",
+  }));
 }
 
 export function saveExerciseEntries(entries: ExerciseEntry[]): void {
