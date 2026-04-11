@@ -3,9 +3,16 @@
 // Falls back to short procedural loops only if the backend/API fetch fails.
 
 import { fetchFreesoundBufferForNoiseType } from "./freesoundAudio";
-import { fetchLocalFocusMusicBuffer } from "./focusMusic";
+import {
+  type FolderMusicNoiseId,
+  decodeAudioBufferFromUrl,
+  getFolderMusicTrackByNoiseId,
+  isFolderMusicNoiseId,
+} from "./localMusicCatalog";
 
-/** Ambient keys used by Freesound API, procedural fallback, wallpaper mood, and `music/<core>.*` filenames. */
+export type { FolderMusicNoiseId } from "./localMusicCatalog";
+
+/** Ambient keys used by Freesound API, procedural fallback, and wallpaper mood. */
 export const CORE_NOISE_TYPES = [
   "white",
   "pink",
@@ -25,34 +32,23 @@ export const CORE_NOISE_TYPES = [
 
 export type CoreNoiseType = (typeof CORE_NOISE_TYPES)[number];
 
-export type LocalNoiseType = `local-${CoreNoiseType}`;
-
-export type NoiseType = "none" | CoreNoiseType | LocalNoiseType;
+export type NoiseType = "none" | CoreNoiseType | FolderMusicNoiseId;
 
 const CORE_SET = new Set<string>(CORE_NOISE_TYPES);
 
 export function stripToCoreNoiseType(type: NoiseType): CoreNoiseType | "none" {
   if (type === "none") return "none";
-  if (type.startsWith("local-")) {
-    const core = type.slice(6);
-    return CORE_SET.has(core) ? (core as CoreNoiseType) : "none";
-  }
+  if (isFolderMusicNoiseId(type)) return "pink";
   return CORE_SET.has(type) ? (type as CoreNoiseType) : "none";
-}
-
-export function isLocalNoiseVariant(type: NoiseType): boolean {
-  return type.startsWith("local-");
 }
 
 /** Accepts persisted `mindful_focus_noise_type` and unknown strings. */
 export function parseStoredNoiseType(raw: string): NoiseType {
   if (raw === "none") return "none";
   if (CORE_SET.has(raw)) return raw as CoreNoiseType;
-  if (raw.startsWith("local-") && CORE_SET.has(raw.slice(6))) return raw as LocalNoiseType;
+  if (isFolderMusicNoiseId(raw) && getFolderMusicTrackByNoiseId(raw)) return raw as NoiseType;
   return "none";
 }
-
-const LOCAL_FILE_HINT = "music/<type>.mp3…；若无文件则用在线预览 / 合成";
 
 const CORE_UI: Record<CoreNoiseType, { label: string; emoji: string; description: string }> = {
   white: { label: "White Noise", emoji: "📻", description: "Static sound" },
@@ -98,15 +94,6 @@ export const noiseCategories: Record<
     { value: "train", label: CORE_UI.train.label, emoji: CORE_UI.train.emoji, description: CORE_UI.train.description },
     { value: "wind", label: CORE_UI.wind.label, emoji: CORE_UI.wind.emoji, description: CORE_UI.wind.description },
   ],
-  "Local music (music/)": CORE_NOISE_TYPES.map((core) => {
-    const ui = CORE_UI[core];
-    return {
-      value: `local-${core}` as NoiseType,
-      label: `${ui.label}（本地）`,
-      emoji: ui.emoji,
-      description: LOCAL_FILE_HINT,
-    };
-  }),
 };
 
 class WhiteNoisePlayer {
@@ -537,13 +524,6 @@ class WhiteNoisePlayer {
     this.isPlaying = false;
     this.currentType = "none";
 
-    const core = stripToCoreNoiseType(type);
-    if (core === "none") {
-      return;
-    }
-
-    const localFirst = isLocalNoiseVariant(type);
-
     try {
       if (ctx.state === "suspended") {
         ctx.resume().catch(err => console.error("Failed to resume AudioContext:", err));
@@ -551,19 +531,31 @@ class WhiteNoisePlayer {
 
       let buffer: AudioBuffer | null = null;
 
-      if (localFirst) {
+      if (isFolderMusicNoiseId(type)) {
+        const track = getFolderMusicTrackByNoiseId(type);
+        if (!track) {
+          console.error("Unknown folder music id:", type);
+          return;
+        }
         if (this.bufferCache.has(type)) {
           buffer = this.bufferCache.get(type)!;
         } else {
-          buffer = await fetchLocalFocusMusicBuffer(ctx, core, undefined);
+          buffer = await decodeAudioBufferFromUrl(ctx, track.url, undefined);
           if (myId !== this.playRequestId) return;
           if (buffer) {
             this.bufferCache.set(type, buffer);
           }
         }
-      }
+        if (!buffer) {
+          console.error("Failed to load folder music:", track.fileName);
+          return;
+        }
+      } else {
+        const core = stripToCoreNoiseType(type);
+        if (core === "none") {
+          return;
+        }
 
-      if (!buffer) {
         if (this.bufferCache.has(core)) {
           buffer = this.bufferCache.get(core)!;
         } else {
@@ -573,10 +565,10 @@ class WhiteNoisePlayer {
             this.bufferCache.set(core, buffer);
           }
         }
-      }
 
-      if (!buffer) {
-        buffer = this.createNoiseBufferCore(core);
+        if (!buffer) {
+          buffer = this.createNoiseBufferCore(core);
+        }
       }
 
       if (myId !== this.playRequestId) return;

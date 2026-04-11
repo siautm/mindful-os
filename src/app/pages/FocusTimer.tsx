@@ -34,6 +34,7 @@ import {
   FOCUS_WALLPAPER_MATCH_SOUND,
   type FocusWallpaperChoice,
 } from "../lib/focusWallpapers";
+import { FOLDER_MUSIC_TRACKS } from "../lib/localMusicCatalog";
 import { getWhiteNoisePlayer, NoiseType, noiseCategories, parseStoredNoiseType } from "../lib/whiteNoise";
 import { FocusImmersiveOverlay } from "../components/FocusImmersiveOverlay";
 
@@ -635,6 +636,21 @@ export function FocusTimer() {
                         ))}
                       </div>
                     ))}
+                    {FOLDER_MUSIC_TRACKS.length > 0 && (
+                      <div>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 bg-gray-50">
+                          本机音乐 (music/)
+                        </div>
+                        {FOLDER_MUSIC_TRACKS.map((track) => (
+                          <SelectItem key={track.noiseId} value={track.noiseId}>
+                            <span className="flex items-center gap-2 min-w-0">
+                              <span className="shrink-0">🎵</span>
+                              <span className="truncate">{track.label}</span>
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </div>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
