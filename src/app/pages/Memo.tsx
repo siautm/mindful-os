@@ -41,7 +41,7 @@ export function Memo() {
           <div className="min-w-0">
             <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900">Memo</h1>
             <p className="text-gray-600 text-sm sm:text-base mt-0.5">
-              Today&apos;s personal list — not linked to Tasks or Analytics.
+              Stays until you check it off — completed lines disappear the next day. Not Tasks or Analytics.
             </p>
           </div>
         </div>
@@ -55,9 +55,9 @@ export function Memo() {
 
       <Card className="border-2 border-amber-200/80 bg-gradient-to-br from-amber-50/90 to-white">
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg text-amber-950">Today</CardTitle>
+          <CardTitle className="text-lg text-amber-950">Your list</CardTitle>
           <p className="text-sm text-amber-900/80 font-normal">
-            Add lines for what you want to do. Check them off on the dashboard or here.
+            Unchecked items stay here. Checked items remain until the end of the day, then clear automatically.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -83,7 +83,7 @@ export function Memo() {
 
           {items.length === 0 ? (
             <p className="text-sm text-gray-500 py-6 text-center border border-dashed border-amber-200 rounded-xl">
-              No items yet. Add something for today.
+              No items yet. Add something you want to remember.
             </p>
           ) : (
             <ul className="space-y-2">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -28,6 +28,20 @@ const INCOME_CATEGORIES = ["Salary", "Living Expenses", "Other"];
 
 const COLORS = ["#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#6366f1"];
 
+function uniqueOrderedCategories(lists: readonly string[][]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const list of lists) {
+    for (const c of list) {
+      if (!seen.has(c)) {
+        seen.add(c);
+        out.push(c);
+      }
+    }
+  }
+  return out;
+}
+
 export function Finance() {
   const [entries, setEntries] = useState<FinanceEntry[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -37,6 +51,18 @@ export function Finance() {
     date: new Date().toISOString().split("T")[0],
   });
   const [filter, setFilter] = useState<"all" | "income" | "expense">("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("");
+
+  const categoryOptions = useMemo(() => {
+    if (filter === "expense") return [...EXPENSE_CATEGORIES];
+    if (filter === "income") return [...INCOME_CATEGORIES];
+    return uniqueOrderedCategories([EXPENSE_CATEGORIES, INCOME_CATEGORIES]);
+  }, [filter]);
+
+  useEffect(() => {
+    if (!categoryFilter) return;
+    if (!categoryOptions.includes(categoryFilter)) setCategoryFilter("");
+  }, [filter, categoryFilter, categoryOptions]);
 
   useEffect(() => {
     loadEntries();
@@ -106,6 +132,7 @@ export function Finance() {
   const summary = getFinanceSummary(entries);
   const filteredEntries = entries
     .filter(e => filter === "all" || e.type === filter)
+    .filter(e => !categoryFilter || e.category === categoryFilter)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   // Prepare chart data
@@ -352,30 +379,50 @@ export function Finance() {
       {/* Transaction List */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Recent Transactions</CardTitle>
-            <div className="flex gap-2">
-              <Button
-                variant={filter === "all" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilter("all")}
-              >
-                All
-              </Button>
-              <Button
-                variant={filter === "income" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilter("income")}
-              >
-                Income
-              </Button>
-              <Button
-                variant={filter === "expense" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilter("expense")}
-              >
-                Expenses
-              </Button>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <CardTitle className="shrink-0">Recent Transactions</CardTitle>
+            <div className="flex flex-col gap-3 sm:items-end min-w-0 w-full sm:w-auto">
+              <div className="flex flex-wrap gap-2 justify-end">
+                <Button
+                  variant={filter === "all" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter("all")}
+                >
+                  All
+                </Button>
+                <Button
+                  variant={filter === "income" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter("income")}
+                >
+                  Income
+                </Button>
+                <Button
+                  variant={filter === "expense" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter("expense")}
+                >
+                  Expenses
+                </Button>
+              </div>
+              <div className="flex flex-col gap-1 w-full sm:w-56 sm:max-w-full">
+                <Label htmlFor="finance-category-filter" className="text-xs text-gray-500">
+                  Category
+                </Label>
+                <select
+                  id="finance-category-filter"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white"
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                >
+                  <option value="">All categories</option>
+                  {categoryOptions.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         </CardHeader>

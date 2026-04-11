@@ -598,10 +598,10 @@ export function Dashboard() {
               </div>
               <div className="min-w-0">
                 <h2 className={`font-semibold ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
-                  Today&apos;s memo
+                  Memo
                 </h2>
                 <p className={`text-xs sm:text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                  Your own list — not Tasks, not counted in Analytics.
+                  Unchecked items stay; checked items clear after the day ends. Not Tasks or Analytics.
                 </p>
               </div>
             </div>
