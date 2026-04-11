@@ -1,11 +1,11 @@
 import type { NoiseType } from "./whiteNoise";
 
 /**
- * Local looping videos in `public/live-wallpaper/` (served at `/live-wallpaper/…`).
+ * Local looping videos in `public/wallpaper/` (served at `/wallpaper/…`).
  */
 function wallpaperUrl(file: string): string {
   const base = import.meta.env.BASE_URL;
-  return `${base}live-wallpaper/${file}`;
+  return `${base}wallpaper/${file}`;
 }
 
 /** Pick a clip yourself, or keep wallpaper in sync with ambient sound. */
@@ -13,60 +13,67 @@ export const FOCUS_WALLPAPER_MATCH_SOUND = "match" as const;
 
 export const FOCUS_LIVE_WALLPAPER_OPTIONS = [
   {
-    id: "grass-wind",
-    file: "field-grass-in-the-wind.1920x1080.mp4",
-    labelEn: "Grass in the wind",
-    labelZh: "风中草地",
-    fallbackNoise: "wind" as const,
-  },
-  {
-    id: "water-lilies",
-    file: "yellow-water-lilies.3840x2160.mp4",
-    labelEn: "Water lilies",
-    labelZh: "睡莲池塘",
-    fallbackNoise: "pink" as const,
-  },
-  {
-    id: "sunset-rain",
-    file: "blurred-sunset-while-raining.3840x2160.mp4",
-    labelEn: "Sunset in the rain",
-    labelZh: "雨中暮色",
-    fallbackNoise: "brown" as const,
-  },
-  {
-    id: "rainy-pine",
-    file: "rainy-pine-forest.1920x1080.mp4",
-    labelEn: "Rainy pine forest",
-    labelZh: "雨中松林",
-    fallbackNoise: "rain" as const,
-  },
-  {
-    id: "mountain-rain",
-    file: "mountain-rain-landscape.3840x2160.mp4",
-    labelEn: "Mountain rain",
-    labelZh: "山间雨景",
-    fallbackNoise: "thunderstorm" as const,
-  },
-  {
-    id: "waves",
-    file: "wave-symphony.1920x1080.mp4",
-    labelEn: "Ocean waves",
-    labelZh: "海浪",
+    id: "aquarium",
+    file: "aquarium.mp4",
+    labelEn: "Aquarium",
+    labelZh: "水族馆",
     fallbackNoise: "ocean" as const,
   },
   {
-    id: "river",
-    file: "river-flowing.3840x2160.mp4",
-    labelEn: "Flowing river",
-    labelZh: "河流",
-    fallbackNoise: "waterfall" as const,
+    id: "beach",
+    file: "beach.mp4",
+    labelEn: "Beach",
+    labelZh: "海滩",
+    fallbackNoise: "pink" as const,
   },
   {
-    id: "rainy-forest",
-    file: "rainy-forest.3840x2160.mp4",
-    labelEn: "Rainy forest",
-    labelZh: "雨林",
+    id: "cherry-grove",
+    file: "cherry-grove.mp4",
+    labelEn: "Cherry grove",
+    labelZh: "樱花林",
     fallbackNoise: "forest" as const,
+  },
+  {
+    id: "deserts",
+    file: "deserts.mp4",
+    labelEn: "Desert",
+    labelZh: "沙漠",
+    fallbackNoise: "brown" as const,
+  },
+  {
+    id: "falling-snow",
+    file: "falling-snow.mp4",
+    labelEn: "Falling snow",
+    labelZh: "飘雪",
+    fallbackNoise: "white" as const,
+  },
+  {
+    id: "farm-morning",
+    file: "farm-morning.mp4",
+    labelEn: "Farm morning",
+    labelZh: "农场清晨",
+    fallbackNoise: "wind" as const,
+  },
+  {
+    id: "fireplace",
+    file: "fireplace.mp4",
+    labelEn: "Fireplace",
+    labelZh: "壁炉",
+    fallbackNoise: "fireplace" as const,
+  },
+  {
+    id: "glowing-caves",
+    file: "glowing-caves.mp4",
+    labelEn: "Glowing caves",
+    labelZh: "荧光洞穴",
+    fallbackNoise: "library" as const,
+  },
+  {
+    id: "rainy-swamp",
+    file: "rainy-swamp.mp4",
+    labelEn: "Rainy swamp",
+    labelZh: "雨中的沼泽",
+    fallbackNoise: "rain" as const,
   },
   {
     id: "mc-farm",
@@ -76,32 +83,18 @@ export const FOCUS_LIVE_WALLPAPER_OPTIONS = [
     fallbackNoise: "cafe" as const,
   },
   {
-    id: "mc-nature",
-    file: "nature-in-minecraft.3840x2160.mp4",
-    labelEn: "Calm blocky nature",
-    labelZh: "方块自然",
-    fallbackNoise: "library" as const,
-  },
-  {
     id: "mc-campfire",
     file: "minecraft-snowy-campfire.3840x2160.mp4",
-    labelEn: "Snowy campfire",
-    labelZh: "雪夜篝火",
+    labelEn: "Snowy campfire (blocky)",
+    labelZh: "方块雪夜篝火",
     fallbackNoise: "fireplace" as const,
   },
   {
     id: "mc-aurora",
     file: "minecraft-northern-light.3840x2160.mp4",
-    labelEn: "Northern lights",
-    labelZh: "极光夜空",
+    labelEn: "Northern lights (blocky)",
+    labelZh: "方块极光",
     fallbackNoise: "crickets" as const,
-  },
-  {
-    id: "railway",
-    file: "abandoned-railway-station.1920x1080.mp4",
-    labelEn: "Abandoned railway",
-    labelZh: "旧车站",
-    fallbackNoise: "train" as const,
   },
 ] as const;
 
@@ -141,20 +134,20 @@ export function resolveFocusWallpaperFallbackNoise(
 
 export const FOCUS_WALLPAPER_VIDEO: Record<NoiseType, string | null> = {
   none: null,
-  white: wallpaperUrl("field-grass-in-the-wind.1920x1080.mp4"),
-  pink: wallpaperUrl("yellow-water-lilies.3840x2160.mp4"),
-  brown: wallpaperUrl("blurred-sunset-while-raining.3840x2160.mp4"),
-  rain: wallpaperUrl("rainy-pine-forest.1920x1080.mp4"),
-  thunderstorm: wallpaperUrl("mountain-rain-landscape.3840x2160.mp4"),
-  ocean: wallpaperUrl("wave-symphony.1920x1080.mp4"),
-  waterfall: wallpaperUrl("river-flowing.3840x2160.mp4"),
-  forest: wallpaperUrl("rainy-forest.3840x2160.mp4"),
+  white: wallpaperUrl("falling-snow.mp4"),
+  pink: wallpaperUrl("beach.mp4"),
+  brown: wallpaperUrl("deserts.mp4"),
+  rain: wallpaperUrl("rainy-swamp.mp4"),
+  thunderstorm: wallpaperUrl("rainy-swamp.mp4"),
+  ocean: wallpaperUrl("aquarium.mp4"),
+  waterfall: wallpaperUrl("rainy-swamp.mp4"),
+  forest: wallpaperUrl("cherry-grove.mp4"),
   cafe: wallpaperUrl("minecraft-sunset-farm.3840x2160.mp4"),
-  library: wallpaperUrl("nature-in-minecraft.3840x2160.mp4"),
-  fireplace: wallpaperUrl("minecraft-snowy-campfire.3840x2160.mp4"),
+  library: wallpaperUrl("glowing-caves.mp4"),
+  fireplace: wallpaperUrl("fireplace.mp4"),
   crickets: wallpaperUrl("minecraft-northern-light.3840x2160.mp4"),
-  train: wallpaperUrl("abandoned-railway-station.1920x1080.mp4"),
-  wind: wallpaperUrl("field-grass-in-the-wind.1920x1080.mp4"),
+  train: wallpaperUrl("deserts.mp4"),
+  wind: wallpaperUrl("farm-morning.mp4"),
 };
 
 /** CSS-only fallback if video fails to load. */

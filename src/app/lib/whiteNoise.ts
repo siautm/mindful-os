@@ -3,6 +3,7 @@
 // Falls back to short procedural loops only if the backend/API fetch fails.
 
 import { fetchFreesoundBufferForNoiseType } from "./freesoundAudio";
+import { fetchLocalFocusMusicBuffer } from "./focusMusic";
 
 export type NoiseType = 
   // Basic Noise
@@ -60,6 +61,7 @@ class WhiteNoisePlayer {
   private bufferCache: Map<NoiseType, AudioBuffer> = new Map();
   /** Bumps when stopping or starting new playback, so in-flight loads do not attach old buffers. */
   private playRequestId = 0;
+  private visibilityResumeAttached = false;
 
   private getAudioContext(): AudioContext | null {
     if (!this.audioContext && typeof window !== "undefined") {
@@ -71,6 +73,17 @@ class WhiteNoisePlayer {
       }
     }
     return this.audioContext;
+  }
+
+  /** Keeps looping ambient going after tab focus / AudioContext suspend. */
+  private attachVisibilityResume(ctx: AudioContext): void {
+    if (this.visibilityResumeAttached || typeof document === "undefined") return;
+    this.visibilityResumeAttached = true;
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && this.isPlaying && ctx.state === "suspended") {
+        void ctx.resume().catch(() => {});
+      }
+    });
   }
 
   private generateRain(sampleRate: number, duration: number): Float32Array {
@@ -475,7 +488,11 @@ class WhiteNoisePlayer {
       let buffer: AudioBuffer | null = null;
 
       if (type !== "none") {
-        if (this.bufferCache.has(type)) {
+        buffer = await fetchLocalFocusMusicBuffer(ctx, type, undefined);
+        if (myId !== this.playRequestId) return;
+        if (buffer) {
+          this.bufferCache.set(type, buffer);
+        } else if (this.bufferCache.has(type)) {
           buffer = this.bufferCache.get(type)!;
         } else {
           buffer = await fetchFreesoundBufferForNoiseType(ctx, type, undefined);
@@ -501,12 +518,19 @@ class WhiteNoisePlayer {
       this.sourceNode = ctx.createBufferSource();
       this.sourceNode.buffer = buffer;
       this.sourceNode.loop = true;
+      const dur = buffer.duration;
+      if (dur > 0 && Number.isFinite(dur)) {
+        this.sourceNode.loopStart = 0;
+        this.sourceNode.loopEnd = dur;
+      }
 
       this.gainNode = ctx.createGain();
       this.gainNode.gain.value = Math.max(0, Math.min(1, volume));
 
       this.sourceNode.connect(this.gainNode);
       this.gainNode.connect(ctx.destination);
+
+      this.attachVisibilityResume(ctx);
 
       this.sourceNode.start(0);
       this.isPlaying = true;

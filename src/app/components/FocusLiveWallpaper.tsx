@@ -14,7 +14,7 @@ interface FocusLiveWallpaperProps {
 }
 
 /**
- * Fullscreen looping video from `public/live-wallpaper/`; soft vignette for timer readability.
+ * Fullscreen looping video from `public/wallpaper/`; soft vignette for timer readability.
  * Falls back to a simple dual-orb gradient if playback fails.
  */
 export function FocusLiveWallpaper({ noiseType, wallpaperChoice }: FocusLiveWallpaperProps) {
