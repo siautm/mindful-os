@@ -1,20 +1,19 @@
-import type { NoiseType } from "./whiteNoise";
+import type { CoreNoiseType } from "./whiteNoise";
 
 const EXTENSIONS = ["mp3", "ogg", "m4a", "opus", "wav", "webm"] as const;
 
 /**
  * Loads optional local focus tracks from `public/music/` or repo-root `music/` (dev/build via Vite plugin).
- * File names match ambient keys, e.g. `rain.mp3`, `ocean.m4a`.
+ * File names match core ambient keys, e.g. `rain.mp3`, `ocean.m4a`.
  */
 export async function fetchLocalFocusMusicBuffer(
   ctx: AudioContext,
-  type: NoiseType,
+  core: CoreNoiseType,
   signal?: AbortSignal
 ): Promise<AudioBuffer | null> {
-  if (type === "none") return null;
   const base = import.meta.env.BASE_URL;
   for (const ext of EXTENSIONS) {
-    const url = `${base}music/${type}.${ext}`;
+    const url = `${base}music/${core}.${ext}`;
     try {
       const res = await fetch(url, { signal });
       if (!res.ok) continue;

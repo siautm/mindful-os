@@ -1,4 +1,8 @@
-import type { NoiseType } from "./whiteNoise";
+import type { CoreNoiseType, NoiseType } from "./whiteNoise";
+import { stripToCoreNoiseType } from "./whiteNoise";
+
+/** Wallpaper / gradient mood (ignores `local-*` ambient variants). */
+export type WallpaperMood = "none" | CoreNoiseType;
 
 /**
  * Local looping videos in `public/wallpaper/` (served at `/wallpaper/…`).
@@ -116,23 +120,25 @@ export function resolveFocusWallpaperSrc(
   choice: FocusWallpaperChoice,
   noiseType: NoiseType
 ): string | null {
+  const mood = stripToCoreNoiseType(noiseType);
   if (choice === FOCUS_WALLPAPER_MATCH_SOUND) {
-    return FOCUS_WALLPAPER_VIDEO[noiseType];
+    return FOCUS_WALLPAPER_VIDEO[mood];
   }
   const opt = OPTION_BY_ID[choice];
-  return opt ? wallpaperUrl(opt.file) : FOCUS_WALLPAPER_VIDEO[noiseType];
+  return opt ? wallpaperUrl(opt.file) : FOCUS_WALLPAPER_VIDEO[mood];
 }
 
 /** Gradient fallback uses the mood tied to the clip (or current sound in match mode). */
 export function resolveFocusWallpaperFallbackNoise(
   choice: FocusWallpaperChoice,
   noiseType: NoiseType
-): NoiseType {
-  if (choice === FOCUS_WALLPAPER_MATCH_SOUND) return noiseType;
-  return OPTION_BY_ID[choice]?.fallbackNoise ?? noiseType;
+): WallpaperMood {
+  const mood = stripToCoreNoiseType(noiseType);
+  if (choice === FOCUS_WALLPAPER_MATCH_SOUND) return mood;
+  return OPTION_BY_ID[choice]?.fallbackNoise ?? mood;
 }
 
-export const FOCUS_WALLPAPER_VIDEO: Record<NoiseType, string | null> = {
+export const FOCUS_WALLPAPER_VIDEO: Record<WallpaperMood, string | null> = {
   none: null,
   white: wallpaperUrl("falling-snow.mp4"),
   pink: wallpaperUrl("beach.mp4"),
@@ -152,7 +158,7 @@ export const FOCUS_WALLPAPER_VIDEO: Record<NoiseType, string | null> = {
 
 /** CSS-only fallback if video fails to load. */
 export const FOCUS_WALLPAPER_FALLBACK: Record<
-  NoiseType,
+  WallpaperMood,
   { base: string; a: string; b: string; speed: number }
 > = {
   none: { base: "bg-slate-950", a: "bg-slate-600/25", b: "bg-indigo-900/20", speed: 30 },

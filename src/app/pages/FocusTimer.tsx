@@ -34,7 +34,7 @@ import {
   FOCUS_WALLPAPER_MATCH_SOUND,
   type FocusWallpaperChoice,
 } from "../lib/focusWallpapers";
-import { getWhiteNoisePlayer, NoiseType, noiseCategories } from "../lib/whiteNoise";
+import { getWhiteNoisePlayer, NoiseType, noiseCategories, parseStoredNoiseType } from "../lib/whiteNoise";
 import { FocusImmersiveOverlay } from "../components/FocusImmersiveOverlay";
 
 export function FocusTimer() {
@@ -59,7 +59,9 @@ export function FocusTimer() {
   const [editPresetDuration, setEditPresetDuration] = useState(0);
   
   // White noise state
-  const [noiseType, setNoiseType] = useState<NoiseType>(() => getFocusNoiseTypeChoice() as NoiseType);
+  const [noiseType, setNoiseType] = useState<NoiseType>(() =>
+    parseStoredNoiseType(getFocusNoiseTypeChoice())
+  );
   const [noiseVolume, setNoiseVolume] = useState(0.3);
   const [isNoisePlaying, setIsNoisePlaying] = useState(false);
   const noisePlayerRef = useRef(getWhiteNoisePlayer());

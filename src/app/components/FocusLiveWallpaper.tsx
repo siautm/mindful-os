@@ -4,6 +4,7 @@ import type { NoiseType } from "../lib/whiteNoise";
 import {
   FOCUS_WALLPAPER_FALLBACK,
   type FocusWallpaperChoice,
+  type WallpaperMood,
   resolveFocusWallpaperFallbackNoise,
   resolveFocusWallpaperSrc,
 } from "../lib/focusWallpapers";
@@ -19,7 +20,7 @@ interface FocusLiveWallpaperProps {
  */
 export function FocusLiveWallpaper({ noiseType, wallpaperChoice }: FocusLiveWallpaperProps) {
   const videoSrc = resolveFocusWallpaperSrc(wallpaperChoice, noiseType);
-  const fallbackNoise = resolveFocusWallpaperFallbackNoise(wallpaperChoice, noiseType);
+  const fallbackNoise: WallpaperMood = resolveFocusWallpaperFallbackNoise(wallpaperChoice, noiseType);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoFailed, setVideoFailed] = useState(false);
 

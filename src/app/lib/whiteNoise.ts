@@ -5,51 +5,108 @@
 import { fetchFreesoundBufferForNoiseType } from "./freesoundAudio";
 import { fetchLocalFocusMusicBuffer } from "./focusMusic";
 
-export type NoiseType = 
-  // Basic Noise
-  | "none"
-  | "white" 
-  | "pink" 
-  | "brown"
-  // Relaxing & Sleep
-  | "rain"
-  | "thunderstorm"
-  | "ocean"
-  | "waterfall"
-  | "forest"
-  // Focus & Study
-  | "cafe"
-  | "library"
-  // Cozy / Healing
-  | "fireplace"
-  | "crickets"
-  | "train"
-  | "wind";
+/** Ambient keys used by Freesound API, procedural fallback, wallpaper mood, and `music/<core>.*` filenames. */
+export const CORE_NOISE_TYPES = [
+  "white",
+  "pink",
+  "brown",
+  "rain",
+  "thunderstorm",
+  "ocean",
+  "waterfall",
+  "forest",
+  "cafe",
+  "library",
+  "fireplace",
+  "crickets",
+  "train",
+  "wind",
+] as const;
 
-export const noiseCategories = {
+export type CoreNoiseType = (typeof CORE_NOISE_TYPES)[number];
+
+export type LocalNoiseType = `local-${CoreNoiseType}`;
+
+export type NoiseType = "none" | CoreNoiseType | LocalNoiseType;
+
+const CORE_SET = new Set<string>(CORE_NOISE_TYPES);
+
+export function stripToCoreNoiseType(type: NoiseType): CoreNoiseType | "none" {
+  if (type === "none") return "none";
+  if (type.startsWith("local-")) {
+    const core = type.slice(6);
+    return CORE_SET.has(core) ? (core as CoreNoiseType) : "none";
+  }
+  return CORE_SET.has(type) ? (type as CoreNoiseType) : "none";
+}
+
+export function isLocalNoiseVariant(type: NoiseType): boolean {
+  return type.startsWith("local-");
+}
+
+/** Accepts persisted `mindful_focus_noise_type` and unknown strings. */
+export function parseStoredNoiseType(raw: string): NoiseType {
+  if (raw === "none") return "none";
+  if (CORE_SET.has(raw)) return raw as CoreNoiseType;
+  if (raw.startsWith("local-") && CORE_SET.has(raw.slice(6))) return raw as LocalNoiseType;
+  return "none";
+}
+
+const LOCAL_FILE_HINT = "music/<type>.mp3…；若无文件则用在线预览 / 合成";
+
+const CORE_UI: Record<CoreNoiseType, { label: string; emoji: string; description: string }> = {
+  white: { label: "White Noise", emoji: "📻", description: "Static sound" },
+  pink: { label: "Pink Noise", emoji: "🌸", description: "Balanced smooth" },
+  brown: { label: "Brown Noise", emoji: "🟤", description: "Deep & warm" },
+  rain: { label: "Rain on Window", emoji: "🌧️", description: "Soft & cozy" },
+  thunderstorm: { label: "Distant Thunder", emoji: "⛈️", description: "Calming rumble" },
+  ocean: { label: "Ocean Waves", emoji: "🌊", description: "Rhythmic & peaceful" },
+  waterfall: { label: "Waterfall", emoji: "💧", description: "Steady natural" },
+  forest: { label: "Forest Wind", emoji: "🌲", description: "Leaves rustling" },
+  cafe: { label: "Cafe Ambience", emoji: "☕", description: "Light chatter" },
+  library: { label: "Library Quiet", emoji: "📖", description: "Subtle movement" },
+  fireplace: { label: "Fireplace Crackle", emoji: "🔥", description: "Warm & cozy" },
+  crickets: { label: "Night Crickets", emoji: "🦗", description: "Evening peace" },
+  train: { label: "Train Ride", emoji: "🚆", description: "Gentle motion" },
+  wind: { label: "Soft Wind", emoji: "💨", description: "Gentle breeze" },
+};
+
+export const noiseCategories: Record<
+  string,
+  readonly { value: NoiseType; label: string; emoji: string; description?: string }[]
+> = {
   "Basic Noise": [
     { value: "none", label: "None (Silent)", emoji: "🔇" },
-    { value: "white", label: "White Noise", emoji: "📻", description: "Static sound" },
-    { value: "pink", label: "Pink Noise", emoji: "🌸", description: "Balanced smooth" },
-    { value: "brown", label: "Brown Noise", emoji: "🟤", description: "Deep & warm" },
+    { value: "white", label: CORE_UI.white.label, emoji: CORE_UI.white.emoji, description: CORE_UI.white.description },
+    { value: "pink", label: CORE_UI.pink.label, emoji: CORE_UI.pink.emoji, description: CORE_UI.pink.description },
+    { value: "brown", label: CORE_UI.brown.label, emoji: CORE_UI.brown.emoji, description: CORE_UI.brown.description },
   ],
   "Relaxing & Sleep 🌧️": [
-    { value: "rain", label: "Rain on Window", emoji: "🌧️", description: "Soft & cozy" },
-    { value: "thunderstorm", label: "Distant Thunder", emoji: "⛈️", description: "Calming rumble" },
-    { value: "ocean", label: "Ocean Waves", emoji: "🌊", description: "Rhythmic & peaceful" },
-    { value: "waterfall", label: "Waterfall", emoji: "💧", description: "Steady natural" },
-    { value: "forest", label: "Forest Wind", emoji: "🌲", description: "Leaves rustling" },
+    { value: "rain", label: CORE_UI.rain.label, emoji: CORE_UI.rain.emoji, description: CORE_UI.rain.description },
+    { value: "thunderstorm", label: CORE_UI.thunderstorm.label, emoji: CORE_UI.thunderstorm.emoji, description: CORE_UI.thunderstorm.description },
+    { value: "ocean", label: CORE_UI.ocean.label, emoji: CORE_UI.ocean.emoji, description: CORE_UI.ocean.description },
+    { value: "waterfall", label: CORE_UI.waterfall.label, emoji: CORE_UI.waterfall.emoji, description: CORE_UI.waterfall.description },
+    { value: "forest", label: CORE_UI.forest.label, emoji: CORE_UI.forest.emoji, description: CORE_UI.forest.description },
   ],
   "Focus & Study 📚": [
-    { value: "cafe", label: "Cafe Ambience", emoji: "☕", description: "Light chatter" },
-    { value: "library", label: "Library Quiet", emoji: "📖", description: "Subtle movement" },
+    { value: "cafe", label: CORE_UI.cafe.label, emoji: CORE_UI.cafe.emoji, description: CORE_UI.cafe.description },
+    { value: "library", label: CORE_UI.library.label, emoji: CORE_UI.library.emoji, description: CORE_UI.library.description },
   ],
   "Cozy & Healing 🌙": [
-    { value: "fireplace", label: "Fireplace Crackle", emoji: "🔥", description: "Warm & cozy" },
-    { value: "crickets", label: "Night Crickets", emoji: "🦗", description: "Evening peace" },
-    { value: "train", label: "Train Ride", emoji: "🚆", description: "Gentle motion" },
-    { value: "wind", label: "Soft Wind", emoji: "💨", description: "Gentle breeze" },
+    { value: "fireplace", label: CORE_UI.fireplace.label, emoji: CORE_UI.fireplace.emoji, description: CORE_UI.fireplace.description },
+    { value: "crickets", label: CORE_UI.crickets.label, emoji: CORE_UI.crickets.emoji, description: CORE_UI.crickets.description },
+    { value: "train", label: CORE_UI.train.label, emoji: CORE_UI.train.emoji, description: CORE_UI.train.description },
+    { value: "wind", label: CORE_UI.wind.label, emoji: CORE_UI.wind.emoji, description: CORE_UI.wind.description },
   ],
+  "Local music (music/)": CORE_NOISE_TYPES.map((core) => {
+    const ui = CORE_UI[core];
+    return {
+      value: `local-${core}` as NoiseType,
+      label: `${ui.label}（本地）`,
+      emoji: ui.emoji,
+      description: LOCAL_FILE_HINT,
+    };
+  }),
 };
 
 class WhiteNoisePlayer {
@@ -391,12 +448,12 @@ class WhiteNoisePlayer {
     return data;
   }
 
-  private createNoiseBuffer(type: NoiseType): AudioBuffer | null {
+  private createNoiseBufferCore(core: CoreNoiseType): AudioBuffer | null {
     const ctx = this.getAudioContext();
     if (!ctx) return null;
 
-    if (this.bufferCache.has(type)) {
-      return this.bufferCache.get(type)!;
+    if (this.bufferCache.has(core)) {
+      return this.bufferCache.get(core)!;
     }
 
     const duration = 4;
@@ -405,7 +462,7 @@ class WhiteNoisePlayer {
     const channelData = buffer.getChannelData(0);
     let generatedData: Float32Array;
 
-    switch (type) {
+    switch (core) {
       case "white":
         generatedData = this.generateWhiteNoise(sampleRate, duration);
         break;
@@ -453,8 +510,8 @@ class WhiteNoisePlayer {
     }
 
     channelData.set(generatedData);
-    this.bufferCache.set(type, buffer);
-    
+    this.bufferCache.set(core, buffer);
+
     return buffer;
   }
 
@@ -480,6 +537,13 @@ class WhiteNoisePlayer {
     this.isPlaying = false;
     this.currentType = "none";
 
+    const core = stripToCoreNoiseType(type);
+    if (core === "none") {
+      return;
+    }
+
+    const localFirst = isLocalNoiseVariant(type);
+
     try {
       if (ctx.state === "suspended") {
         ctx.resume().catch(err => console.error("Failed to resume AudioContext:", err));
@@ -487,15 +551,11 @@ class WhiteNoisePlayer {
 
       let buffer: AudioBuffer | null = null;
 
-      if (type !== "none") {
-        buffer = await fetchLocalFocusMusicBuffer(ctx, type, undefined);
-        if (myId !== this.playRequestId) return;
-        if (buffer) {
-          this.bufferCache.set(type, buffer);
-        } else if (this.bufferCache.has(type)) {
+      if (localFirst) {
+        if (this.bufferCache.has(type)) {
           buffer = this.bufferCache.get(type)!;
         } else {
-          buffer = await fetchFreesoundBufferForNoiseType(ctx, type, undefined);
+          buffer = await fetchLocalFocusMusicBuffer(ctx, core, undefined);
           if (myId !== this.playRequestId) return;
           if (buffer) {
             this.bufferCache.set(type, buffer);
@@ -504,8 +564,19 @@ class WhiteNoisePlayer {
       }
 
       if (!buffer) {
-        // Fallback to procedural generation if backend/API is unavailable.
-        buffer = this.createNoiseBuffer(type);
+        if (this.bufferCache.has(core)) {
+          buffer = this.bufferCache.get(core)!;
+        } else {
+          buffer = await fetchFreesoundBufferForNoiseType(ctx, core, undefined);
+          if (myId !== this.playRequestId) return;
+          if (buffer) {
+            this.bufferCache.set(core, buffer);
+          }
+        }
+      }
+
+      if (!buffer) {
+        buffer = this.createNoiseBufferCore(core);
       }
 
       if (myId !== this.playRequestId) return;
