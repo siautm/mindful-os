@@ -1,25 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Checkbox } from "../components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import {
-  CheckSquare,
+  Calendar,
   Timer,
   TrendingUp,
-  Calendar,
   ArrowRight,
   Sparkles,
-  Trophy,
   Quote as QuoteIcon,
   Heart,
   Flame,
-  Circle,
   CheckCircle2,
-  Clock,
-  MapPin,
-  Repeat2,
   Star,
   X,
   Moon,
@@ -29,16 +22,12 @@ import {
   StickyNote,
 } from "lucide-react";
 import {
-  getTasks,
   getTodayFocusTime,
   getFinanceEntries,
   getFinanceSummary,
   getTimetable,
-  getEvents,
   hasCompletedTodayWellnessChecklist,
   getCheckInStreak,
-  Task,
-  TimetableEntry,
   QuoteEntry,
   getFavoriteQuotes,
   addFavoriteQuote,
@@ -46,17 +35,9 @@ import {
   isQuoteFavorite,
   getLoadingShownDate,
   saveLoadingShownDate,
-  resolveTaskCourseLabel,
-  formatTaskDueDateTime,
-  eventStartMs,
-  formatEventTimeRange,
-  getHabits,
-  isHabitCompletedOnDate,
-  setHabitCompletedOnDate,
   getDailyMemoState,
   toggleDailyMemoItem,
   STORAGE_HYDRATED_EVENT,
-  type Habit,
   type DailyMemoItem,
 } from "../lib/storage";
 import { motion } from "motion/react";
@@ -127,15 +108,8 @@ export function Dashboard() {
   const [favoriteQuotes, setFavoriteQuotes] = useState<QuoteEntry[]>([]);
   const [hasCheckedIn, setHasCheckedIn] = useState(false);
   const [checkInStreak, setCheckInStreak] = useState(0);
-  const [habits, setHabits] = useState<Habit[]>([]);
   const [memoItems, setMemoItems] = useState<DailyMemoItem[]>([]);
   const cursorGlowRef = useRef<HTMLDivElement>(null);
-
-  function habitTodayYmd(): string {
-    const x = new Date();
-    x.setHours(0, 0, 0, 0);
-    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
-  }
 
   const particleConfigs = useMemo(
     () =>
@@ -153,22 +127,10 @@ export function Dashboard() {
 
   // Stats
   const [stats, setStats] = useState({
-    completedTasks: 0,
-    totalTasks: 0,
     focusTime: 0,
     balance: 0,
-    todayEvents: 0,
+    memoCount: 0,
   });
-
-  // Priority items (combined tasks, events, classes)
-  const [priorityItems, setPriorityItems] = useState<Array<{
-    type: "task" | "event" | "class";
-    title: string;
-    subtitle: string;
-    time?: string;
-    priority?: number;
-    color: string;
-  }>>([]);
 
   useEffect(() => {
     // Check if loading screen was shown today
@@ -186,7 +148,6 @@ export function Dashboard() {
   }, []);
 
   useEffect(() => {
-    setHabits(getHabits());
     setMemoItems(getDailyMemoState().items);
   }, [location.pathname]);
 
@@ -282,110 +243,25 @@ export function Dashboard() {
   function loadAllData() {
     loadStats();
     loadCheckInStatus();
-    loadPriorityItems();
     loadFavorites();
-    setHabits(getHabits());
   }
 
   function loadStats() {
-    const tasks = getTasks();
-    const completedTasks = tasks.filter(t => t.completed).length;
     const focusTime = getTodayFocusTime();
     const financeEntries = getFinanceEntries();
     const { balance } = getFinanceSummary(financeEntries);
-    
-    const events = getEvents();
-    const today = new Date().toDateString();
-    const todayEvents = events.filter(e => new Date(e.date).toDateString() === today).length;
+    const memoCount = getDailyMemoState().items.length;
 
     setStats({
-      completedTasks,
-      totalTasks: tasks.length,
       focusTime: Math.round(focusTime),
       balance: Math.round(balance * 100) / 100,
-      todayEvents,
+      memoCount,
     });
   }
 
   function loadCheckInStatus() {
     setHasCheckedIn(hasCompletedTodayWellnessChecklist());
     setCheckInStreak(getCheckInStreak());
-  }
-
-  function loadPriorityItems() {
-    const items: Array<{
-      type: "task" | "event" | "class";
-      title: string;
-      subtitle: string;
-      time?: string;
-      priority?: number;
-      color: string;
-    }> = [];
-
-    // Get top 2 priority tasks
-    const tasks = getTasks();
-    const timetableRows = getTimetable();
-    const incompleteTasks = tasks
-      .filter(t => !t.completed)
-      .sort((a, b) => b.priority - a.priority)
-      .slice(0, 2);
-    
-    incompleteTasks.forEach(task => {
-      const course = resolveTaskCourseLabel(task, timetableRows);
-      items.push({
-        type: "task",
-        title: task.title,
-        subtitle: `Priority: ${task.priority} • ${formatTaskDueDateTime(task)}${course ? ` • ${course}` : ""}`,
-        priority: task.priority,
-        color: task.priority >= 8 ? "red" : task.priority >= 5 ? "yellow" : "green",
-      });
-    });
-
-    // Get today's events
-    const events = getEvents();
-    const today = new Date().toDateString();
-    const todayEvents = events
-      .filter(e => new Date(e.date).toDateString() === today)
-      .sort((a, b) => eventStartMs(a) - eventStartMs(b))
-      .slice(0, 2);
-    
-    todayEvents.forEach(event => {
-      items.push({
-        type: "event",
-        title: event.title,
-        subtitle: event.category,
-        time: formatEventTimeRange(event),
-        color: "blue",
-      });
-    });
-
-    // Get today's classes
-    const timetable = getTimetable();
-    const todayDay = new Date().toLocaleDateString("en-US", { weekday: "long" });
-    const todayClasses = timetable
-      .filter(e => e.day === todayDay)
-      .sort((a, b) => a.startTime.localeCompare(b.startTime))
-      .slice(0, 2);
-    
-    todayClasses.forEach(classEntry => {
-      items.push({
-        type: "class",
-        title: classEntry.courseName,
-        subtitle: classEntry.courseCode,
-        time: `${classEntry.startTime} - ${classEntry.endTime}`,
-        color: "orange",
-      });
-    });
-
-    // Sort by priority and limit to top 6
-    const sortedItems = items.sort((a, b) => {
-      if (a.priority && b.priority) return b.priority - a.priority;
-      if (a.priority) return -1;
-      if (b.priority) return 1;
-      return 0;
-    }).slice(0, 6);
-
-    setPriorityItems(sortedItems);
   }
 
   async function refreshQuote() {
@@ -428,9 +304,8 @@ export function Dashboard() {
   }
 
   const TimeIcon = currentTheme.icon;
-  const completionRate = stats.totalTasks > 0 
-    ? Math.round((stats.completedTasks / stats.totalTasks) * 100)
-    : 0;
+  const todayClasses = getTimetable()
+    .filter((e) => e.day === new Date().toLocaleDateString("en-US", { weekday: "long" })).length;
 
   return (
     <div className={`min-h-screen relative overflow-hidden transition-colors duration-500 ${
@@ -547,10 +422,10 @@ export function Dashboard() {
           className="grid grid-cols-2 md:grid-cols-4 gap-4"
         >
           {[
-            { label: "Tasks", value: `${stats.completedTasks}/${stats.totalTasks}`, icon: CheckSquare, link: "/tasks", color: currentTheme.accentColor },
             { label: "Focus", value: `${stats.focusTime}m`, icon: Timer, link: "/focus", color: currentTheme.accentColor },
             { label: "Balance", value: `$${stats.balance}`, icon: TrendingUp, link: "/finance", color: currentTheme.accentColor },
-            { label: "Events", value: stats.todayEvents, icon: Calendar, link: "/events", color: currentTheme.accentColor },
+            { label: "Classes", value: todayClasses, icon: Sunrise, link: "/timetable", color: currentTheme.accentColor },
+            { label: "Memo", value: stats.memoCount, icon: StickyNote, link: "/memo", color: currentTheme.accentColor },
           ].map((stat, index) => {
             const Icon = stat.icon;
             return (
@@ -601,7 +476,7 @@ export function Dashboard() {
                   Memo
                 </h2>
                 <p className={`text-xs sm:text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                  Unchecked items stay; checked items clear after the day ends. Not Tasks or Analytics.
+                  Unchecked items stay; checked items clear after the day ends. Memo is not part of analytics.
                 </p>
               </div>
             </div>
@@ -653,86 +528,6 @@ export function Dashboard() {
             </ul>
           )}
         </motion.div>
-
-        {habits.length > 0 && (
-          <motion.div
-            initial={{ y: 24, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.15 }}
-            className={`rounded-2xl border-2 p-4 sm:p-5 shadow-lg ${
-              theme === "dark" ? "bg-gray-800 border-emerald-900/50" : "bg-white border-emerald-200"
-            }`}
-          >
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="size-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
-                  <Repeat2 className="size-5 text-emerald-700" />
-                </div>
-                <div className="min-w-0">
-                  <h2 className={`font-semibold ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
-                    Today&apos;s habits
-                  </h2>
-                  <p className={`text-xs sm:text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                    Check off what you&apos;ve done today.
-                  </p>
-                </div>
-              </div>
-              <Link to="/habits">
-                <Button variant="outline" size="sm" className="w-full sm:w-auto shrink-0">
-                  Manage habits
-                </Button>
-              </Link>
-            </div>
-            <ul className="mt-4 space-y-2">
-              {habits.map((h) => {
-                const ymd = habitTodayYmd();
-                const done = isHabitCompletedOnDate(h.id, ymd);
-                return (
-                  <li
-                    key={h.id}
-                    className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${
-                      theme === "dark" ? "border-gray-700 bg-gray-900/40" : "border-gray-100 bg-gray-50/80"
-                    }`}
-                  >
-                    <Checkbox
-                      checked={done}
-                      onCheckedChange={(c) => {
-                        setHabitCompletedOnDate(h.id, ymd, c === true);
-                        setHabits(getHabits());
-                      }}
-                      className="mt-0.5"
-                      aria-label={`${h.name} done today`}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className={`text-sm font-medium ${
-                          done
-                            ? theme === "dark"
-                              ? "text-gray-500 line-through"
-                              : "text-gray-400 line-through"
-                            : theme === "dark"
-                              ? "text-gray-100"
-                              : "text-gray-900"
-                        }`}
-                      >
-                        {h.name}
-                      </p>
-                      {h.description ? (
-                        <p
-                          className={`text-xs mt-0.5 line-clamp-2 ${
-                            theme === "dark" ? "text-gray-500" : "text-gray-600"
-                          }`}
-                        >
-                          {h.description}
-                        </p>
-                      ) : null}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </motion.div>
-        )}
 
         {/* Quote Card with Favorites */}
         <motion.div
@@ -876,8 +671,8 @@ export function Dashboard() {
           </div>
         </motion.div>
 
-        {/* Main Content: Check-In & Priority Items */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Content: Check-In */}
+        <div className="grid grid-cols-1 gap-6">
           {/* Check-In Card */}
           <Link to="/checkin">
             <motion.div
@@ -948,88 +743,6 @@ export function Dashboard() {
             </motion.div>
           </Link>
 
-          {/* Today's Priority Items */}
-          <motion.div
-            initial={{ x: 50, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="lg:col-span-2"
-          >
-            <Card className={`${
-              theme === "dark" 
-                ? "bg-gray-800 border-gray-700" 
-                : "bg-white border-gray-200"
-            } border-2 shadow-lg hover:shadow-2xl transition-all h-full`}>
-              <CardHeader>
-                <CardTitle className={`flex items-center gap-2 ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
-                  <Trophy className={`size-6 text-${currentTheme.accentColor}-500`} />
-                  Today's Priorities
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {priorityItems.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Sparkles className={`size-16 ${theme === "dark" ? "text-gray-600" : "text-gray-300"} mx-auto mb-4`} />
-                    <p className={`${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                      No priorities for today!
-                    </p>
-                    <p className={`text-sm ${theme === "dark" ? "text-gray-500" : "text-gray-500"} mt-1`}>
-                      Time to relax or plan ahead
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {priorityItems.map((item, index) => {
-                      const colorClasses = {
-                        red: `bg-red-100 text-red-700 border-red-200 ${theme === "dark" && "bg-red-900/30 text-red-400 border-red-800"}`,
-                        yellow: `bg-yellow-100 text-yellow-700 border-yellow-200 ${theme === "dark" && "bg-yellow-900/30 text-yellow-400 border-yellow-800"}`,
-                        green: `bg-green-100 text-green-700 border-green-200 ${theme === "dark" && "bg-green-900/30 text-green-400 border-green-800"}`,
-                        blue: `bg-blue-100 text-blue-700 border-blue-200 ${theme === "dark" && "bg-blue-900/30 text-blue-400 border-blue-800"}`,
-                        orange: `bg-orange-100 text-orange-700 border-orange-200 ${theme === "dark" && "bg-orange-900/30 text-orange-400 border-orange-800"}`,
-                      };
-
-                      const icons = {
-                        task: CheckSquare,
-                        event: Calendar,
-                        class: Calendar,
-                      };
-
-                      const ItemIcon = icons[item.type];
-
-                      return (
-                        <motion.div
-                          key={index}
-                          initial={{ scale: 0, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          transition={{ delay: 0.4 + index * 0.05, type: "spring" }}
-                          whileHover={{ scale: 1.05, y: -5 }}
-                          className={`${colorClasses[item.color as keyof typeof colorClasses]} border-2 rounded-xl p-4 shadow-md hover:shadow-lg transition-all`}
-                        >
-                          <div className="flex items-start gap-3">
-                            <ItemIcon className="size-5 flex-shrink-0 mt-0.5" />
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-sm mb-1 truncate">
-                                {item.title}
-                              </p>
-                              <p className="text-xs opacity-80 mb-2">
-                                {item.subtitle}
-                              </p>
-                              {item.time && (
-                                <div className="flex items-center gap-1 text-xs">
-                                  <Clock className="size-3" />
-                                  {item.time}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
         </div>
 
         {/* Quick Actions */}
@@ -1040,9 +753,9 @@ export function Dashboard() {
           className="flex flex-wrap gap-3 justify-center"
         >
           {[
-            { label: "View All Tasks", link: "/tasks", icon: CheckSquare },
             { label: "Start Focus Timer", link: "/focus", icon: Timer },
             { label: "Check Timetable", link: "/timetable", icon: Calendar },
+            { label: "Review Analytics", link: "/analytics", icon: TrendingUp },
             { label: "Take a Break", link: "/minigame", icon: Sparkles },
           ].map((action, index) => {
             const Icon = action.icon;

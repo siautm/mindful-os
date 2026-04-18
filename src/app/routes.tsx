@@ -28,13 +28,6 @@ export const router = createBrowserRouter([
         },
       },
       {
-        path: "tasks",
-        lazy: async () => {
-          const m = await import("./pages/Tasks");
-          return { Component: m.Tasks };
-        },
-      },
-      {
         path: "study-plans",
         lazy: async () => {
           const m = await import("./pages/StudyPlans");
@@ -77,17 +70,10 @@ export const router = createBrowserRouter([
         },
       },
       {
-        path: "ideas",
+        path: "journal",
         lazy: async () => {
-          const m = await import("./pages/Ideas");
-          return { Component: m.Ideas };
-        },
-      },
-      {
-        path: "events",
-        lazy: async () => {
-          const m = await import("./pages/Events");
-          return { Component: m.Events };
+          const m = await import("./pages/Journal");
+          return { Component: m.Journal };
         },
       },
       {

@@ -1,0 +1,1642 @@
+import { useState, useEffect, useMemo } from 'react';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Calendar } from './ui/calendar';
+import { ChevronLeft, ChevronRight, BookOpen, Download, Bookmark, Calendar as CalendarIcon } from 'lucide-react';
+import { format, getDaysInMonth } from 'date-fns';
+
+type BulletType = 'task' | 'event' | 'note';
+type BulletStatus = 'active' | 'completed' | 'cancelled' | 'deferred' | 'scheduled';
+
+interface Bullet {
+  id: string;
+  type: BulletType;
+  text: string;
+  status: BulletStatus;
+  important: boolean;
+  notes: string[];
+  date?: string;
+  scheduledDate?: string;
+  scheduledTime?: string;
+}
+
+interface YearlyGoal {
+  id: string;
+  text: string;
+  completed: boolean;
+  category: 'tasks' | 'interested';
+}
+
+interface YearlyEvent {
+  id: string;
+  text: string;
+  month?: number;
+}
+
+interface MonthlyGoal {
+  id: string;
+  text: string;
+  completed: boolean;
+  category: 'tasks' | 'interested';
+}
+
+interface MonthlyEvent {
+  id: string;
+  text: string;
+}
+
+interface Page {
+  id: number;
+  type: 'index' | 'key' | 'yearlyGoals-tasks' | 'yearlyGoals-interested' | 'yearlyEvents' |
+        'monthlyIndex' | 'monthlyGoals' | 'monthlyEvents' | 'daily';
+  title: string;
+  month?: number;
+  dates?: string[];
+  dailyPageRefs?: { title: string; pageNum: number }[];
+}
+
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+const ITEMS_PER_PAGE = 15;
+const ITEMS_FOR_COMBINING = 3;
+const MAX_DAYS_COMBINED = 3;
+const MAX_INDEX_ENTRIES = 20;
+
+export function BulletJournal() {
+  const currentYear = new Date().getFullYear();
+  const today = format(new Date(), 'yyyy-MM-dd');
+
+  const [yearlyGoals, setYearlyGoals] = useState<YearlyGoal[]>([]);
+  const [yearlyEvents, setYearlyEvents] = useState<YearlyEvent[]>([]);
+  const [monthlyGoals, setMonthlyGoals] = useState<{ [key: number]: MonthlyGoal[] }>({});
+  const [monthlyEvents, setMonthlyEvents] = useState<{ [key: number]: MonthlyEvent[] }>({});
+  const [dailyBullets, setDailyBullets] = useState<{ [key: string]: Bullet[] }>({});
+
+  const [currentPageNumber, setCurrentPageNumber] = useState(1);
+  const [newItemText, setNewItemText] = useState('');
+  const [selectedBulletId, setSelectedBulletId] = useState<string | null>(null);
+  const [isAddingNote, setIsAddingNote] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [showBookmarks, setShowBookmarks] = useState<'deferred' | 'scheduled' | false>(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState<Date | undefined>(undefined);
+  const [scheduleTime, setScheduleTime] = useState('');
+  const [isFlipping, setIsFlipping] = useState(false);
+  const [flipDirection, setFlipDirection] = useState<'next' | 'prev'>('next');
+  const [editingBulletId, setEditingBulletId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [draggedBullet, setDraggedBullet] = useState<{ bullet: Bullet; sourceDate: string } | null>(null);
+
+  // Calculate daily pages with auto-combining for past dates
+  const calculateDailyPages = (month: number, daysInMonth: number, startPageNum: number) => {
+    const dailyPages: { title: string; dates: string[]; pageNum: number }[] = [];
+    const dates: string[] = [];
+    let currentPageNum = startPageNum;
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${currentYear}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      dates.push(dateStr);
+    }
+
+    let i = 0;
+    while (i < dates.length) {
+      const currentDate = dates[i];
+      const bullets = dailyBullets[currentDate] || [];
+      const isPast = currentDate < today;
+      const isToday = currentDate === today;
+      const isFuture = currentDate > today;
+
+      if (isToday || isFuture) {
+        const pagesNeeded = Math.max(1, Math.ceil(bullets.length / ITEMS_PER_PAGE));
+        for (let p = 0; p < pagesNeeded; p++) {
+          dailyPages.push({
+            title: p === 0
+              ? format(new Date(currentDate), 'MMMM d')
+              : format(new Date(currentDate), 'MMMM d') + ` (cont. ${p + 1})`,
+            dates: [currentDate],
+            pageNum: currentPageNum++
+          });
+        }
+        i++;
+      } else if (isPast) {
+        const combinableDates = [currentDate];
+        let j = i + 1;
+
+        while (
+          j < dates.length &&
+          combinableDates.length < MAX_DAYS_COMBINED &&
+          dates[j] < today
+        ) {
+          const nextDate = dates[j];
+          const nextBullets = dailyBullets[nextDate] || [];
+          const currentTotal = combinableDates.reduce((sum, d) =>
+            sum + (dailyBullets[d] || []).length, 0);
+
+          if (currentTotal <= ITEMS_FOR_COMBINING && nextBullets.length <= ITEMS_FOR_COMBINING) {
+            combinableDates.push(nextDate);
+            j++;
+          } else {
+            break;
+          }
+        }
+
+        if (combinableDates.length === 1) {
+          const pagesNeeded = Math.max(1, Math.ceil(bullets.length / ITEMS_PER_PAGE));
+          for (let p = 0; p < pagesNeeded; p++) {
+            dailyPages.push({
+              title: p === 0
+                ? format(new Date(currentDate), 'MMMM d')
+                : format(new Date(currentDate), 'MMMM d') + ` (cont. ${p + 1})`,
+              dates: [currentDate],
+              pageNum: currentPageNum++
+            });
+          }
+        } else {
+          const startDay = parseInt(combinableDates[0].split('-')[2]);
+          const endDay = parseInt(combinableDates[combinableDates.length - 1].split('-')[2]);
+          dailyPages.push({
+            title: `${MONTHS[month]} ${startDay}-${endDay}`,
+            dates: combinableDates,
+            pageNum: currentPageNum++
+          });
+        }
+
+        i = j;
+      }
+    }
+
+    return dailyPages;
+  };
+
+  // Calculate pages dynamically
+  const pages = useMemo(() => {
+    const pageList: Page[] = [];
+    let pageNum = 1;
+
+    // Index & Key
+    pageList.push({ id: pageNum++, type: 'index', title: 'Index' });
+    pageList.push({ id: pageNum++, type: 'key', title: 'Key' });
+
+    // Yearly Goals - Tasks
+    const tasksGoals = yearlyGoals.filter(g => g.category === 'tasks');
+    const taskPages = Math.max(1, Math.ceil(tasksGoals.length / ITEMS_PER_PAGE));
+    for (let i = 0; i < taskPages; i++) {
+      pageList.push({
+        id: pageNum++,
+        type: 'yearlyGoals-tasks',
+        title: i === 0 ? 'Annual Goals - Tasks' : `Annual Goals - Tasks (cont. ${i + 1})`
+      });
+    }
+
+    // Yearly Goals - Interested
+    const interestedGoals = yearlyGoals.filter(g => g.category === 'interested');
+    const interestedPages = Math.max(1, Math.ceil(interestedGoals.length / ITEMS_PER_PAGE));
+    for (let i = 0; i < interestedPages; i++) {
+      pageList.push({
+        id: pageNum++,
+        type: 'yearlyGoals-interested',
+        title: i === 0 ? 'Annual Goals - Interested' : `Annual Goals - Interested (cont. ${i + 1})`
+      });
+    }
+
+    // Yearly Events
+    const eventPages = Math.max(1, Math.ceil(yearlyEvents.length / ITEMS_PER_PAGE));
+    for (let i = 0; i < eventPages; i++) {
+      pageList.push({
+        id: pageNum++,
+        type: 'yearlyEvents',
+        title: i === 0 ? 'Annual Events' : `Annual Events (cont. ${i + 1})`
+      });
+    }
+
+    // Monthly pages
+    for (let month = 0; month < 12; month++) {
+      const daysInMonth = getDaysInMonth(new Date(currentYear, month));
+
+      // Calculate daily pages first to get references
+      const dailyPagesStart = pageNum + 3; // After index, goals, events
+      const dailyPagesData = calculateDailyPages(month, daysInMonth, dailyPagesStart);
+
+      // Monthly Index (1 or 2 pages)
+      const indexPages = Math.ceil(dailyPagesData.length / MAX_INDEX_ENTRIES);
+      for (let i = 0; i < indexPages; i++) {
+        const startIdx = i * MAX_INDEX_ENTRIES;
+        const endIdx = Math.min((i + 1) * MAX_INDEX_ENTRIES, dailyPagesData.length);
+
+        pageList.push({
+          id: pageNum++,
+          type: 'monthlyIndex',
+          title: i === 0 ? `${MONTHS[month]} - Index` : `${MONTHS[month]} - Index (cont.)`,
+          month,
+          dailyPageRefs: dailyPagesData.slice(startIdx, endIdx).map(dp => ({
+            title: dp.title,
+            pageNum: dp.pageNum
+          }))
+        });
+      }
+
+      // Monthly Goals
+      pageList.push({
+        id: pageNum++,
+        type: 'monthlyGoals',
+        title: `${MONTHS[month]} - Goals`,
+        month
+      });
+
+      // Monthly Events
+      pageList.push({
+        id: pageNum++,
+        type: 'monthlyEvents',
+        title: `${MONTHS[month]} - Events`,
+        month
+      });
+
+      // Daily pages
+      dailyPagesData.forEach(dp => {
+        pageList.push({
+          id: pageNum++,
+          type: 'daily',
+          title: dp.title,
+          month,
+          dates: dp.dates
+        });
+      });
+    }
+
+    return pageList;
+  }, [yearlyGoals, yearlyEvents, monthlyGoals, monthlyEvents, dailyBullets, today]);
+
+  // Find today's page
+  const todayPageNum = useMemo(() => {
+    return pages.find(p => p.type === 'daily' && p.dates?.includes(today))?.id || 1;
+  }, [pages, today]);
+
+  // Get deferred and scheduled bullets
+  const deferredBullets = useMemo(() => {
+    const result: Bullet[] = [];
+    Object.values(dailyBullets).forEach(bullets => {
+      bullets.forEach(b => {
+        if (b.status === 'deferred') result.push(b);
+      });
+    });
+    return result;
+  }, [dailyBullets]);
+
+  const scheduledBullets = useMemo(() => {
+    const result: Bullet[] = [];
+    Object.values(dailyBullets).forEach(bullets => {
+      bullets.forEach(b => {
+        if (b.status === 'scheduled') result.push(b);
+      });
+    });
+    return result;
+  }, [dailyBullets]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedBulletId || isAddingNote || showScheduleModal || editingBulletId) return;
+
+      if (e.shiftKey) {
+        switch (e.key.toLowerCase()) {
+          case 'c':
+            e.preventDefault();
+            handleComplete(selectedBulletId);
+            break;
+          case 'x':
+            e.preventDefault();
+            handleCancel(selectedBulletId);
+            break;
+          case 'enter':
+            e.preventDefault();
+            setIsAddingNote(true);
+            break;
+          case 'd':
+            e.preventDefault();
+            handleDefer(selectedBulletId);
+            break;
+          case 's':
+            e.preventDefault();
+            setShowScheduleModal(true);
+            break;
+          case 'a':
+            e.preventDefault();
+            handleToggleImportant(selectedBulletId);
+            break;
+          case 'r':
+            e.preventDefault();
+            handleStartEdit(selectedBulletId);
+            break;
+        }
+      }
+
+      if (e.key === 'Delete') {
+        e.preventDefault();
+        handleDelete(selectedBulletId);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedBulletId, isAddingNote, showScheduleModal, editingBulletId]);
+
+  // Helper to find bullet by ID across all dates
+  const findBulletById = (id: string): { bullet: Bullet; date: string } | null => {
+    for (const [date, bullets] of Object.entries(dailyBullets)) {
+      const bullet = bullets.find(b => b.id === id);
+      if (bullet) return { bullet, date };
+    }
+    return null;
+  };
+
+  // FIXED: Complete with shared ID sync
+  const handleComplete = (id: string) => {
+    // Update daily bullets
+    setDailyBullets(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(date => {
+        updated[date] = updated[date].map(b =>
+          b.id === id ? { ...b, status: b.status === 'completed' ? 'active' : 'completed' as BulletStatus } : b
+        );
+      });
+      return updated;
+    });
+
+    // Update yearly goals (shared ID)
+    setYearlyGoals(prev => prev.map(g =>
+      g.id === id ? { ...g, completed: !g.completed } : g
+    ));
+
+    // Update monthly goals (shared ID) - FIXED: added safety check
+    setMonthlyGoals(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(month => {
+        const monthNum = parseInt(month);
+        if (updated[monthNum]) {
+          updated[monthNum] = updated[monthNum].map(g =>
+            g.id === id ? { ...g, completed: !g.completed } : g
+          );
+        }
+      });
+      return updated;
+    });
+  };
+
+  const handleStartEdit = (id: string) => {
+    const found = findBulletById(id);
+    if (!found) {
+      // Check yearly goals
+      const yearlyGoal = yearlyGoals.find(g => g.id === id);
+      if (yearlyGoal) {
+        setEditText(yearlyGoal.text);
+        setEditingBulletId(id);
+        return;
+      }
+
+      // Check monthly goals
+      for (const goals of Object.values(monthlyGoals)) {
+        const goal = goals.find(g => g.id === id);
+        if (goal) {
+          setEditText(goal.text);
+          setEditingBulletId(id);
+          return;
+        }
+      }
+
+      // Check yearly events
+      const yearlyEvent = yearlyEvents.find(e => e.id === id);
+      if (yearlyEvent) {
+        setEditText(yearlyEvent.text);
+        setEditingBulletId(id);
+        return;
+      }
+
+      return;
+    }
+
+    setEditText(found.bullet.text);
+    setEditingBulletId(id);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingBulletId || !editText.trim()) {
+      setEditingBulletId(null);
+      setEditText('');
+      return;
+    }
+
+    // Update daily bullets
+    setDailyBullets(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(date => {
+        updated[date] = updated[date].map(b =>
+          b.id === editingBulletId ? { ...b, text: editText } : b
+        );
+      });
+      return updated;
+    });
+
+    // Update yearly goals
+    setYearlyGoals(prev => prev.map(g =>
+      g.id === editingBulletId ? { ...g, text: editText } : g
+    ));
+
+    // Update monthly goals
+    setMonthlyGoals(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(month => {
+        const monthNum = parseInt(month);
+        if (updated[monthNum]) {
+          updated[monthNum] = updated[monthNum].map(g =>
+            g.id === editingBulletId ? { ...g, text: editText } : g
+          );
+        }
+      });
+      return updated;
+    });
+
+    // Update yearly events
+    setYearlyEvents(prev => prev.map(e =>
+      e.id === editingBulletId ? { ...e, text: editText } : e
+    ));
+
+    // Update monthly events
+    setMonthlyEvents(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(month => {
+        const monthNum = parseInt(month);
+        if (updated[monthNum]) {
+          updated[monthNum] = updated[monthNum].map(e =>
+            e.id === editingBulletId ? { ...e, text: editText } : e
+          );
+        }
+      });
+      return updated;
+    });
+
+    setEditingBulletId(null);
+    setEditText('');
+  };
+
+  const handleDragStart = (bullet: Bullet, sourceDate: string) => {
+    if (bullet.status !== 'deferred') return;
+    setDraggedBullet({ bullet, sourceDate });
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (targetDate: string) => {
+    if (!draggedBullet) return;
+
+    const { bullet, sourceDate } = draggedBullet;
+
+    setDailyBullets(prev => {
+      const updated = { ...prev };
+
+      // Remove from source
+      updated[sourceDate] = updated[sourceDate].filter(b => b.id !== bullet.id);
+
+      // Add to target with active status
+      if (!updated[targetDate]) updated[targetDate] = [];
+      updated[targetDate].push({
+        ...bullet,
+        status: 'active',
+        date: targetDate
+      });
+
+      return updated;
+    });
+
+    setDraggedBullet(null);
+  };
+
+  const handleCancel = (id: string) => {
+    setDailyBullets(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(date => {
+        updated[date] = updated[date].map(b =>
+          b.id === id ? { ...b, status: 'cancelled' as BulletStatus } : b
+        );
+      });
+      return updated;
+    });
+  };
+
+  const handleDelete = (id: string) => {
+    setDailyBullets(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(date => {
+        updated[date] = updated[date].filter(b => b.id !== id);
+      });
+      return updated;
+    });
+
+    setYearlyGoals(prev => prev.filter(g => g.id !== id));
+    setYearlyEvents(prev => prev.filter(e => e.id !== id));
+
+    setMonthlyGoals(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(month => {
+        updated[parseInt(month)] = updated[parseInt(month)].filter(g => g.id !== id);
+      });
+      return updated;
+    });
+
+    setMonthlyEvents(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(month => {
+        updated[parseInt(month)] = updated[parseInt(month)].filter(e => e.id !== id);
+      });
+      return updated;
+    });
+  };
+
+  const handleDefer = (id: string) => {
+    setDailyBullets(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(date => {
+        updated[date] = updated[date].map(b =>
+          b.id === id ? { ...b, status: 'deferred' as BulletStatus } : b
+        );
+      });
+      return updated;
+    });
+  };
+
+  // FIXED: Schedule with modal (no prompt)
+  const handleScheduleConfirm = () => {
+    if (!selectedBulletId || !scheduleDate) return;
+
+    const dateStr = format(scheduleDate, 'yyyy-MM-dd');
+    const found = findBulletById(selectedBulletId);
+    if (!found) return;
+
+    setDailyBullets(prev => {
+      const updated = { ...prev };
+
+      // Mark as scheduled in source
+      updated[found.date] = updated[found.date].map(b =>
+        b.id === selectedBulletId
+          ? { ...b, status: 'scheduled' as BulletStatus, scheduledDate: dateStr, scheduledTime: scheduleTime || undefined }
+          : b
+      );
+
+      // Add to target date
+      if (!updated[dateStr]) updated[dateStr] = [];
+      updated[dateStr].push({
+        ...found.bullet,
+        status: 'active',
+        date: dateStr,
+        scheduledDate: undefined,
+        scheduledTime: undefined
+      });
+
+      return updated;
+    });
+
+    // If important, add to monthly and yearly goals (with same ID)
+    if (found.bullet.important) {
+      const targetMonth = parseInt(dateStr.split('-')[1]) - 1;
+
+      setMonthlyGoals(prev => {
+        const exists = prev[targetMonth]?.some(g => g.id === selectedBulletId);
+        if (exists) return prev;
+
+        return {
+          ...prev,
+          [targetMonth]: [...(prev[targetMonth] || []), {
+            id: selectedBulletId,
+            text: found.bullet.text,
+            completed: false,
+            category: 'tasks' as const
+          }]
+        };
+      });
+
+      setYearlyGoals(prev => {
+        const exists = prev.some(g => g.id === selectedBulletId);
+        if (exists) return prev;
+
+        return [...prev, {
+          id: selectedBulletId,
+          text: found.bullet.text,
+          completed: false,
+          category: 'tasks' as const
+        }];
+      });
+    }
+
+    setShowScheduleModal(false);
+    setScheduleDate(undefined);
+    setScheduleTime('');
+  };
+
+  // FIXED: Toggle important with shared ID (no duplicates)
+  const handleToggleImportant = (id: string) => {
+    const found = findBulletById(id);
+    if (!found) return;
+
+    const newImportantState = !found.bullet.important;
+
+    // Update daily bullet
+    setDailyBullets(prev => {
+      const updated = { ...prev };
+      updated[found.date] = updated[found.date].map(b =>
+        b.id === id ? { ...b, important: newImportantState } : b
+      );
+      return updated;
+    });
+
+    if (newImportantState) {
+      // Mark as important - add to monthly/yearly IF NOT EXISTS
+      const month = parseInt(found.date.split('-')[1]) - 1;
+
+      setMonthlyGoals(prev => {
+        const exists = prev[month]?.some(g => g.id === id);
+        if (exists) return prev;
+
+        return {
+          ...prev,
+          [month]: [...(prev[month] || []), {
+            id,
+            text: found.bullet.text,
+            completed: found.bullet.status === 'completed',
+            category: 'tasks' as const
+          }]
+        };
+      });
+
+      setYearlyGoals(prev => {
+        const exists = prev.some(g => g.id === id);
+        if (exists) return prev;
+
+        return [...prev, {
+          id,
+          text: found.bullet.text,
+          completed: found.bullet.status === 'completed',
+          category: 'tasks' as const
+        }];
+      });
+    } else {
+      // Unmark - remove from monthly/yearly
+      const month = parseInt(found.date.split('-')[1]) - 1;
+
+      setMonthlyGoals(prev => ({
+        ...prev,
+        [month]: (prev[month] || []).filter(g => g.id !== id)
+      }));
+
+      setYearlyGoals(prev => prev.filter(g => g.id !== id));
+    }
+  };
+
+  const addNote = () => {
+    if (!noteText.trim() || !selectedBulletId) return;
+
+    setDailyBullets(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(date => {
+        updated[date] = updated[date].map(b =>
+          b.id === selectedBulletId ? { ...b, notes: [...b.notes, noteText] } : b
+        );
+      });
+      return updated;
+    });
+
+    setNoteText('');
+    setIsAddingNote(false);
+  };
+
+  const addDailyBullet = (date: string, type: BulletType) => {
+    if (!newItemText.trim()) return;
+
+    const newBullet: Bullet = {
+      id: Date.now().toString(),
+      type,
+      text: newItemText,
+      status: 'active',
+      important: false,
+      notes: [],
+      date
+    };
+
+    setDailyBullets(prev => ({
+      ...prev,
+      [date]: [...(prev[date] || []), newBullet]
+    }));
+
+    setNewItemText('');
+  };
+
+  const addYearlyGoal = (category: 'tasks' | 'interested') => {
+    if (!newItemText.trim()) return;
+
+    setYearlyGoals(prev => [...prev, {
+      id: Date.now().toString(),
+      text: newItemText,
+      completed: false,
+      category
+    }]);
+
+    setNewItemText('');
+  };
+
+  const addYearlyEvent = () => {
+    if (!newItemText.trim()) return;
+
+    setYearlyEvents(prev => [...prev, {
+      id: Date.now().toString(),
+      text: newItemText
+    }]);
+
+    setNewItemText('');
+  };
+
+  const addMonthlyGoal = (month: number, category: 'tasks' | 'interested') => {
+    if (!newItemText.trim()) return;
+
+    setMonthlyGoals(prev => ({
+      ...prev,
+      [month]: [...(prev[month] || []), {
+        id: Date.now().toString(),
+        text: newItemText,
+        completed: false,
+        category
+      }]
+    }));
+
+    setNewItemText('');
+  };
+
+  const addMonthlyEvent = (month: number) => {
+    if (!newItemText.trim()) return;
+
+    const newEvent = {
+      id: Date.now().toString(),
+      text: newItemText
+    };
+
+    setMonthlyEvents(prev => ({
+      ...prev,
+      [month]: [...(prev[month] || []), newEvent]
+    }));
+
+    setYearlyEvents(prev => [...prev, { ...newEvent, month }]);
+
+    setNewItemText('');
+  };
+
+  const exportYear = () => {
+    const data = {
+      year: currentYear,
+      yearlyGoals,
+      yearlyEvents,
+      monthlyGoals,
+      monthlyEvents,
+      dailyBullets
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bullet-journal-${currentYear}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const navigateToPage = (pageNum: number) => {
+    if (pageNum < 1 || pageNum > pages.length) return;
+
+    // Determine flip direction
+    setFlipDirection(pageNum > currentPageNumber ? 'next' : 'prev');
+    setIsFlipping(true);
+
+    setTimeout(() => {
+      setCurrentPageNumber(pageNum % 2 === 0 ? pageNum - 1 : pageNum);
+      setIsFlipping(false);
+    }, 600);
+  };
+
+  const getBulletIcon = (type: BulletType, status: BulletStatus) => {
+    if (type === 'task') {
+      if (status === 'completed') return '✕';
+      if (status === 'cancelled') return '—';
+      if (status === 'deferred') return '>';
+      if (status === 'scheduled') return '<';
+      return '•';
+    }
+    if (type === 'event') return '○';
+    return '−';
+  };
+
+  const currentPage = pages[currentPageNumber - 1];
+  const nextPage = pages[currentPageNumber];
+
+  const renderBulletItem = (bullet: Bullet, showDate?: boolean) => {
+    const isSelected = selectedBulletId === bullet.id;
+    const isEditing = editingBulletId === bullet.id;
+
+    if (isEditing) {
+      return (
+        <div key={bullet.id} className="mb-2 p-2 bg-amber-50 border-2 border-amber-200 rounded">
+          <Input
+            value={editText}
+            onChange={(e) => setEditText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSaveEdit();
+              if (e.key === 'Escape') { setEditingBulletId(null); setEditText(''); }
+            }}
+            autoFocus
+            className="w-full"
+          />
+          <div className="flex gap-2 mt-2">
+            <Button onClick={handleSaveEdit} size="sm">Save</Button>
+            <Button onClick={() => { setEditingBulletId(null); setEditText(''); }} size="sm" variant="outline">
+              Cancel
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div key={bullet.id} className="mb-2">
+        <div
+          className={`flex items-start gap-3 group cursor-pointer p-2 rounded transition-colors ${
+            isSelected ? 'bg-amber-100' : 'hover:bg-gray-50'
+          }`}
+          onClick={() => setSelectedBulletId(bullet.id)}
+          draggable={bullet.status === 'deferred'}
+          onDragStart={() => bullet.date && handleDragStart(bullet, bullet.date)}
+        >
+          {bullet.important && <span className="text-amber-600 font-bold text-lg">*</span>}
+          <span className="font-mono text-lg select-none mt-0.5">
+            {getBulletIcon(bullet.type, bullet.status)}
+          </span>
+          <span className={`flex-1 ${bullet.status === 'cancelled' ? 'line-through text-gray-400' : ''} ${bullet.status === 'completed' ? 'text-gray-600' : ''}`}>
+            {bullet.text}
+            {showDate && bullet.date && (
+              <span className="ml-2 text-xs text-gray-500">
+                ({format(new Date(bullet.date), 'MMM d')})
+              </span>
+            )}
+            {bullet.scheduledDate && (
+              <span className="ml-2 text-xs text-blue-600">
+                → {format(new Date(bullet.scheduledDate), 'MMM d')}
+                {bullet.scheduledTime && ` ${bullet.scheduledTime}`}
+              </span>
+            )}
+          </span>
+          {isSelected && (
+            <span className="text-xs text-gray-500 whitespace-nowrap">
+              ⇧C ⇧X ⇧R ⇧D ⇧S ⇧A
+            </span>
+          )}
+        </div>
+        {bullet.notes.map((note, idx) => (
+          <div key={idx} className="ml-12 text-sm text-gray-600 flex items-start gap-2">
+            <span className="font-mono">−</span>
+            <span>{note}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderPageContent = (page: Page | undefined) => {
+    if (!page) return <div className="text-gray-400 text-center py-20">End of journal</div>;
+
+    switch (page.type) {
+      case 'index':
+        return renderMainIndex();
+      case 'key':
+        return renderKey();
+      case 'yearlyGoals-tasks':
+        return renderYearlyGoals('tasks');
+      case 'yearlyGoals-interested':
+        return renderYearlyGoals('interested');
+      case 'yearlyEvents':
+        return renderYearlyEvents();
+      case 'monthlyIndex':
+        return renderMonthlyIndex(page);
+      case 'monthlyGoals':
+        return renderMonthlyGoals(page.month!);
+      case 'monthlyEvents':
+        return renderMonthlyEvents(page.month!);
+      case 'daily':
+        return renderDailyPage(page);
+      default:
+        return null;
+    }
+  };
+
+  const renderMainIndex = () => {
+    const yearlyGoalsTasksPage = pages.find(p => p.type === 'yearlyGoals-tasks');
+    const yearlyGoalsInterestedPage = pages.find(p => p.type === 'yearlyGoals-interested');
+    const yearlyEventsPage = pages.find(p => p.type === 'yearlyEvents');
+
+    return (
+      <>
+        <div className="mb-8 pb-4 border-b-2 border-gray-800">
+          <h1 className="font-serif text-5xl mb-2">Index</h1>
+          <p className="text-xl text-gray-600">{currentYear}</p>
+        </div>
+
+        <div className="mb-6">
+          <Button onClick={() => navigateToPage(todayPageNum)} className="w-full" size="lg">
+            <CalendarIcon className="h-5 w-5 mr-2" />
+            Go to Today
+          </Button>
+        </div>
+
+        <div className="space-y-6 text-lg">
+          <div>
+            <h3 className="font-serif text-2xl mb-4">Annual</h3>
+            <div className="space-y-2 ml-4">
+              <button
+                onClick={() => navigateToPage(yearlyGoalsTasksPage?.id || 3)}
+                className="block w-full text-left hover:bg-gray-100 p-2 rounded"
+              >
+                <span>Goals - Tasks</span>
+                <span className="float-right text-gray-500">{yearlyGoalsTasksPage?.id || 3}</span>
+              </button>
+              <button
+                onClick={() => navigateToPage(yearlyGoalsInterestedPage?.id || 4)}
+                className="block w-full text-left hover:bg-gray-100 p-2 rounded"
+              >
+                <span>Goals - Interested</span>
+                <span className="float-right text-gray-500">{yearlyGoalsInterestedPage?.id || 4}</span>
+              </button>
+              <button
+                onClick={() => navigateToPage(yearlyEventsPage?.id || 5)}
+                className="block w-full text-left hover:bg-gray-100 p-2 rounded"
+              >
+                <span>Events</span>
+                <span className="float-right text-gray-500">{yearlyEventsPage?.id || 5}</span>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-serif text-2xl mb-4">Monthly</h3>
+            <div className="space-y-2 ml-4">
+              {MONTHS.map((monthName, idx) => {
+                const monthIndexPage = pages.find(p => p.type === 'monthlyIndex' && p.month === idx);
+
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => navigateToPage(monthIndexPage?.id || 6)}
+                    className="block w-full text-left hover:bg-gray-100 p-2 rounded"
+                  >
+                    <span>{monthName}</span>
+                    <span className="float-right text-gray-500">{monthIndexPage?.id || '—'}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  const renderKey = () => (
+    <>
+      <div className="mb-6 pb-4 border-b-2 border-gray-800">
+        <h2 className="font-serif text-4xl">Key</h2>
+      </div>
+
+      <div className="space-y-6 text-lg">
+        <div>
+          <h3 className="font-semibold text-xl mb-3">Bullets</h3>
+          <div className="space-y-2 ml-4">
+            <div className="flex gap-3"><span className="font-mono text-xl">•</span> <span>Task</span></div>
+            <div className="flex gap-3"><span className="font-mono text-xl">✕</span> <span>Task Complete</span></div>
+            <div className="flex gap-3"><span className="font-mono text-xl">—</span> <span>Task Cancelled</span></div>
+            <div className="flex gap-3"><span className="font-mono text-xl">{'>'}</span> <span>Task Deferred</span></div>
+            <div className="flex gap-3"><span className="font-mono text-xl">{'<'}</span> <span>Task Scheduled</span></div>
+            <div className="flex gap-3"><span className="font-mono text-xl">○</span> <span>Event</span></div>
+            <div className="flex gap-3"><span className="font-mono text-xl">−</span> <span>Note</span></div>
+            <div className="flex gap-3"><span className="font-mono text-xl text-amber-600">*</span> <span>Important</span></div>
+          </div>
+        </div>
+
+        <div>
+          <h3 className="font-semibold text-xl mb-3">Keyboard Shortcuts</h3>
+          <div className="space-y-2 ml-4">
+            <div className="flex gap-3">
+              <kbd className="px-3 py-1 bg-gray-200 rounded text-sm">Shift + C</kbd>
+              <span>Complete</span>
+            </div>
+            <div className="flex gap-3">
+              <kbd className="px-3 py-1 bg-gray-200 rounded text-sm">Shift + X</kbd>
+              <span>Cancel</span>
+            </div>
+            <div className="flex gap-3">
+              <kbd className="px-3 py-1 bg-gray-200 rounded text-sm">Delete</kbd>
+              <span>Delete</span>
+            </div>
+            <div className="flex gap-3">
+              <kbd className="px-3 py-1 bg-gray-200 rounded text-sm">Shift + Enter</kbd>
+              <span>Add Note</span>
+            </div>
+            <div className="flex gap-3">
+              <kbd className="px-3 py-1 bg-gray-200 rounded text-sm">Shift + D</kbd>
+              <span>Defer</span>
+            </div>
+            <div className="flex gap-3">
+              <kbd className="px-3 py-1 bg-gray-200 rounded text-sm">Shift + S</kbd>
+              <span>Schedule</span>
+            </div>
+            <div className="flex gap-3">
+              <kbd className="px-3 py-1 bg-gray-200 rounded text-sm">Shift + A</kbd>
+              <span>Mark Important</span>
+            </div>
+            <div className="flex gap-3">
+              <kbd className="px-3 py-1 bg-gray-200 rounded text-sm">Shift + R</kbd>
+              <span>Rename/Edit</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-4 border-t border-gray-300">
+          <Button onClick={exportYear} variant="outline" size="lg" className="w-full">
+            <Download className="h-5 w-5 mr-2" />
+            Export {currentYear}
+          </Button>
+        </div>
+      </div>
+    </>
+  );
+
+  const renderMonthlyIndex = (page: Page) => {
+    const month = page.month!;
+    const goalsPage = pages.find(p => p.type === 'monthlyGoals' && p.month === month);
+    const eventsPage = pages.find(p => p.type === 'monthlyEvents' && p.month === month);
+
+    return (
+      <>
+        <div className="mb-6 pb-4 border-b-2 border-gray-800 flex items-center justify-between">
+          <h2 className="font-serif text-4xl">{page.title}</h2>
+          <Button variant="ghost" size="sm" onClick={() => navigateToPage(1)}>
+            <BookOpen className="h-4 w-4 mr-2" />
+            Index
+          </Button>
+        </div>
+
+        <div className="space-y-4">
+          <button
+            onClick={() => navigateToPage(goalsPage?.id || 1)}
+            className="block w-full text-left hover:bg-gray-100 p-2 rounded text-lg"
+          >
+            <span>Goals</span>
+            <span className="float-right text-gray-500">{goalsPage?.id}</span>
+          </button>
+          <button
+            onClick={() => navigateToPage(eventsPage?.id || 1)}
+            className="block w-full text-left hover:bg-gray-100 p-2 rounded text-lg"
+          >
+            <span>Events</span>
+            <span className="float-right text-gray-500">{eventsPage?.id}</span>
+          </button>
+
+          <div className="pt-4 border-t border-gray-300">
+            <h3 className="font-serif text-xl mb-3">Daily Pages</h3>
+            <div className="space-y-1">
+              {page.dailyPageRefs?.map((ref, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => navigateToPage(ref.pageNum)}
+                  className="block w-full text-left hover:bg-gray-100 p-1 rounded text-sm"
+                >
+                  <span>{ref.title}</span>
+                  <span className="float-right text-gray-500">{ref.pageNum}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  const renderYearlyGoals = (category: 'tasks' | 'interested') => {
+    const goals = yearlyGoals.filter(g => g.category === category);
+    const title = category === 'tasks' ? 'Annual Goals - Tasks' : 'Annual Goals - Interested';
+
+    return (
+      <>
+        <div className="mb-6 pb-4 border-b-2 border-gray-800 flex items-center justify-between">
+          <h2 className="font-serif text-4xl">{title}</h2>
+          <Button variant="ghost" size="sm" onClick={() => navigateToPage(1)}>
+            <BookOpen className="h-4 w-4 mr-2" />
+            Index
+          </Button>
+        </div>
+
+        <div className="space-y-2 mb-6 max-h-[600px] overflow-y-auto">
+          {goals.map(goal => (
+            <div
+              key={goal.id}
+              className={`flex items-start gap-3 group cursor-pointer p-2 rounded ${
+                selectedBulletId === goal.id ? 'bg-amber-100' : 'hover:bg-gray-50'
+              }`}
+              onClick={() => setSelectedBulletId(goal.id)}
+            >
+              <span className="font-mono text-lg select-none mt-0.5">
+                {goal.completed ? '✕' : '○'}
+              </span>
+              <span className={`flex-1 text-lg ${goal.completed ? 'line-through text-gray-400' : ''}`}>
+                {goal.text}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-2">
+          <Input
+            value={newItemText}
+            onChange={(e) => setNewItemText(e.target.value)}
+            placeholder={`Add ${category === 'tasks' ? 'task' : 'interest'}...`}
+            onKeyDown={(e) => e.key === 'Enter' && addYearlyGoal(category)}
+            className="bg-transparent border-b-2 border-gray-300 rounded-none text-lg"
+          />
+        </div>
+      </>
+    );
+  };
+
+  const renderYearlyEvents = () => (
+    <>
+      <div className="mb-6 pb-4 border-b-2 border-gray-800 flex items-center justify-between">
+        <h2 className="font-serif text-4xl">Annual Events</h2>
+        <Button variant="ghost" size="sm" onClick={() => navigateToPage(1)}>
+          <BookOpen className="h-4 w-4 mr-2" />
+          Index
+        </Button>
+      </div>
+
+      <div className="space-y-2 mb-6 max-h-[600px] overflow-y-auto">
+        {yearlyEvents.map(event => (
+          <div
+            key={event.id}
+            className={`flex items-start gap-3 group cursor-pointer p-2 rounded ${
+              selectedBulletId === event.id ? 'bg-amber-100' : 'hover:bg-gray-50'
+            }`}
+            onClick={() => setSelectedBulletId(event.id)}
+          >
+            <span className="font-mono text-lg select-none mt-0.5">○</span>
+            <span className="flex-1 text-lg">
+              {event.text}
+              {event.month !== undefined && (
+                <span className="ml-2 text-sm text-gray-500">({MONTHS[event.month]})</span>
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <Input
+        value={newItemText}
+        onChange={(e) => setNewItemText(e.target.value)}
+        placeholder="Add yearly event..."
+        onKeyDown={(e) => e.key === 'Enter' && addYearlyEvent()}
+        className="bg-transparent border-b-2 border-gray-300 rounded-none text-lg"
+      />
+    </>
+  );
+
+  const renderMonthlyGoals = (month: number) => {
+    const goals = monthlyGoals[month] || [];
+    const tasksGoals = goals.filter(g => g.category === 'tasks');
+    const interestedGoals = goals.filter(g => g.category === 'interested');
+
+    return (
+      <>
+        <div className="mb-6 pb-4 border-b-2 border-gray-800 flex items-center justify-between">
+          <h2 className="font-serif text-4xl">{MONTHS[month]} - Goals</h2>
+          <Button variant="ghost" size="sm" onClick={() => navigateToPage(1)}>
+            <BookOpen className="h-4 w-4 mr-2" />
+            Index
+          </Button>
+        </div>
+
+        <div className="space-y-6">
+          <div>
+            <h3 className="font-serif text-2xl mb-3">Tasks</h3>
+            <div className="space-y-2 mb-4">
+              {tasksGoals.map(goal => (
+                <div
+                  key={goal.id}
+                  className={`flex items-start gap-3 group cursor-pointer p-2 rounded ${
+                    selectedBulletId === goal.id ? 'bg-amber-100' : 'hover:bg-gray-50'
+                  }`}
+                  onClick={() => setSelectedBulletId(goal.id)}
+                >
+                  <span className="font-mono text-lg select-none mt-0.5">
+                    {goal.completed ? '✕' : '○'}
+                  </span>
+                  <span className={`flex-1 ${goal.completed ? 'line-through text-gray-400' : ''}`}>
+                    {goal.text}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <Input
+              value={newItemText}
+              onChange={(e) => setNewItemText(e.target.value)}
+              placeholder="Add task goal..."
+              onKeyDown={(e) => e.key === 'Enter' && addMonthlyGoal(month, 'tasks')}
+              className="bg-transparent border-b border-gray-300 rounded-none"
+            />
+          </div>
+
+          <div>
+            <h3 className="font-serif text-2xl mb-3">Interested</h3>
+            <div className="space-y-2 mb-4">
+              {interestedGoals.map(goal => (
+                <div
+                  key={goal.id}
+                  className={`flex items-start gap-3 group cursor-pointer p-2 rounded ${
+                    selectedBulletId === goal.id ? 'bg-amber-100' : 'hover:bg-gray-50'
+                  }`}
+                  onClick={() => setSelectedBulletId(goal.id)}
+                >
+                  <span className="font-mono text-lg select-none mt-0.5">
+                    {goal.completed ? '✕' : '○'}
+                  </span>
+                  <span className={`flex-1 ${goal.completed ? 'line-through text-gray-400' : ''}`}>
+                    {goal.text}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <Input
+              value={newItemText}
+              onChange={(e) => setNewItemText(e.target.value)}
+              placeholder="Add interest goal..."
+              onKeyDown={(e) => e.key === 'Enter' && addMonthlyGoal(month, 'interested')}
+              className="bg-transparent border-b border-gray-300 rounded-none"
+            />
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  const renderMonthlyEvents = (month: number) => {
+    const events = monthlyEvents[month] || [];
+
+    return (
+      <>
+        <div className="mb-6 pb-4 border-b-2 border-gray-800 flex items-center justify-between">
+          <h2 className="font-serif text-4xl">{MONTHS[month]} - Events</h2>
+          <Button variant="ghost" size="sm" onClick={() => navigateToPage(1)}>
+            <BookOpen className="h-4 w-4 mr-2" />
+            Index
+          </Button>
+        </div>
+
+        <div className="space-y-2 mb-6">
+          {events.map(event => (
+            <div
+              key={event.id}
+              className={`flex items-start gap-3 group cursor-pointer p-2 rounded ${
+                selectedBulletId === event.id ? 'bg-amber-100' : 'hover:bg-gray-50'
+              }`}
+              onClick={() => setSelectedBulletId(event.id)}
+            >
+              <span className="font-mono text-lg select-none mt-0.5">○</span>
+              <span className="flex-1">{event.text}</span>
+            </div>
+          ))}
+        </div>
+
+        <Input
+          value={newItemText}
+          onChange={(e) => setNewItemText(e.target.value)}
+          placeholder="Add monthly event (auto-adds to yearly)..."
+          onKeyDown={(e) => e.key === 'Enter' && addMonthlyEvent(month)}
+          className="bg-transparent border-b-2 border-gray-300 rounded-none"
+        />
+      </>
+    );
+  };
+
+  const renderDailyPage = (page: Page) => {
+    const dates = page.dates || [];
+    const allBullets = dates.flatMap(date =>
+      (dailyBullets[date] || []).map(b => ({ ...b, date }))
+    );
+
+    // Find month index page
+    const month = page.month;
+    const monthIndexPage = month !== undefined ? pages.find(p => p.type === 'monthlyIndex' && p.month === month) : null;
+
+    return (
+      <>
+        <div className="mb-6 pb-4 border-b-2 border-gray-800 flex items-center justify-between">
+          <h2 className="font-serif text-4xl">{page.title}</h2>
+          <div className="flex gap-2">
+            {monthIndexPage && (
+              <Button variant="ghost" size="sm" onClick={() => navigateToPage(monthIndexPage.id)}>
+                <BookOpen className="h-4 w-4 mr-2" />
+                {MONTHS[month!]}
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => navigateToPage(1)}>
+              <BookOpen className="h-4 w-4 mr-2" />
+              Index
+            </Button>
+          </div>
+        </div>
+
+        <div
+          className="space-y-1 mb-6 max-h-[550px] overflow-y-auto"
+          onDragOver={handleDragOver}
+          onDrop={() => dates[0] && handleDrop(dates[0])}
+        >
+          {allBullets.length === 0 ? (
+            <p className="text-gray-400 text-center py-8">No entries yet</p>
+          ) : (
+            allBullets.map(bullet => renderBulletItem(bullet, dates.length > 1))
+          )}
+          {draggedBullet && dates[0] >= today && (
+            <div className="p-4 border-2 border-dashed border-amber-400 rounded bg-amber-50 text-center text-sm text-gray-600">
+              Drop deferred task here
+            </div>
+          )}
+        </div>
+
+        {isAddingNote && selectedBulletId ? (
+          <div className="space-y-2 p-3 bg-amber-50 border-2 border-amber-200 rounded">
+            <Textarea
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder="Add a note..."
+              className="bg-white"
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <Button onClick={addNote} size="sm">Add Note</Button>
+              <Button onClick={() => { setIsAddingNote(false); setNoteText(''); }} size="sm" variant="outline">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : dates.includes(today) || dates.some(d => d > today) ? (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <Input
+                value={newItemText}
+                onChange={(e) => setNewItemText(e.target.value)}
+                placeholder="Add entry..."
+                className="bg-transparent border-b-2 border-gray-300 rounded-none"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={() => addDailyBullet(dates[0], 'task')} size="sm" variant="outline">
+                • Task
+              </Button>
+              <Button onClick={() => addDailyBullet(dates[0], 'event')} size="sm" variant="outline">
+                ○ Event
+              </Button>
+              <Button onClick={() => addDailyBullet(dates[0], 'note')} size="sm" variant="outline">
+                − Note
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-amber-100 to-orange-100 p-8 flex items-center justify-center relative">
+      <div className="relative w-full max-w-[1800px]">
+        <div className={`relative bg-gradient-to-r from-amber-900 to-amber-800 rounded-3xl shadow-2xl p-16 transition-all duration-600 ${
+          isFlipping ? (flipDirection === 'next' ? 'flip-next' : 'flip-prev') : ''
+        }`}>
+          <div className="grid grid-cols-2 gap-0 relative">
+            {/* Left Page */}
+            <div className="relative bg-amber-50 p-16 min-h-[900px] border-r-2 border-amber-200 dotted-bg">
+              <div className="relative z-10">
+                {renderPageContent(currentPage)}
+              </div>
+              <div className="absolute bottom-12 right-12 text-base text-gray-500 font-serif">
+                {currentPage?.id || '—'}
+              </div>
+            </div>
+
+            {/* Right Page */}
+            <div className="relative bg-amber-50 p-16 min-h-[900px] dotted-bg">
+              <div className="relative z-10">
+                {renderPageContent(nextPage)}
+              </div>
+              <div className="absolute bottom-12 right-12 text-base text-gray-500 font-serif">
+                {nextPage?.id || '—'}
+              </div>
+            </div>
+          </div>
+
+          {/* Navigation */}
+          <div className="absolute top-1/2 -translate-y-1/2 left-4 right-4 flex justify-between pointer-events-none">
+            <Button
+              onClick={() => navigateToPage(Math.max(1, currentPageNumber - 2))}
+              disabled={currentPageNumber <= 1}
+              size="lg"
+              variant="ghost"
+              className="pointer-events-auto bg-amber-900/90 text-white hover:bg-amber-800 disabled:opacity-20 rounded-full h-14 w-14"
+            >
+              <ChevronLeft className="h-8 w-8" />
+            </Button>
+            <Button
+              onClick={() => navigateToPage(currentPageNumber + 2)}
+              disabled={!pages[currentPageNumber + 1]}
+              size="lg"
+              variant="ghost"
+              className="pointer-events-auto bg-amber-900/90 text-white hover:bg-amber-800 disabled:opacity-20 rounded-full h-14 w-14"
+            >
+              <ChevronRight className="h-8 w-8" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Bookmark Ribbons */}
+        <div className="absolute top-0 right-8 h-full flex items-start pt-8 gap-2">
+          {/* Deferred Bookmark */}
+          <div className="relative">
+            <button
+              onClick={() => setShowBookmarks(showBookmarks === 'deferred' ? false : 'deferred')}
+              className="bg-orange-600 text-white px-4 py-6 rounded-b-lg shadow-lg hover:bg-orange-700 transition-colors flex flex-col items-center gap-2"
+            >
+              <Bookmark className="h-6 w-6" />
+              <span className="text-xs font-bold">D</span>
+              <span className="text-xs">{deferredBullets.length}</span>
+            </button>
+
+            {showBookmarks === 'deferred' && (
+              <div className="absolute top-full right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border-2 border-orange-300 p-4 max-h-96 overflow-y-auto z-50">
+                <h3 className="font-serif text-xl mb-3">Deferred Tasks</h3>
+                <p className="text-xs text-gray-500 mb-3">Drag to future dates</p>
+
+                <div className="space-y-1">
+                  {deferredBullets.length === 0 ? (
+                    <p className="text-gray-400 text-sm">No deferred tasks</p>
+                  ) : (
+                    deferredBullets.map(bullet => (
+                      <div
+                        key={bullet.id}
+                        className="text-sm p-2 hover:bg-gray-50 rounded cursor-move border border-gray-200"
+                        draggable
+                        onDragStart={() => bullet.date && handleDragStart(bullet, bullet.date)}
+                      >
+                        <span className="font-mono mr-2">{'>'}</span>
+                        {bullet.text}
+                        {bullet.date && (
+                          <span className="ml-2 text-xs text-gray-500">
+                            from {format(new Date(bullet.date), 'MMM d')}
+                          </span>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Scheduled Bookmark */}
+          <div className="relative">
+            <button
+              onClick={() => setShowBookmarks(showBookmarks === 'scheduled' ? false : 'scheduled')}
+              className="bg-blue-600 text-white px-4 py-6 rounded-b-lg shadow-lg hover:bg-blue-700 transition-colors flex flex-col items-center gap-2"
+            >
+              <Bookmark className="h-6 w-6" />
+              <span className="text-xs font-bold">S</span>
+              <span className="text-xs">{scheduledBullets.length}</span>
+            </button>
+
+            {showBookmarks === 'scheduled' && (
+              <div className="absolute top-full right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border-2 border-blue-300 p-4 max-h-96 overflow-y-auto z-50">
+                <h3 className="font-serif text-xl mb-3">Scheduled Tasks</h3>
+
+                <div className="space-y-1">
+                  {scheduledBullets.length === 0 ? (
+                    <p className="text-gray-400 text-sm">No scheduled tasks</p>
+                  ) : (
+                    scheduledBullets.map(bullet => (
+                      <div key={bullet.id} className="text-sm p-2 hover:bg-gray-50 rounded cursor-pointer border border-gray-200">
+                        <span className="font-mono mr-2">{'<'}</span>
+                        {bullet.text}
+                        {bullet.scheduledDate && (
+                          <span className="ml-2 text-xs text-blue-600 font-semibold">
+                            → {format(new Date(bullet.scheduledDate), 'MMM d')}
+                            {bullet.scheduledTime && ` ${bullet.scheduledTime}`}
+                          </span>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Schedule Modal */}
+      <Dialog open={showScheduleModal} onOpenChange={setShowScheduleModal}>
+        <DialogContent className="bg-amber-50 border-2 border-gray-800">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl">Schedule Task</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block mb-2 font-semibold">Date</label>
+              <Calendar
+                mode="single"
+                selected={scheduleDate}
+                onSelect={setScheduleDate}
+                className="rounded-md border"
+              />
+            </div>
+            <div>
+              <label className="block mb-2 font-semibold">Time (optional)</label>
+              <Input
+                type="time"
+                value={scheduleTime}
+                onChange={(e) => setScheduleTime(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleScheduleConfirm} className="flex-1">
+                Schedule
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowScheduleModal(false);
+                  setScheduleDate(undefined);
+                  setScheduleTime('');
+                }}
+                variant="outline"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <style>{`
+        .dotted-bg {
+          background-image: radial-gradient(circle, #d1d5db 2px, transparent 2px);
+          background-size: 28px 28px;
+        }
+
+        @keyframes flipNext {
+          0% {
+            transform: perspective(2000px) rotateY(0deg);
+          }
+          50% {
+            transform: perspective(2000px) rotateY(-15deg);
+          }
+          100% {
+            transform: perspective(2000px) rotateY(0deg);
+          }
+        }
+
+        @keyframes flipPrev {
+          0% {
+            transform: perspective(2000px) rotateY(0deg);
+          }
+          50% {
+            transform: perspective(2000px) rotateY(15deg);
+          }
+          100% {
+            transform: perspective(2000px) rotateY(0deg);
+          }
+        }
+
+        .flip-next {
+          animation: flipNext 0.6s ease-in-out;
+        }
+
+        .flip-prev {
+          animation: flipPrev 0.6s ease-in-out;
+        }
+      `}</style>
+    </div>
+  );
+}

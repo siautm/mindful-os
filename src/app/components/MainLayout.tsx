@@ -3,12 +3,9 @@ import { Outlet, Link, useLocation } from "react-router";
 import {
   LayoutDashboard,
   Calendar,
-  CheckSquare,
   Timer,
   DollarSign,
-  Lightbulb,
   StickyNote,
-  CalendarDays,
   BarChart3,
   Brain,
   ChevronDown,
@@ -32,15 +29,13 @@ const routePreloaders: Record<string, () => Promise<unknown>> = {
   "/": () => import("../pages/Dashboard"),
   "/checkin": () => import("../pages/CheckIn"),
   "/timetable": () => import("../pages/Timetable"),
-  "/tasks": () => import("../pages/Tasks"),
   "/study-plans": () => import("../pages/StudyPlans"),
   "/focus": () => import("../pages/FocusTimer"),
   "/finance": () => import("../pages/Finance"),
   "/habits": () => import("../pages/Habits"),
   "/analytics": () => import("../pages/Analytics"),
   "/memo": () => import("../pages/Memo"),
-  "/ideas": () => import("../pages/Ideas"),
-  "/events": () => import("../pages/Events"),
+  "/journal": () => import("../pages/Journal"),
   "/minigame": () => import("../pages/Minigame"),
 };
 
@@ -64,16 +59,8 @@ const navigationGroups = [
     items: [
       { name: "Dashboard", path: "/", icon: LayoutDashboard },
       { name: "Timetable", path: "/timetable", icon: Calendar },
-      { name: "Focus Timer", path: "/focus", icon: Timer },
-    ],
-  },
-  {
-    name: "Planning",
-    collapsible: false,
-    items: [
-      { name: "Tasks", path: "/tasks", icon: CheckSquare },
       { name: "Study plans", path: "/study-plans", icon: BookOpen },
-      { name: "Events", path: "/events", icon: CalendarDays },
+      { name: "Focus Timer", path: "/focus", icon: Timer },
     ],
   },
   {
@@ -90,7 +77,7 @@ const navigationGroups = [
     collapsible: true,
     items: [
       { name: "Memo", path: "/memo", icon: StickyNote },
-      { name: "Ideas", path: "/ideas", icon: Lightbulb },
+      { name: "Journal", path: "/journal", icon: BookOpen },
       { name: "Brain Break", path: "/minigame", icon: Brain },
     ],
   },

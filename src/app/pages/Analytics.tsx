@@ -25,7 +25,6 @@ import {
 } from "lucide-react";
 import {
   getFocusSessions,
-  getTasks,
   getFinanceEntries,
   getExerciseEntries,
   getSleepEntries,
@@ -35,18 +34,13 @@ import {
   isWellnessChecklistCompleteForDate,
   getCheckInTrackingStartYmd,
   getStudyPlans,
-  getHabits,
-  habitCompletionCountInRange,
-  getHabitDayEntries,
   FocusSession,
-  Task,
   FinanceEntry,
   ExerciseEntry,
   SleepEntry,
   MeditationEntry,
   WeightEntry,
   type StudyPlan,
-  type Habit,
 } from "../lib/storage";
 
 type TimePeriod = "daily" | "weekly" | "monthly" | "yearly" | "total";
@@ -168,10 +162,8 @@ function eachMonthInRange(trackingStartYmd: string, endYmd: string): { y: number
 export function Analytics() {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>("weekly");
   const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
   const [financeEntries, setFinanceEntries] = useState<FinanceEntry[]>([]);
   const [studyPlans, setStudyPlans] = useState<StudyPlan[]>([]);
-  const [habits, setHabits] = useState<Habit[]>([]);
 
   useEffect(() => {
     loadData();
@@ -179,10 +171,8 @@ export function Analytics() {
 
   function loadData() {
     setFocusSessions(getFocusSessions());
-    setTasks(getTasks());
     setFinanceEntries(getFinanceEntries());
     setStudyPlans(getStudyPlans());
-    setHabits(getHabits());
   }
 
   // Helper function to get date range based on period
@@ -297,52 +287,6 @@ export function Analytics() {
     };
   }
 
-  // Process Tasks data
-  function getTasksData() {
-    const { start, end } = getDateRange(timePeriod);
-    const filtered = tasks.filter(t => {
-      const date = new Date(t.createdAt);
-      return t.completed && date >= start && date <= end;
-    });
-
-    if (timePeriod === "total") {
-      const totalTasks = filtered.length;
-      const avgPriority = filtered.length > 0
-        ? filtered.reduce((sum, t) => sum + t.priority, 0) / filtered.length
-        : 0;
-      return {
-        chart: [{ name: "Total", completed: totalTasks, avgPriority: avgPriority.toFixed(1) }],
-        total: { tasks: totalTasks, avgPriority: avgPriority.toFixed(1) },
-      };
-    }
-
-    const grouped: Record<string, { count: number; totalPriority: number }> = {};
-    filtered.forEach(task => {
-      const key = getDateKey(new Date(task.createdAt), timePeriod);
-      if (!grouped[key]) {
-        grouped[key] = { count: 0, totalPriority: 0 };
-      }
-      grouped[key].count += 1;
-      grouped[key].totalPriority += task.priority;
-    });
-
-    const chart = Object.entries(grouped).map(([name, data]) => ({
-      name,
-      completed: data.count,
-      avgPriority: (data.totalPriority / data.count).toFixed(1),
-    }));
-
-    const totalTasks = filtered.length;
-    const avgPriority = totalTasks > 0
-      ? (filtered.reduce((sum, t) => sum + t.priority, 0) / totalTasks).toFixed(1)
-      : "0";
-
-    return {
-      chart,
-      total: { tasks: totalTasks, avgPriority },
-    };
-  }
-
   // Process Finance data
   function getFinanceData() {
     const { start, end } = getDateRange(timePeriod);
@@ -404,11 +348,6 @@ export function Analytics() {
     };
   }
 
-  function rangeYmdBounds(): { startYmd: string; endYmd: string } {
-    const { start, end } = getDateRange(timePeriod);
-    return { startYmd: toYmdLocal(start), endYmd: toYmdLocal(end) };
-  }
-
   function getStudyPlanAnalytics() {
     const { start, end } = getDateRange(timePeriod);
     const sessions = focusSessions.filter((s) => {
@@ -459,52 +398,9 @@ export function Analytics() {
     };
   }
 
-  function getHabitAnalytics() {
-    const { startYmd, endYmd } = rangeYmdBounds();
-    const entries = getHabitDayEntries().filter(
-      (e) => e.date >= startYmd && e.date <= endYmd
-    );
-    const perHabitChart = habits.map((h) => ({
-      name: h.name.length > 22 ? `${h.name.slice(0, 20)}…` : h.name,
-      completions: habitCompletionCountInRange(h.id, startYmd, endYmd),
-    }));
-
-    const dayKeys: Record<string, number> = {};
-    entries.forEach((e) => {
-      dayKeys[e.date] = (dayKeys[e.date] || 0) + 1;
-    });
-    const { start, end } = getDateRange(timePeriod);
-    const dailyChart: { name: string; count: number }[] = [];
-    const walk = new Date(start);
-    walk.setHours(0, 0, 0, 0);
-    const endDay = new Date(end);
-    endDay.setHours(0, 0, 0, 0);
-    while (walk <= endDay) {
-      const k = toYmdLocal(walk);
-      dailyChart.push({
-        name: walk.toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          ...(timePeriod === "yearly" || timePeriod === "total" ? { year: "2-digit" as const } : {}),
-        }),
-        count: dayKeys[k] || 0,
-      });
-      walk.setDate(walk.getDate() + 1);
-    }
-
-    return {
-      perHabitChart,
-      dailyChart,
-      totalTicks: entries.length,
-      activeHabits: habits.length,
-    };
-  }
-
   const pomodoroData = getPomodoroData();
-  const tasksData = getTasksData();
   const financeData = getFinanceData();
   const studyAnalytics = getStudyPlanAnalytics();
-  const habitAnalytics = getHabitAnalytics();
 
   const trackingStartYmd = useMemo(() => getCheckInTrackingStartYmd(), []);
   const todayYmd = toYmdLocal(new Date());
@@ -634,21 +530,6 @@ export function Analytics() {
         <Card>
           <CardContent className="px-2.5 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-6">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className="size-9 sm:size-12 shrink-0 bg-green-100 rounded-full flex items-center justify-center">
-                <CheckCircle2 className="size-4 sm:size-6 text-green-600" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-lg sm:text-2xl font-semibold text-gray-900 tabular-nums">
-                  {tasksData.total.tasks}
-                </div>
-                <p className="text-[10px] sm:text-sm text-gray-600 leading-tight">Tasks</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="px-2.5 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-6">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <div className="size-9 sm:size-12 shrink-0 bg-red-100 rounded-full flex items-center justify-center">
                 <DollarSign className="size-4 sm:size-6 text-red-600" />
               </div>
@@ -665,14 +546,10 @@ export function Analytics() {
 
       {/* Charts */}
       <Tabs defaultValue="pomodoro" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1 h-auto p-1">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-1 h-auto p-1">
           <TabsTrigger value="pomodoro" className="text-xs sm:text-sm">
             <Clock className="size-4 sm:mr-2 shrink-0" />
             <span className="truncate">Pomodoro</span>
-          </TabsTrigger>
-          <TabsTrigger value="tasks" className="text-xs sm:text-sm">
-            <CheckCircle2 className="size-4 sm:mr-2 shrink-0" />
-            <span className="truncate">Tasks</span>
           </TabsTrigger>
           <TabsTrigger value="finance" className="text-xs sm:text-sm">
             <DollarSign className="size-4 sm:mr-2 shrink-0" />
@@ -681,10 +558,6 @@ export function Analytics() {
           <TabsTrigger value="study" className="text-xs sm:text-sm">
             <BookOpen className="size-4 sm:mr-2 shrink-0" />
             <span className="truncate">Study</span>
-          </TabsTrigger>
-          <TabsTrigger value="habits" className="text-xs sm:text-sm">
-            <Repeat2 className="size-4 sm:mr-2 shrink-0" />
-            <span className="truncate">Habits</span>
           </TabsTrigger>
           <TabsTrigger value="checkin" className="text-xs sm:text-sm">
             <Heart className="size-4 sm:mr-2 shrink-0" />
@@ -745,64 +618,6 @@ export function Analytics() {
                 <p className="text-sm text-gray-600 mt-1">
                   Completed / Total (incomplete: {pomodoroData.total.incompleteSessions})
                 </p>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Tasks Tab */}
-        <TabsContent value="tasks" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Tasks Completed</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {tasksData.chart.length > 0 ? (
-                <ResponsiveContainer width="100%" height={350}>
-                  <LineChart data={tasksData.chart}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="completed"
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      name="Completed Tasks"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-[350px] flex items-center justify-center text-gray-500">
-                  No completed tasks for this period
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Total Tasks Completed</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-green-600">
-                  {tasksData.total.tasks}
-                </div>
-                <p className="text-sm text-gray-600 mt-1">Tasks finished</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Average Priority</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-blue-600">
-                  {tasksData.total.avgPriority}
-                </div>
-                <p className="text-sm text-gray-600 mt-1">Out of 10</p>
               </CardContent>
             </Card>
           </div>
@@ -996,70 +811,6 @@ export function Analytics() {
                     <Bar dataKey="minutes" fill="#8b5cf6" name="Minutes" />
                     <Bar dataKey="sessions" fill="#a78bfa" name="Sessions" />
                   </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="habits" className="space-y-6">
-          <div className="grid grid-cols-2 gap-3">
-            <Card>
-              <CardContent className="pt-4 pb-4 px-4">
-                <p className="text-xs text-gray-500">Check-ins in period</p>
-                <p className="text-2xl font-semibold text-emerald-600 tabular-nums">{habitAnalytics.totalTicks}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4 pb-4 px-4">
-                <p className="text-xs text-gray-500">Habits tracked</p>
-                <p className="text-2xl font-semibold text-gray-900 tabular-nums">{habitAnalytics.activeHabits}</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Completions per habit</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {habitAnalytics.activeHabits === 0 ? (
-                <p className="text-sm text-gray-500 py-8 text-center">
-                  Add habits from the Habits page to see analytics.
-                </p>
-              ) : habitAnalytics.perHabitChart.every((x) => x.completions === 0) ? (
-                <p className="text-sm text-gray-500 py-8 text-center">No habit ticks in this period.</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={habitAnalytics.perHabitChart}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
-                    <Bar dataKey="completions" fill="#10b981" name="Days checked" />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Habit activity by day</CardTitle>
-              <p className="text-sm text-gray-600 font-normal">Total habit checkmarks per calendar day.</p>
-            </CardHeader>
-            <CardContent>
-              {habitAnalytics.activeHabits === 0 ? (
-                <p className="text-sm text-gray-500 py-8 text-center">No habits to chart.</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={habitAnalytics.dailyChart}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="count" stroke="#059669" strokeWidth={2} name="Checkmarks" dot={false} />
-                  </LineChart>
                 </ResponsiveContainer>
               )}
             </CardContent>

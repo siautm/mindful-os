@@ -1,5 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
-import { Link } from "react-router";
+import { useState, useEffect } from "react";
 import Papa from "papaparse";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -17,24 +16,11 @@ import {
   ListTodo,
   Grid3x3,
   Edit2,
-  CheckSquare,
-  CalendarDays,
-  MapPin,
 } from "lucide-react";
 import {
   getTimetable,
   saveTimetable,
   TimetableEntry,
-  getTasks,
-  getEvents,
-  Task,
-  EventEntry,
-  eventStartMs,
-  eventEndMs,
-  formatEventTimeRange,
-  taskDueSortKey,
-  formatTaskDueDateTime,
-  resolveTaskCourseLabel,
 } from "../lib/storage";
 import { toast } from "sonner";
 
@@ -46,10 +32,8 @@ interface CombinedEntry {
   subtitle?: string;
   time: string;
   location?: string;
-  type: "course" | "task" | "event";
+  type: "course";
   color: string;
-  dueDate?: string;
-  completed?: boolean;
 }
 
 // Time slots from 8:00 to 18:00 (6 PM)
@@ -80,8 +64,6 @@ function getInitialTimetableTab(): TimetableTab {
 
 export function Timetable() {
   const [entries, setEntries] = useState<TimetableEntry[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [events, setEvents] = useState<EventEntry[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<TimetableEntry | null>(null);
   const [newEntry, setNewEntry] = useState<Partial<TimetableEntry>>({
@@ -105,26 +87,7 @@ export function Timetable() {
 
   function loadData() {
     setEntries(getTimetable());
-    setTasks(getTasks());
-    setEvents(getEvents());
   }
-
-  const upcomingTasksBelow = useMemo(
-    () =>
-      tasks
-        .filter((t) => !t.completed)
-        .sort((a, b) => taskDueSortKey(a) - taskDueSortKey(b))
-        .slice(0, 12),
-    [tasks]
-  );
-
-  const upcomingEventsBelow = useMemo(() => {
-    const now = Date.now();
-    return events
-      .filter((e) => eventEndMs(e) >= now)
-      .sort((a, b) => eventStartMs(a) - eventStartMs(b))
-      .slice(0, 12);
-  }, [events]);
 
   function handleAddEntry() {
     if (!newEntry.courseName || !newEntry.startTime || !newEntry.endTime) {
@@ -258,51 +221,6 @@ export function Timetable() {
         location: course.location,
         type: "course",
         color: "bg-blue-100 border-blue-300",
-      });
-    });
-
-    // Get day index (0 = Monday, 6 = Sunday)
-    const dayIndex = DAYS.indexOf(day);
-    
-    // Calculate the date for this day in the current week
-    const today = new Date();
-    const currentDayIndex = (today.getDay() + 6) % 7; // Convert Sunday=0 to Monday=0
-    const diff = dayIndex - currentDayIndex;
-    const targetDate = new Date(today);
-    targetDate.setDate(today.getDate() + diff);
-    const targetDateString = targetDate.toISOString().split("T")[0];
-
-    // Add tasks due on this day
-    const dayTasks = tasks.filter(task => {
-      const dueDate = task.dueDate.split("T")[0];
-      return dueDate === targetDateString;
-    });
-    dayTasks.forEach(task => {
-      combined.push({
-        id: task.id,
-        title: task.title,
-        subtitle: `Priority: ${task.priority.toFixed(1)}`,
-        time: task.dueTime?.trim() ? `Due · ${task.dueTime}` : "Due today",
-        type: "task",
-        color: task.completed ? "bg-gray-100 border-gray-300" : "bg-green-100 border-green-300",
-        completed: task.completed,
-      });
-    });
-
-    // Add events on this day
-    const dayEvents = events.filter(event => {
-      const eventDate = event.date.split("T")[0];
-      return eventDate === targetDateString;
-    });
-    dayEvents.forEach(event => {
-      combined.push({
-        id: event.id,
-        title: event.title,
-        subtitle: event.category,
-        time: formatEventTimeRange(event),
-        location: event.location,
-        type: "event",
-        color: "bg-purple-100 border-purple-300",
       });
     });
 
@@ -631,7 +549,7 @@ export function Timetable() {
           </Card>
         </TabsContent>
 
-        {/* Combined View (Courses + Tasks + Events) */}
+        {/* Combined View (All courses by day) */}
         <TabsContent value="combined" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
             {DAYS.map(day => {
@@ -662,23 +580,19 @@ export function Timetable() {
                           <div
                             key={entry.id}
                             className={`p-3 rounded-lg border ${entry.color} ${
-                              entry.completed ? "opacity-60" : ""
+                                  ""
                             }`}
                           >
                             <div className="flex items-start justify-between mb-1">
                               <div className="flex-1">
                                 <div className="flex items-center gap-2">
-                                  <h4 className={`font-medium text-gray-900 ${
-                                    entry.completed ? "line-through" : ""
-                                  }`}>
+                                  <h4 className="font-medium text-gray-900">
                                     {entry.title}
                                   </h4>
                                   <span className={`text-xs px-1.5 py-0.5 rounded ${
                                     entry.type === "course"
                                       ? "bg-blue-200 text-blue-800"
-                                      : entry.type === "task"
-                                      ? "bg-green-200 text-green-800"
-                                      : "bg-purple-200 text-purple-800"
+                                      : "bg-blue-200 text-blue-800"
                                   }`}>
                                     {entry.type}
                                   </span>
@@ -781,103 +695,6 @@ export function Timetable() {
           </div>
         </TabsContent>
       </Tabs>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card className="border-emerald-200/80 bg-white/90">
-          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <CheckSquare className="size-5 text-emerald-600" />
-              Upcoming tasks
-            </CardTitle>
-            <Link
-              to="/tasks"
-              className="text-sm font-medium text-emerald-600 hover:text-emerald-800 hover:underline"
-            >
-              View all →
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {upcomingTasksBelow.length === 0 ? (
-              <p className="text-sm text-gray-500 py-4 text-center">
-                No open tasks. Add some in Tasks.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {upcomingTasksBelow.map((task) => {
-                  const course = resolveTaskCourseLabel(task, entries);
-                  return (
-                    <li
-                      key={task.id}
-                      className="rounded-lg border border-gray-100 bg-gray-50/80 px-3 py-2.5 text-sm"
-                    >
-                      <p className="font-medium text-gray-900">{task.title}</p>
-                      <p className="text-xs text-gray-600 mt-0.5">
-                        {formatTaskDueDateTime(task)}
-                        {course ? ` · ${course}` : ""}
-                      </p>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-teal-200/80 bg-white/90">
-          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <CalendarDays className="size-5 text-teal-600" />
-              Upcoming events
-            </CardTitle>
-            <Link
-              to="/events"
-              className="text-sm font-medium text-teal-600 hover:text-teal-800 hover:underline"
-            >
-              View all →
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {upcomingEventsBelow.length === 0 ? (
-              <p className="text-sm text-gray-500 py-4 text-center">
-                No upcoming events. Add some in Events.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {upcomingEventsBelow.map((event) => {
-                  const d = new Date(event.date);
-                  const dateStr = d.toLocaleDateString("en-US", {
-                    weekday: "short",
-                    month: "short",
-                    day: "numeric",
-                  });
-                  return (
-                    <li
-                      key={event.id}
-                      className="rounded-lg border border-gray-100 bg-gray-50/80 px-3 py-2.5 text-sm"
-                    >
-                      <p className="font-medium text-gray-900">{event.title}</p>
-                      <p className="text-xs text-gray-600 mt-0.5 flex flex-wrap items-center gap-x-2">
-                        <span>
-                          {dateStr} · {formatEventTimeRange(event)}
-                        </span>
-                        {event.location && (
-                          <span className="inline-flex items-center gap-0.5">
-                            <MapPin className="size-3 shrink-0" />
-                            {event.location}
-                          </span>
-                        )}
-                      </p>
-                      {event.category && (
-                        <p className="text-[11px] text-purple-700 mt-1">{event.category}</p>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      </div>
 
       {editingEntry && (
         <Dialog open={!!editingEntry} onOpenChange={() => setEditingEntry(null)}>
