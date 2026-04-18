@@ -1477,7 +1477,7 @@ export function BulletJournal() {
           </div>
 
           {/* Navigation */}
-          <div className="absolute top-1/2 -translate-y-1/2 left-4 right-4 flex justify-between pointer-events-none">
+          <div className="absolute top-1/2 -translate-y-1/2 left-4 right-4 z-40 flex justify-between pointer-events-none">
             <Button
               onClick={() => navigateToPage(Math.max(1, currentPageNumber - 2))}
               disabled={currentPageNumber <= 1}
@@ -1500,9 +1500,9 @@ export function BulletJournal() {
         </div>
 
         {/* Bookmark Ribbons */}
-        <div className="absolute top-0 right-8 h-full flex items-start pt-8 gap-2">
+        <div className="absolute top-0 right-8 h-full flex items-start pt-8 gap-2 pointer-events-none z-30">
           {/* Deferred Bookmark */}
-          <div className="relative">
+          <div className="relative pointer-events-auto">
             <button
               onClick={() => setShowBookmarks(showBookmarks === 'deferred' ? false : 'deferred')}
               className="bg-orange-600 text-white px-4 py-6 rounded-b-lg shadow-lg hover:bg-orange-700 transition-colors flex flex-col items-center gap-2"
@@ -1544,7 +1544,7 @@ export function BulletJournal() {
           </div>
 
           {/* Scheduled Bookmark */}
-          <div className="relative">
+          <div className="relative pointer-events-auto">
             <button
               onClick={() => setShowBookmarks(showBookmarks === 'scheduled' ? false : 'scheduled')}
               className="bg-blue-600 text-white px-4 py-6 rounded-b-lg shadow-lg hover:bg-blue-700 transition-colors flex flex-col items-center gap-2"
