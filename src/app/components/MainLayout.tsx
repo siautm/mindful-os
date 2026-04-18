@@ -61,6 +61,7 @@ const navigationGroups = [
       { name: "Timetable", path: "/timetable", icon: Calendar },
       { name: "Study plans", path: "/study-plans", icon: BookOpen },
       { name: "Focus Timer", path: "/focus", icon: Timer },
+      { name: "Bujo", path: "/journal", icon: BookOpen },
     ],
   },
   {
@@ -77,7 +78,6 @@ const navigationGroups = [
     collapsible: true,
     items: [
       { name: "Memo", path: "/memo", icon: StickyNote },
-      { name: "Bujo", path: "/journal", icon: BookOpen },
       { name: "Brain Break", path: "/minigame", icon: Brain },
     ],
   },

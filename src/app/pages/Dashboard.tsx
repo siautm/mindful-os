@@ -600,6 +600,36 @@ export function Dashboard() {
           </div>
         </motion.div>
 
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.45 }}
+          className={`rounded-2xl border-2 p-4 sm:p-5 shadow-lg ${
+            theme === "dark" ? "bg-gray-800 border-violet-900/40" : "bg-white border-violet-200"
+          }`}
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="size-10 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+                <StickyNote className="size-5 text-violet-700" />
+              </div>
+              <div className="min-w-0">
+                <h2 className={`font-semibold ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
+                  Bullet Journal
+                </h2>
+                <p className={`text-xs sm:text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                  Open your independent Bujo workspace for yearly, monthly, and daily planning.
+                </p>
+              </div>
+            </div>
+            <Link to="/journal">
+              <Button variant="outline" size="sm" className="w-full sm:w-auto shrink-0 border-violet-300">
+                Open Bujo
+              </Button>
+            </Link>
+          </div>
+        </motion.div>
+
         {/* Main Content: Check-In + Memo */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Check-In Card */}
@@ -742,38 +772,7 @@ export function Dashboard() {
               </ul>
             )}
           </motion.div>
-
         </div>
-
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.45 }}
-          className={`rounded-2xl border-2 p-4 sm:p-5 shadow-lg ${
-            theme === "dark" ? "bg-gray-800 border-violet-900/40" : "bg-white border-violet-200"
-          }`}
-        >
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="size-10 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
-                <StickyNote className="size-5 text-violet-700" />
-              </div>
-              <div className="min-w-0">
-                <h2 className={`font-semibold ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
-                  Bullet Journal
-                </h2>
-                <p className={`text-xs sm:text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                  Open your independent Bujo workspace for yearly, monthly, and daily planning.
-                </p>
-              </div>
-            </div>
-            <Link to="/journal">
-              <Button variant="outline" size="sm" className="w-full sm:w-auto shrink-0 border-violet-300">
-                Open Bujo
-              </Button>
-            </Link>
-          </div>
-        </motion.div>
 
         {/* Quick Actions */}
         <motion.div
