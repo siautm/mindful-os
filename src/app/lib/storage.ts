@@ -1145,6 +1145,95 @@ export function toggleDailyMemoItem(id: string): void {
   });
 }
 
+export type BujoBulletType = "task" | "event" | "note";
+export type BujoBulletStatus = "active" | "completed" | "cancelled" | "deferred" | "scheduled";
+
+export interface BujoBullet {
+  id: string;
+  type: BujoBulletType;
+  text: string;
+  status: BujoBulletStatus;
+  important: boolean;
+  notes: string[];
+  date?: string;
+  scheduledDate?: string;
+  scheduledTime?: string;
+}
+
+export interface BujoYearlyGoal {
+  id: string;
+  text: string;
+  completed: boolean;
+  category: "tasks" | "interested";
+}
+
+export interface BujoYearlyEvent {
+  id: string;
+  text: string;
+  month?: number;
+}
+
+export interface BujoMonthlyGoal {
+  id: string;
+  text: string;
+  completed: boolean;
+  category: "tasks" | "interested";
+}
+
+export interface BujoMonthlyEvent {
+  id: string;
+  text: string;
+}
+
+export interface BujoState {
+  yearlyGoals: BujoYearlyGoal[];
+  yearlyEvents: BujoYearlyEvent[];
+  monthlyGoals: Record<string, BujoMonthlyGoal[]>;
+  monthlyEvents: Record<string, BujoMonthlyEvent[]>;
+  dailyBullets: Record<string, BujoBullet[]>;
+  schemaVersion: 1;
+}
+
+const BUJO_STORAGE_KEY = "mindful_bujo_state";
+
+function getDefaultBujoState(): BujoState {
+  return {
+    yearlyGoals: [],
+    yearlyEvents: [],
+    monthlyGoals: {},
+    monthlyEvents: {},
+    dailyBullets: {},
+    schemaVersion: 1,
+  };
+}
+
+export function getBujoState(): BujoState {
+  const raw = getFromStorage<Partial<BujoState> | null>(BUJO_STORAGE_KEY, null);
+  const defaults = getDefaultBujoState();
+  if (!raw || typeof raw !== "object") return defaults;
+  return {
+    yearlyGoals: Array.isArray(raw.yearlyGoals) ? raw.yearlyGoals : defaults.yearlyGoals,
+    yearlyEvents: Array.isArray(raw.yearlyEvents) ? raw.yearlyEvents : defaults.yearlyEvents,
+    monthlyGoals:
+      raw.monthlyGoals && typeof raw.monthlyGoals === "object"
+        ? (raw.monthlyGoals as Record<string, BujoMonthlyGoal[]>)
+        : defaults.monthlyGoals,
+    monthlyEvents:
+      raw.monthlyEvents && typeof raw.monthlyEvents === "object"
+        ? (raw.monthlyEvents as Record<string, BujoMonthlyEvent[]>)
+        : defaults.monthlyEvents,
+    dailyBullets:
+      raw.dailyBullets && typeof raw.dailyBullets === "object"
+        ? (raw.dailyBullets as Record<string, BujoBullet[]>)
+        : defaults.dailyBullets,
+    schemaVersion: 1,
+  };
+}
+
+export function saveBujoState(state: BujoState): void {
+  setToStorage(BUJO_STORAGE_KEY, { ...state, schemaVersion: 1 });
+}
+
 const QUOTE_LOCALE_KEY = "mindful_quote_locale";
 const QUOTE_TAGS_KEY = "mindful_quote_tags";
 

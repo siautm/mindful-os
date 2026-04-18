@@ -70,13 +70,6 @@ export const router = createBrowserRouter([
         },
       },
       {
-        path: "journal",
-        lazy: async () => {
-          const m = await import("./pages/Journal");
-          return { Component: m.Journal };
-        },
-      },
-      {
         path: "minigame",
         lazy: async () => {
           const m = await import("./pages/Minigame");
@@ -84,5 +77,12 @@ export const router = createBrowserRouter([
         },
       },
     ],
+  },
+  {
+    path: "/journal",
+    lazy: async () => {
+      const m = await import("./pages/Journal");
+      return { Component: m.Journal };
+    },
   },
 ]);

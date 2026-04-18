@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Calendar } from './ui/calendar';
 import { ChevronLeft, ChevronRight, BookOpen, Download, Bookmark, Calendar as CalendarIcon } from 'lucide-react';
 import { format, getDaysInMonth } from 'date-fns';
+import { getBujoState, saveBujoState, type BujoState } from '../../../../src/app/lib/storage';
 
 type BulletType = 'task' | 'event' | 'note';
 type BulletStatus = 'active' | 'completed' | 'cancelled' | 'deferred' | 'scheduled';
@@ -91,6 +92,33 @@ export function BulletJournal() {
   const [editingBulletId, setEditingBulletId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [draggedBullet, setDraggedBullet] = useState<{ bullet: Bullet; sourceDate: string } | null>(null);
+  const [storageReady, setStorageReady] = useState(false);
+
+  useEffect(() => {
+    const state = getBujoState();
+    setYearlyGoals(state.yearlyGoals as YearlyGoal[]);
+    setYearlyEvents(state.yearlyEvents as YearlyEvent[]);
+    setMonthlyGoals(state.monthlyGoals as { [key: number]: MonthlyGoal[] });
+    setMonthlyEvents(state.monthlyEvents as { [key: number]: MonthlyEvent[] });
+    setDailyBullets(state.dailyBullets as { [key: string]: Bullet[] });
+    setStorageReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!storageReady) return;
+    const timer = window.setTimeout(() => {
+      const next: BujoState = {
+        yearlyGoals: yearlyGoals as BujoState["yearlyGoals"],
+        yearlyEvents: yearlyEvents as BujoState["yearlyEvents"],
+        monthlyGoals: monthlyGoals as BujoState["monthlyGoals"],
+        monthlyEvents: monthlyEvents as BujoState["monthlyEvents"],
+        dailyBullets: dailyBullets as BujoState["dailyBullets"],
+        schemaVersion: 1,
+      };
+      saveBujoState(next);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [storageReady, yearlyGoals, yearlyEvents, monthlyGoals, monthlyEvents, dailyBullets]);
 
   // Calculate daily pages with auto-combining for past dates
   const calculateDailyPages = (month: number, daysInMonth: number, startPageNum: number) => {

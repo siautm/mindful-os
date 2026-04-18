@@ -756,6 +756,7 @@ export function Dashboard() {
             { label: "Start Focus Timer", link: "/focus", icon: Timer },
             { label: "Check Timetable", link: "/timetable", icon: Calendar },
             { label: "Review Analytics", link: "/analytics", icon: TrendingUp },
+            { label: "Open Bullet Journal", link: "/journal", icon: StickyNote },
             { label: "Take a Break", link: "/minigame", icon: Sparkles },
           ].map((action, index) => {
             const Icon = action.icon;
