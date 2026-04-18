@@ -35,6 +35,7 @@ const routePreloaders: Record<string, () => Promise<unknown>> = {
   "/habits": () => import("../pages/Habits"),
   "/analytics": () => import("../pages/Analytics"),
   "/memo": () => import("../pages/Memo"),
+  "/journal": () => import("../pages/Journal"),
   "/minigame": () => import("../pages/Minigame"),
 };
 
@@ -76,6 +77,7 @@ const navigationGroups = [
     collapsible: true,
     items: [
       { name: "Memo", path: "/memo", icon: StickyNote },
+      { name: "Bujo", path: "/journal", icon: BookOpen },
       { name: "Brain Break", path: "/minigame", icon: Brain },
     ],
   },

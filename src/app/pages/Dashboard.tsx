@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 import { Button } from "../components/ui/button";
-import { Checkbox } from "../components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import {
   Calendar,
@@ -36,9 +35,6 @@ import {
   getLoadingShownDate,
   saveLoadingShownDate,
   getDailyMemoState,
-  toggleDailyMemoItem,
-  STORAGE_HYDRATED_EVENT,
-  type DailyMemoItem,
 } from "../lib/storage";
 import { motion } from "motion/react";
 import { LoadingQuoteScreen } from "../components/LoadingQuoteScreen";
@@ -108,7 +104,6 @@ export function Dashboard() {
   const [favoriteQuotes, setFavoriteQuotes] = useState<QuoteEntry[]>([]);
   const [hasCheckedIn, setHasCheckedIn] = useState(false);
   const [checkInStreak, setCheckInStreak] = useState(0);
-  const [memoItems, setMemoItems] = useState<DailyMemoItem[]>([]);
   const cursorGlowRef = useRef<HTMLDivElement>(null);
 
   const particleConfigs = useMemo(
@@ -145,16 +140,6 @@ export function Dashboard() {
 
     determineTimeOfDay();
     loadAllData();
-  }, []);
-
-  useEffect(() => {
-    setMemoItems(getDailyMemoState().items);
-  }, [location.pathname]);
-
-  useEffect(() => {
-    const onHydrated = () => setMemoItems(getDailyMemoState().items);
-    window.addEventListener(STORAGE_HYDRATED_EVENT, onHydrated);
-    return () => window.removeEventListener(STORAGE_HYDRATED_EVENT, onHydrated);
   }, []);
 
   useEffect(() => {
@@ -463,70 +448,29 @@ export function Dashboard() {
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.12 }}
           className={`rounded-2xl border-2 p-4 sm:p-5 shadow-lg ${
-            theme === "dark" ? "bg-gray-800 border-amber-900/40" : "bg-white border-amber-200"
+            theme === "dark" ? "bg-gray-800 border-violet-900/40" : "bg-white border-violet-200"
           }`}
         >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="size-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-                <StickyNote className="size-5 text-amber-700" />
+              <div className="size-10 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+                <StickyNote className="size-5 text-violet-700" />
               </div>
               <div className="min-w-0">
                 <h2 className={`font-semibold ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
-                  Memo
+                  Bullet Journal
                 </h2>
                 <p className={`text-xs sm:text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                  Unchecked items stay; checked items clear after the day ends. Memo is not part of analytics.
+                  Plan your year, month, and daily bullets in one place. Journal remains an independent feature.
                 </p>
               </div>
             </div>
-            <Link to="/memo">
-              <Button variant="outline" size="sm" className="w-full sm:w-auto shrink-0 border-amber-300">
-                Edit memo
+            <Link to="/journal">
+              <Button variant="outline" size="sm" className="w-full sm:w-auto shrink-0 border-violet-300">
+                Open Bujo
               </Button>
             </Link>
           </div>
-          {memoItems.length === 0 ? (
-            <p className={`mt-4 text-sm text-center py-6 rounded-xl border border-dashed ${
-              theme === "dark" ? "border-gray-600 text-gray-500" : "border-amber-200 text-gray-500"
-            }`}>
-              Nothing yet — add notes on the Memo page.
-            </p>
-          ) : (
-            <ul className="mt-4 space-y-2">
-              {memoItems.map((item) => (
-                <li
-                  key={item.id}
-                  className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${
-                    theme === "dark" ? "border-gray-700 bg-gray-900/40" : "border-amber-100 bg-amber-50/60"
-                  }`}
-                >
-                  <Checkbox
-                    checked={item.done}
-                    onCheckedChange={() => {
-                      toggleDailyMemoItem(item.id);
-                      setMemoItems(getDailyMemoState().items);
-                    }}
-                    className="mt-0.5"
-                    aria-label={`Memo: ${item.text}`}
-                  />
-                  <p
-                    className={`text-sm flex-1 min-w-0 ${
-                      item.done
-                        ? theme === "dark"
-                          ? "text-gray-500 line-through"
-                          : "text-gray-400 line-through"
-                        : theme === "dark"
-                          ? "text-gray-200"
-                          : "text-gray-900"
-                    }`}
-                  >
-                    {item.text}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
         </motion.div>
 
         {/* Quote Card with Favorites */}
