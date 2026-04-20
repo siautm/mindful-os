@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
@@ -98,9 +98,21 @@ export function BulletJournal() {
   const [editText, setEditText] = useState('');
   const [draggedBullet, setDraggedBullet] = useState<{ bullet: Bullet; sourceDate: string } | null>(null);
   const [storageReady, setStorageReady] = useState(false);
+  const hasHydratedOnceRef = useRef(false);
+  const lastSavedStateRef = useRef<string | null>(null);
 
   const hydrateFromStorage = useCallback(() => {
     const state = getBujoState();
+    const hydratedState: BujoState = {
+      yearlyGoals: state.yearlyGoals as BujoState["yearlyGoals"],
+      yearlyEvents: state.yearlyEvents as BujoState["yearlyEvents"],
+      monthlyGoals: state.monthlyGoals as BujoState["monthlyGoals"],
+      monthlyEvents: state.monthlyEvents as BujoState["monthlyEvents"],
+      dailyBullets: state.dailyBullets as BujoState["dailyBullets"],
+      schemaVersion: 1,
+    };
+    lastSavedStateRef.current = JSON.stringify(hydratedState);
+    hasHydratedOnceRef.current = true;
     setYearlyGoals(state.yearlyGoals as YearlyGoal[]);
     setYearlyEvents(state.yearlyEvents as YearlyEvent[]);
     setMonthlyGoals(state.monthlyGoals as { [key: number]: MonthlyGoal[] });
@@ -119,6 +131,7 @@ export function BulletJournal() {
   useEffect(() => {
     if (!storageReady) return;
     const timer = window.setTimeout(() => {
+      if (!hasHydratedOnceRef.current) return;
       const next: BujoState = {
         yearlyGoals: yearlyGoals as BujoState["yearlyGoals"],
         yearlyEvents: yearlyEvents as BujoState["yearlyEvents"],
@@ -127,7 +140,10 @@ export function BulletJournal() {
         dailyBullets: dailyBullets as BujoState["dailyBullets"],
         schemaVersion: 1,
       };
+      const serialized = JSON.stringify(next);
+      if (serialized === lastSavedStateRef.current) return;
       saveBujoState(next);
+      lastSavedStateRef.current = serialized;
     }, 500);
     return () => window.clearTimeout(timer);
   }, [storageReady, yearlyGoals, yearlyEvents, monthlyGoals, monthlyEvents, dailyBullets]);
