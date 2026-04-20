@@ -85,6 +85,7 @@ export function BulletJournal() {
 
   const [currentPageNumber, setCurrentPageNumber] = useState(1);
   const [newItemText, setNewItemText] = useState('');
+  const [dailyDraftByDate, setDailyDraftByDate] = useState<Record<string, string>>({});
   const [selectedBulletId, setSelectedBulletId] = useState<string | null>(null);
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [noteText, setNoteText] = useState('');
@@ -217,11 +218,20 @@ export function BulletJournal() {
         } else {
           const startDay = parseInt(combinableDates[0].split('-')[2]);
           const endDay = parseInt(combinableDates[combinableDates.length - 1].split('-')[2]);
-          dailyPages.push({
-            title: `${MONTHS[month]} ${startDay}-${endDay}`,
-            dates: combinableDates,
-            pageNum: currentPageNum++
-          });
+          const combinedBulletsCount = combinableDates.reduce(
+            (sum, d) => sum + (dailyBullets[d] || []).length,
+            0
+          );
+          const combinedPagesNeeded = Math.max(1, Math.ceil(combinedBulletsCount / ITEMS_PER_PAGE));
+          for (let p = 0; p < combinedPagesNeeded; p++) {
+            dailyPages.push({
+              title: p === 0
+                ? `${MONTHS[month]} ${startDay}-${endDay}`
+                : `${MONTHS[month]} ${startDay}-${endDay} (cont. ${p + 1})`,
+              dates: combinableDates,
+              pageNum: currentPageNum++
+            });
+          }
         }
 
         i = j;
@@ -275,9 +285,13 @@ export function BulletJournal() {
     // Monthly pages
     for (let month = 0; month < 12; month++) {
       const daysInMonth = getDaysInMonth(new Date(currentYear, month));
+      const monthGoalsCount = (monthlyGoals[month] || []).length;
+      const monthEventsCount = (monthlyEvents[month] || []).length;
+      const monthGoalPages = Math.max(1, Math.ceil(monthGoalsCount / ITEMS_PER_PAGE));
+      const monthEventPages = Math.max(1, Math.ceil(monthEventsCount / ITEMS_PER_PAGE));
 
       // Calculate daily pages first to get references
-      const dailyPagesStart = pageNum + 3; // After index, goals, events
+      const dailyPagesStart = pageNum + 1 + monthGoalPages + monthEventPages; // After month index/goals/events
       const dailyPagesData = calculateDailyPages(month, daysInMonth, dailyPagesStart);
 
       // Monthly Index (1 or 2 pages)
@@ -299,20 +313,24 @@ export function BulletJournal() {
       }
 
       // Monthly Goals
-      pageList.push({
-        id: pageNum++,
-        type: 'monthlyGoals',
-        title: `${MONTHS[month]} - Goals`,
-        month
-      });
+      for (let i = 0; i < monthGoalPages; i++) {
+        pageList.push({
+          id: pageNum++,
+          type: 'monthlyGoals',
+          title: i === 0 ? `${MONTHS[month]} - Goals` : `${MONTHS[month]} - Goals (cont. ${i + 1})`,
+          month
+        });
+      }
 
       // Monthly Events
-      pageList.push({
-        id: pageNum++,
-        type: 'monthlyEvents',
-        title: `${MONTHS[month]} - Events`,
-        month
-      });
+      for (let i = 0; i < monthEventPages; i++) {
+        pageList.push({
+          id: pageNum++,
+          type: 'monthlyEvents',
+          title: i === 0 ? `${MONTHS[month]} - Events` : `${MONTHS[month]} - Events (cont. ${i + 1})`,
+          month
+        });
+      }
 
       // Daily pages
       dailyPagesData.forEach(dp => {
@@ -805,13 +823,13 @@ export function BulletJournal() {
     setEditingNoteText('');
   };
 
-  const addDailyBullet = (date: string, type: BulletType) => {
-    if (!newItemText.trim()) return;
+  const addDailyBullet = (date: string, type: BulletType, text: string) => {
+    if (!date || !text.trim()) return;
 
     const newBullet: Bullet = {
       id: Date.now().toString(),
       type,
-      text: newItemText,
+      text: text.trim(),
       status: 'active',
       important: false,
       notes: [],
@@ -823,7 +841,7 @@ export function BulletJournal() {
       [date]: [...(prev[date] || []), newBullet]
     }));
 
-    setNewItemText('');
+    setDailyDraftByDate(prev => ({ ...prev, [date]: '' }));
   };
 
   const addYearlyGoal = (category: 'tasks' | 'interested') => {
@@ -1056,9 +1074,9 @@ export function BulletJournal() {
       case 'monthlyIndex':
         return renderMonthlyIndex(page);
       case 'monthlyGoals':
-        return renderMonthlyGoals(page.month!);
+        return renderMonthlyGoals(page);
       case 'monthlyEvents':
-        return renderMonthlyEvents(page.month!);
+        return renderMonthlyEvents(page);
       case 'daily':
         return renderDailyPage(page);
       default:
@@ -1351,8 +1369,12 @@ export function BulletJournal() {
     );
   };
 
-  const renderMonthlyGoals = (month: number) => {
-    const goals = monthlyGoals[month] || [];
+  const renderMonthlyGoals = (page: Page) => {
+    const month = page.month!;
+    const allGoals = monthlyGoals[month] || [];
+    const monthGoalPages = pages.filter(p => p.type === 'monthlyGoals' && p.month === month);
+    const pageIndex = Math.max(0, monthGoalPages.findIndex(p => p.id === page.id));
+    const goals = allGoals.slice(pageIndex * ITEMS_PER_PAGE, (pageIndex + 1) * ITEMS_PER_PAGE);
     const tasksGoals = goals.filter(g => g.category === 'tasks');
     const interestedGoals = goals.filter(g => g.category === 'interested');
 
@@ -1429,8 +1451,12 @@ export function BulletJournal() {
     );
   };
 
-  const renderMonthlyEvents = (month: number) => {
-    const events = monthlyEvents[month] || [];
+  const renderMonthlyEvents = (page: Page) => {
+    const month = page.month!;
+    const allEvents = monthlyEvents[month] || [];
+    const monthEventPages = pages.filter(p => p.type === 'monthlyEvents' && p.month === month);
+    const pageIndex = Math.max(0, monthEventPages.findIndex(p => p.id === page.id));
+    const events = allEvents.slice(pageIndex * ITEMS_PER_PAGE, (pageIndex + 1) * ITEMS_PER_PAGE);
 
     return (
       <>
@@ -1470,6 +1496,8 @@ export function BulletJournal() {
 
   const renderDailyPage = (page: Page) => {
     const dates = page.dates || [];
+    const primaryDate = dates[0] || '';
+    const dailyDraft = primaryDate ? (dailyDraftByDate[primaryDate] || '') : '';
     const allBullets = dates.flatMap(date =>
       (dailyBullets[date] || []).map(b => ({ ...b, date }))
     );
@@ -1543,20 +1571,20 @@ export function BulletJournal() {
           <div className="space-y-2">
             <div className="flex gap-2">
               <Input
-                value={newItemText}
-                onChange={(e) => setNewItemText(e.target.value)}
+                value={dailyDraft}
+                onChange={(e) => primaryDate && setDailyDraftByDate(prev => ({ ...prev, [primaryDate]: e.target.value }))}
                 placeholder="Add entry..."
                 className="bg-transparent border-b-2 border-gray-300 rounded-none"
               />
             </div>
             <div className="flex gap-2">
-              <Button onClick={() => addDailyBullet(dates[0], 'task')} size="sm" variant="outline">
+              <Button onClick={() => addDailyBullet(primaryDate, 'task', dailyDraft)} size="sm" variant="outline">
                 • Task
               </Button>
-              <Button onClick={() => addDailyBullet(dates[0], 'event')} size="sm" variant="outline">
+              <Button onClick={() => addDailyBullet(primaryDate, 'event', dailyDraft)} size="sm" variant="outline">
                 ○ Event
               </Button>
-              <Button onClick={() => addDailyBullet(dates[0], 'note')} size="sm" variant="outline">
+              <Button onClick={() => addDailyBullet(primaryDate, 'note', dailyDraft)} size="sm" variant="outline">
                 − Note
               </Button>
             </div>
