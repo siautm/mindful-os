@@ -88,6 +88,8 @@ export function BulletJournal() {
   const [selectedBulletId, setSelectedBulletId] = useState<string | null>(null);
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [noteText, setNoteText] = useState('');
+  const [editingNote, setEditingNote] = useState<{ bulletId: string; noteIndex: number } | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState('');
   const [showBookmarks, setShowBookmarks] = useState<'deferred' | 'scheduled' | false>(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [scheduleDate, setScheduleDate] = useState<Date | undefined>(undefined);
@@ -770,6 +772,39 @@ export function BulletJournal() {
     setIsAddingNote(false);
   };
 
+  const handleStartEditNote = (bulletId: string, noteIndex: number, current: string) => {
+    setEditingNote({ bulletId, noteIndex });
+    setEditingNoteText(current);
+  };
+
+  const handleSaveEditNote = () => {
+    if (!editingNote) return;
+    const nextText = editingNoteText.trim();
+    if (!nextText) {
+      setEditingNote(null);
+      setEditingNoteText('');
+      return;
+    }
+
+    setDailyBullets(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(date => {
+        updated[date] = updated[date].map(b => {
+          if (b.id !== editingNote.bulletId) return b;
+          const nextNotes = [...b.notes];
+          if (editingNote.noteIndex >= 0 && editingNote.noteIndex < nextNotes.length) {
+            nextNotes[editingNote.noteIndex] = nextText;
+          }
+          return { ...b, notes: nextNotes };
+        });
+      });
+      return updated;
+    });
+
+    setEditingNote(null);
+    setEditingNoteText('');
+  };
+
   const addDailyBullet = (date: string, type: BulletType) => {
     if (!newItemText.trim()) return;
 
@@ -957,12 +992,49 @@ export function BulletJournal() {
             </span>
           )}
         </div>
-        {bullet.notes.map((note, idx) => (
-          <div key={idx} className="ml-12 text-sm text-gray-600 flex items-start gap-2">
-            <span className="font-mono">−</span>
-            <span>{note}</span>
-          </div>
-        ))}
+        {bullet.notes.map((note, idx) => {
+          const isEditingThisNote =
+            editingNote?.bulletId === bullet.id && editingNote.noteIndex === idx;
+          if (isEditingThisNote) {
+            return (
+              <div key={idx} className="ml-12 mt-1 rounded border border-amber-200 bg-amber-50 p-2">
+                <Input
+                  value={editingNoteText}
+                  onChange={(e) => setEditingNoteText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveEditNote();
+                    if (e.key === 'Escape') { setEditingNote(null); setEditingNoteText(''); }
+                  }}
+                  autoFocus
+                  className="w-full"
+                />
+                <div className="mt-2 flex gap-2">
+                  <Button size="sm" onClick={handleSaveEditNote}>Save</Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => { setEditingNote(null); setEditingNoteText(''); }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <button
+              key={idx}
+              type="button"
+              className="ml-12 flex items-start gap-2 rounded p-1 text-left text-sm text-gray-600 hover:bg-amber-50"
+              onClick={() => handleStartEditNote(bullet.id, idx, note)}
+              title="Click to rename note"
+            >
+              <span className="font-mono">−</span>
+              <span>{note}</span>
+            </button>
+          );
+        })}
       </div>
     );
   };
@@ -976,11 +1048,11 @@ export function BulletJournal() {
       case 'key':
         return renderKey();
       case 'yearlyGoals-tasks':
-        return renderYearlyGoals('tasks');
+        return renderYearlyGoals(page, 'tasks');
       case 'yearlyGoals-interested':
-        return renderYearlyGoals('interested');
+        return renderYearlyGoals(page, 'interested');
       case 'yearlyEvents':
-        return renderYearlyEvents();
+        return renderYearlyEvents(page);
       case 'monthlyIndex':
         return renderMonthlyIndex(page);
       case 'monthlyGoals':
@@ -1185,8 +1257,11 @@ export function BulletJournal() {
     );
   };
 
-  const renderYearlyGoals = (category: 'tasks' | 'interested') => {
+  const renderYearlyGoals = (page: Page, category: 'tasks' | 'interested') => {
     const goals = yearlyGoals.filter(g => g.category === category);
+    const pagesForType = pages.filter(p => p.type === page.type);
+    const pageIndex = Math.max(0, pagesForType.findIndex(p => p.id === page.id));
+    const visibleGoals = goals.slice(pageIndex * ITEMS_PER_PAGE, (pageIndex + 1) * ITEMS_PER_PAGE);
     const title = category === 'tasks' ? 'Annual Goals - Tasks' : 'Annual Goals - Interested';
 
     return (
@@ -1199,8 +1274,8 @@ export function BulletJournal() {
           </Button>
         </div>
 
-        <div className="space-y-2 mb-6 max-h-[600px] overflow-y-auto">
-          {goals.map(goal => (
+        <div className="space-y-2 mb-6">
+          {visibleGoals.map(goal => (
             <div
               key={goal.id}
               className={`flex items-start gap-3 group cursor-pointer p-2 rounded ${
@@ -1231,7 +1306,11 @@ export function BulletJournal() {
     );
   };
 
-  const renderYearlyEvents = () => (
+  const renderYearlyEvents = (page: Page) => {
+    const pagesForType = pages.filter(p => p.type === 'yearlyEvents');
+    const pageIndex = Math.max(0, pagesForType.findIndex(p => p.id === page.id));
+    const visibleEvents = yearlyEvents.slice(pageIndex * ITEMS_PER_PAGE, (pageIndex + 1) * ITEMS_PER_PAGE);
+    return (
     <>
       <div className="mb-6 pb-4 border-b-2 border-gray-800 flex items-center justify-between">
         <h2 className="font-serif text-4xl">Annual Events</h2>
@@ -1241,8 +1320,8 @@ export function BulletJournal() {
         </Button>
       </div>
 
-      <div className="space-y-2 mb-6 max-h-[600px] overflow-y-auto">
-        {yearlyEvents.map(event => (
+      <div className="space-y-2 mb-6">
+        {visibleEvents.map(event => (
           <div
             key={event.id}
             className={`flex items-start gap-3 group cursor-pointer p-2 rounded ${
@@ -1269,7 +1348,8 @@ export function BulletJournal() {
         className="bg-transparent border-b-2 border-gray-300 rounded-none text-lg"
       />
     </>
-  );
+    );
+  };
 
   const renderMonthlyGoals = (month: number) => {
     const goals = monthlyGoals[month] || [];
@@ -1393,6 +1473,16 @@ export function BulletJournal() {
     const allBullets = dates.flatMap(date =>
       (dailyBullets[date] || []).map(b => ({ ...b, date }))
     );
+    const sameDatePages = pages.filter(
+      p => p.type === 'daily' && JSON.stringify(p.dates || []) === JSON.stringify(dates)
+    );
+    const dailyPageIndex = Math.max(0, sameDatePages.findIndex(p => p.id === page.id));
+    const visibleBullets = allBullets.slice(
+      dailyPageIndex * ITEMS_PER_PAGE,
+      (dailyPageIndex + 1) * ITEMS_PER_PAGE
+    );
+    const selectedBulletOnThisPage =
+      !!selectedBulletId && dates.some(date => (dailyBullets[date] || []).some(b => b.id === selectedBulletId));
 
     // Find month index page
     const month = page.month;
@@ -1417,14 +1507,14 @@ export function BulletJournal() {
         </div>
 
         <div
-          className="space-y-1 mb-6 max-h-[550px] overflow-y-auto"
+          className="space-y-1 mb-6"
           onDragOver={handleDragOver}
           onDrop={() => dates[0] && handleDrop(dates[0])}
         >
-          {allBullets.length === 0 ? (
+          {visibleBullets.length === 0 ? (
             <p className="text-gray-400 text-center py-8">No entries yet</p>
           ) : (
-            allBullets.map(bullet => renderBulletItem(bullet, dates.length > 1))
+            visibleBullets.map(bullet => renderBulletItem(bullet, dates.length > 1))
           )}
           {draggedBullet && dates[0] >= today && (
             <div className="p-4 border-2 border-dashed border-amber-400 rounded bg-amber-50 text-center text-sm text-gray-600">
@@ -1433,7 +1523,7 @@ export function BulletJournal() {
           )}
         </div>
 
-        {isAddingNote && selectedBulletId ? (
+        {isAddingNote && selectedBulletId && selectedBulletOnThisPage ? (
           <div className="space-y-2 p-3 bg-amber-50 border-2 border-amber-200 rounded">
             <Textarea
               value={noteText}
