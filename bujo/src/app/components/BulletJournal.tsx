@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
@@ -6,7 +6,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Calendar } from './ui/calendar';
 import { ChevronLeft, ChevronRight, BookOpen, Download, Bookmark, Calendar as CalendarIcon } from 'lucide-react';
 import { format, getDaysInMonth } from 'date-fns';
-import { getBujoState, saveBujoState, type BujoState } from '../../../../src/app/lib/storage';
+import {
+  getBujoState,
+  saveBujoState,
+  STORAGE_HYDRATED_EVENT,
+  type BujoState,
+} from '../../../../src/app/lib/storage';
 
 type BulletType = 'task' | 'event' | 'note';
 type BulletStatus = 'active' | 'completed' | 'cancelled' | 'deferred' | 'scheduled';
@@ -94,7 +99,7 @@ export function BulletJournal() {
   const [draggedBullet, setDraggedBullet] = useState<{ bullet: Bullet; sourceDate: string } | null>(null);
   const [storageReady, setStorageReady] = useState(false);
 
-  useEffect(() => {
+  const hydrateFromStorage = useCallback(() => {
     const state = getBujoState();
     setYearlyGoals(state.yearlyGoals as YearlyGoal[]);
     setYearlyEvents(state.yearlyEvents as YearlyEvent[]);
@@ -103,6 +108,13 @@ export function BulletJournal() {
     setDailyBullets(state.dailyBullets as { [key: string]: Bullet[] });
     setStorageReady(true);
   }, []);
+
+  useEffect(() => {
+    hydrateFromStorage();
+    const onHydrated = () => hydrateFromStorage();
+    window.addEventListener(STORAGE_HYDRATED_EVENT, onHydrated);
+    return () => window.removeEventListener(STORAGE_HYDRATED_EVENT, onHydrated);
+  }, [hydrateFromStorage]);
 
   useEffect(() => {
     if (!storageReady) return;
