@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type UIEvent } from "react";
 import { toast } from "sonner";
 import { Document, Outline, Page, pdfjs } from "react-pdf";
 import { BookOpen, Expand, List, Minimize, Trash2, Upload } from "lucide-react";
@@ -43,6 +43,7 @@ export function PdfReader() {
   const { user } = useAuth();
   const readerPaneRef = useRef<HTMLDivElement | null>(null);
   const pagePaneRef = useRef<HTMLDivElement | null>(null);
+  const autoPageLockRef = useRef(false);
   const [books, setBooks] = useState<PdfBookRecord[]>([]);
   const [bookmarks, setBookmarks] = useState<PdfBookmark[]>([]);
   const [quotes, setQuotes] = useState<PdfQuote[]>([]);
@@ -206,6 +207,36 @@ export function PdfReader() {
     refresh();
     if (clamped >= activeBook.totalPages) {
       await markCompleteAndCleanup(updated);
+    }
+  }
+
+  async function handlePagePaneScroll(event: UIEvent<HTMLDivElement>) {
+    if (!activeBook || activeBook.completedAt || autoPageLockRef.current) return;
+    const el = event.currentTarget;
+    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 24;
+    const nearTop = el.scrollTop <= 8;
+
+    if (nearBottom && activeBook.currentPage < activeBook.totalPages) {
+      autoPageLockRef.current = true;
+      await changePage(activeBook.currentPage + 1);
+      requestAnimationFrame(() => {
+        el.scrollTop = 0;
+        window.setTimeout(() => {
+          autoPageLockRef.current = false;
+        }, 180);
+      });
+      return;
+    }
+
+    if (nearTop && activeBook.currentPage > 1) {
+      autoPageLockRef.current = true;
+      await changePage(activeBook.currentPage - 1);
+      requestAnimationFrame(() => {
+        el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight - 2);
+        window.setTimeout(() => {
+          autoPageLockRef.current = false;
+        }, 180);
+      });
     }
   }
 
@@ -403,6 +434,9 @@ export function PdfReader() {
                           <div
                             ref={pagePaneRef}
                             className={`${showOutline ? "xl:col-span-8" : "col-span-1"} overflow-auto border rounded p-2 bg-white h-full`}
+                            onScroll={(e) => {
+                              void handlePagePaneScroll(e);
+                            }}
                           >
                             <Document file={pdfUrl} loading="PDF 加载中...">
                               <div className="flex justify-center">
