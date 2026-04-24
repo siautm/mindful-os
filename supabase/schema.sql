@@ -52,3 +52,37 @@ create index if not exists idx_focus_sessions_user_id_date on public.focus_sessi
 create index if not exists idx_checkins_user_id_date on public.checkins (user_id, date desc);
 create index if not exists idx_app_state_user_id on public.app_state (user_id);
 
+insert into storage.buckets (id, name, public)
+values ('mindful-pdf', 'mindful-pdf', true)
+on conflict (id) do nothing;
+
+drop policy if exists "mindful pdf read own files" on storage.objects;
+create policy "mindful pdf read own files"
+on storage.objects
+for select
+to authenticated
+using (
+  bucket_id = 'mindful-pdf'
+  and owner = auth.uid()
+);
+
+drop policy if exists "mindful pdf upload own files" on storage.objects;
+create policy "mindful pdf upload own files"
+on storage.objects
+for insert
+to authenticated
+with check (
+  bucket_id = 'mindful-pdf'
+  and owner = auth.uid()
+);
+
+drop policy if exists "mindful pdf delete own files" on storage.objects;
+create policy "mindful pdf delete own files"
+on storage.objects
+for delete
+to authenticated
+using (
+  bucket_id = 'mindful-pdf'
+  and owner = auth.uid()
+);
+

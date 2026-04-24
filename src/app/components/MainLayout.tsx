@@ -37,6 +37,7 @@ const routePreloaders: Record<string, () => Promise<unknown>> = {
   "/memo": () => import("../pages/Memo"),
   "/journal": () => import("../pages/Journal"),
   "/minigame": () => import("../pages/Minigame"),
+  "/pdf-reader": () => import("../pages/PdfReader"),
 };
 
 const preloadedRoutes = new Set<string>();
@@ -79,6 +80,7 @@ const navigationGroups = [
     items: [
       { name: "Memo", path: "/memo", icon: StickyNote },
       { name: "Brain Break", path: "/minigame", icon: Brain },
+      { name: "PDF Reader", path: "/pdf-reader", icon: BookOpen },
     ],
   },
 ];

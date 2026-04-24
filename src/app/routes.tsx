@@ -76,6 +76,13 @@ export const router = createBrowserRouter([
           return { Component: m.Minigame };
         },
       },
+      {
+        path: "pdf-reader",
+        lazy: async () => {
+          const m = await import("./pages/PdfReader");
+          return { Component: m.PdfReader };
+        },
+      },
     ],
   },
   {

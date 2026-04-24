@@ -179,6 +179,33 @@ export interface QuoteEntry {
   author: string;
 }
 
+export interface PdfBookRecord {
+  id: string;
+  title: string;
+  storagePath: string | null;
+  totalPages: number;
+  currentPage: number;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PdfBookmark {
+  id: string;
+  bookId: string;
+  page: number;
+  note: string;
+  createdAt: string;
+}
+
+export interface PdfQuote {
+  id: string;
+  bookId: string;
+  page: number;
+  text: string;
+  createdAt: string;
+}
+
 export interface StudyPlanPart {
   id: string;
   title: string;
@@ -1028,6 +1055,46 @@ export function removeFavoriteQuote(quote: QuoteEntry): void {
 export function isQuoteFavorite(quote: QuoteEntry): boolean {
   const favorites = getFavoriteQuotes();
   return favorites.some(q => q.text === quote.text && q.author === quote.author);
+}
+
+const PDF_BOOKS_KEY = "mindful_pdf_books";
+const PDF_BOOKMARKS_KEY = "mindful_pdf_bookmarks";
+const PDF_QUOTES_KEY = "mindful_pdf_quotes";
+
+export function getPdfBooks(): PdfBookRecord[] {
+  return getFromStorage<PdfBookRecord[]>(PDF_BOOKS_KEY, []);
+}
+
+export function savePdfBooks(books: PdfBookRecord[]): void {
+  setToStorage(PDF_BOOKS_KEY, books);
+}
+
+export function upsertPdfBook(book: PdfBookRecord): void {
+  const books = getPdfBooks();
+  const idx = books.findIndex((x) => x.id === book.id);
+  if (idx >= 0) {
+    const next = [...books];
+    next[idx] = book;
+    savePdfBooks(next);
+    return;
+  }
+  savePdfBooks([book, ...books]);
+}
+
+export function getPdfBookmarks(): PdfBookmark[] {
+  return getFromStorage<PdfBookmark[]>(PDF_BOOKMARKS_KEY, []);
+}
+
+export function savePdfBookmarks(bookmarks: PdfBookmark[]): void {
+  setToStorage(PDF_BOOKMARKS_KEY, bookmarks);
+}
+
+export function getPdfQuotes(): PdfQuote[] {
+  return getFromStorage<PdfQuote[]>(PDF_QUOTES_KEY, []);
+}
+
+export function savePdfQuotes(quotes: PdfQuote[]): void {
+  setToStorage(PDF_QUOTES_KEY, quotes);
 }
 
 // UI preference functions
