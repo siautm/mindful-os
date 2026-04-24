@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import * as pdfjsLib from "pdfjs-dist";
-import { BookOpen, Trash2, Upload } from "lucide-react";
+import { Document, Outline, Page, pdfjs } from "react-pdf";
+import { BookOpen, Expand, Minimize, Trash2, Upload } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -19,9 +20,14 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Textarea } from "../components/ui/textarea";
+import "react-pdf/dist/Page/TextLayer.css";
+import "react-pdf/dist/Page/AnnotationLayer.css";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url
+).toString();
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url
 ).toString();
@@ -40,14 +46,16 @@ function percent(book: PdfBookRecord): number {
 
 export function PdfReader() {
   const { user } = useAuth();
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const readerPaneRef = useRef<HTMLDivElement | null>(null);
   const [books, setBooks] = useState<PdfBookRecord[]>([]);
   const [bookmarks, setBookmarks] = useState<PdfBookmark[]>([]);
   const [quotes, setQuotes] = useState<PdfQuote[]>([]);
   const [activeBookId, setActiveBookId] = useState<string | null>(null);
-  const [quoteDraft, setQuoteDraft] = useState("");
   const [bookmarkNote, setBookmarkNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [renderWidth, setRenderWidth] = useState<number>(820);
 
   const activeBook = useMemo(
     () => books.find((b) => b.id === activeBookId) ?? null,
@@ -86,27 +94,25 @@ export function PdfReader() {
     return () => window.removeEventListener(STORAGE_HYDRATED_EVENT, onHydrated);
   }, []);
 
-  async function renderPage(book: PdfBookRecord) {
-    if (!book.storagePath || !canvasRef.current) return;
-    const { data } = supabase.storage.from(PDF_BUCKET).getPublicUrl(book.storagePath);
-    const doc = await pdfjsLib.getDocument(data.publicUrl).promise;
-    const page = await doc.getPage(book.currentPage);
-    const viewport = page.getViewport({ scale: 1.15 });
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    await page.render({ canvasContext: ctx, viewport }).promise;
-  }
+  useEffect(() => {
+    if (!activeBook?.storagePath || activeBook.completedAt) {
+      setPdfUrl(null);
+      return;
+    }
+    const { data } = supabase.storage.from(PDF_BUCKET).getPublicUrl(activeBook.storagePath);
+    setPdfUrl(data.publicUrl);
+  }, [activeBook?.id, activeBook?.storagePath, activeBook?.completedAt]);
 
   useEffect(() => {
-    if (!activeBook || !activeBook.storagePath || activeBook.completedAt) return;
-    void renderPage(activeBook).catch((e) => {
-      console.error(e);
-      toast.error("PDF 渲染失败");
-    });
-  }, [activeBook?.id, activeBook?.currentPage, activeBook?.storagePath, activeBook?.completedAt]);
+    const onFullscreenChange = () => {
+      const fs = document.fullscreenElement === readerPaneRef.current;
+      setIsFullscreen(fs);
+      const available = fs ? window.innerWidth - 120 : 820;
+      setRenderWidth(Math.max(420, Math.floor(available)));
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
 
   async function uploadPdf(file: File) {
     if (!user) {
@@ -205,19 +211,24 @@ export function PdfReader() {
     setBookmarkNote("");
   }
 
-  function addQuote() {
-    if (!activeBook || !quoteDraft.trim()) return;
+  function addQuoteFromSelection() {
+    if (!activeBook) return;
+    const selected = window.getSelection()?.toString().trim() ?? "";
+    if (!selected) {
+      toast.error("请先在 PDF 上选中文字");
+      return;
+    }
     const entry: PdfQuote = {
       id: crypto.randomUUID(),
       bookId: activeBook.id,
       page: activeBook.currentPage,
-      text: quoteDraft.trim(),
+      text: selected,
       createdAt: nowIso(),
     };
     const next = [entry, ...quotes];
     savePdfQuotes(next);
     setQuotes(next);
-    setQuoteDraft("");
+    toast.success("已收藏选中文字");
   }
 
   function removeQuote(id: string) {
@@ -230,6 +241,16 @@ export function PdfReader() {
     const next = bookmarks.filter((x) => x.id !== id);
     savePdfBookmarks(next);
     setBookmarks(next);
+  }
+
+  async function toggleFullscreen() {
+    const panel = readerPaneRef.current;
+    if (!panel) return;
+    if (document.fullscreenElement === panel) {
+      await document.exitFullscreen();
+      return;
+    }
+    await panel.requestFullscreen();
   }
 
   return (
@@ -301,7 +322,7 @@ export function PdfReader() {
           <CardHeader>
             <CardTitle>阅读区</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3" ref={readerPaneRef}>
             {!activeBook && <p className="text-sm text-gray-500">请选择一本 PDF。</p>}
             {activeBook && (
               <>
@@ -327,6 +348,10 @@ export function PdfReader() {
                   >
                     标记读完并清理文件
                   </Button>
+                  <Button variant="outline" onClick={() => void toggleFullscreen()}>
+                    {isFullscreen ? <Minimize className="size-4" /> : <Expand className="size-4" />}
+                    {isFullscreen ? "退出全屏" : "全屏阅读"}
+                  </Button>
                 </div>
 
                 {activeBook.completedAt ? (
@@ -334,8 +359,37 @@ export function PdfReader() {
                     该 PDF 文件已清理，仅保留阅读进度、书签与收藏记录。
                   </p>
                 ) : (
-                  <div className="overflow-auto border rounded-lg p-2 bg-gray-50">
-                    <canvas ref={canvasRef} className="mx-auto max-w-full" />
+                  <div className="space-y-3">
+                    <div className="border rounded-lg p-2 bg-gray-50">
+                      {pdfUrl ? (
+                        <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+                          <div className="xl:col-span-4 border rounded p-2 max-h-[72vh] overflow-auto bg-white">
+                            <p className="text-xs text-gray-500 mb-2">目录（点击可跳转）</p>
+                            <Document file={pdfUrl} loading="目录加载中...">
+                              <Outline
+                                onItemClick={({ pageNumber }) => {
+                                  if (typeof pageNumber === "number") {
+                                    void changePage(pageNumber);
+                                  }
+                                }}
+                              />
+                            </Document>
+                          </div>
+                          <div className="xl:col-span-8 overflow-auto max-h-[72vh] border rounded p-2 bg-white">
+                            <Document file={pdfUrl} loading="PDF 加载中...">
+                              <Page
+                                pageNumber={activeBook.currentPage}
+                                width={renderWidth}
+                                renderAnnotationLayer
+                                renderTextLayer
+                              />
+                            </Document>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">PDF 地址不可用。</p>
+                      )}
+                    </div>
                   </div>
                 )}
               </>
@@ -385,15 +439,10 @@ export function PdfReader() {
 
           <Card>
             <CardHeader>
-              <CardTitle>句子收藏</CardTitle>
+              <CardTitle>句子收藏（可高亮选择）</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Textarea
-                placeholder="粘贴你想收藏的句子..."
-                value={quoteDraft}
-                onChange={(e) => setQuoteDraft(e.target.value)}
-              />
-              <Button onClick={addQuote}>收藏当前页句子</Button>
+              <Button onClick={addQuoteFromSelection}>收藏当前选中文字</Button>
               <div className="space-y-2">
                 {activeQuotes.map((q) => (
                   <div key={q.id} className="border rounded p-2 text-sm">
