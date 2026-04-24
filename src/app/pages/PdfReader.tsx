@@ -317,7 +317,8 @@ export function PdfReader() {
           <CardHeader>
             <CardTitle>阅读区</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3" ref={readerPaneRef}>
+          <CardContent>
+            <div ref={readerPaneRef} className="space-y-3">
             {!activeBook && <p className="text-sm text-gray-500">请选择一本 PDF。</p>}
             {activeBook && (
               <>
@@ -389,6 +390,7 @@ export function PdfReader() {
                 )}
               </>
             )}
+            </div>
           </CardContent>
         </Card>
       </div>
