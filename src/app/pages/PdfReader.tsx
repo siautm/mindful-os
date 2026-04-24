@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import * as pdfjsLib from "pdfjs-dist";
 import { Document, Outline, Page, pdfjs } from "react-pdf";
 import { BookOpen, Expand, Minimize, Trash2, Upload } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
@@ -23,10 +22,6 @@ import { Input } from "../components/ui/input";
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
-).toString();
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url
@@ -135,7 +130,7 @@ export function PdfReader() {
       });
       if (upload.error) throw upload.error;
 
-      const loadingTask = pdfjsLib.getDocument({ data: await file.arrayBuffer() });
+      const loadingTask = pdfjs.getDocument({ data: await file.arrayBuffer() });
       const doc = await loadingTask.promise;
       const totalPages = doc.numPages;
       const ts = nowIso();
