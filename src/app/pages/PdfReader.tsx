@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Document, Outline, Page, pdfjs } from "react-pdf";
-import { BookOpen, Expand, Minimize, Trash2, Upload } from "lucide-react";
+import { BookOpen, Expand, List, Minimize, Trash2, Upload } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -42,6 +42,7 @@ function percent(book: PdfBookRecord): number {
 export function PdfReader() {
   const { user } = useAuth();
   const readerPaneRef = useRef<HTMLDivElement | null>(null);
+  const pagePaneRef = useRef<HTMLDivElement | null>(null);
   const [books, setBooks] = useState<PdfBookRecord[]>([]);
   const [bookmarks, setBookmarks] = useState<PdfBookmark[]>([]);
   const [quotes, setQuotes] = useState<PdfQuote[]>([]);
@@ -51,6 +52,7 @@ export function PdfReader() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [renderWidth, setRenderWidth] = useState<number>(820);
+  const [showOutline, setShowOutline] = useState(true);
 
   const activeBook = useMemo(
     () => books.find((b) => b.id === activeBookId) ?? null,
@@ -102,12 +104,28 @@ export function PdfReader() {
     const onFullscreenChange = () => {
       const fs = document.fullscreenElement === readerPaneRef.current;
       setIsFullscreen(fs);
-      const available = fs ? window.innerWidth - 120 : 820;
-      setRenderWidth(Math.max(420, Math.floor(available)));
+      if (fs) setShowOutline(false);
     };
     document.addEventListener("fullscreenchange", onFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
+
+  useEffect(() => {
+    const node = pagePaneRef.current;
+    if (!node) return;
+    const updateWidth = () => {
+      const next = Math.max(320, Math.floor(node.clientWidth - 20));
+      setRenderWidth(next);
+    };
+    updateWidth();
+    const ro = new ResizeObserver(updateWidth);
+    ro.observe(node);
+    window.addEventListener("resize", updateWidth);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", updateWidth);
+    };
+  }, [activeBook?.id, isFullscreen, showOutline]);
 
   async function uploadPdf(file: File) {
     if (!user) {
@@ -348,6 +366,14 @@ export function PdfReader() {
                     {isFullscreen ? <Minimize className="size-4" /> : <Expand className="size-4" />}
                     {isFullscreen ? "退出全屏" : "全屏阅读"}
                   </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowOutline((s) => !s)}
+                    disabled={!pdfUrl}
+                  >
+                    <List className="size-4" />
+                    {showOutline ? "隐藏目录" : "显示目录"}
+                  </Button>
                 </div>
 
                 {activeBook.completedAt ? (
@@ -356,29 +382,37 @@ export function PdfReader() {
                   </p>
                 ) : (
                   <div className="space-y-3">
-                    <div className="border rounded-lg p-2 bg-gray-50">
+                    <div className={`border rounded-lg p-2 ${isFullscreen ? "bg-white h-[88vh]" : "bg-gray-50"}`}>
                       {pdfUrl ? (
-                        <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-                          <div className="xl:col-span-4 border rounded p-2 max-h-[72vh] overflow-auto bg-white">
-                            <p className="text-xs text-gray-500 mb-2">目录（点击可跳转）</p>
-                            <Document file={pdfUrl} loading="目录加载中...">
-                              <Outline
-                                onItemClick={({ pageNumber }) => {
-                                  if (typeof pageNumber === "number") {
-                                    void changePage(pageNumber);
-                                  }
-                                }}
-                              />
-                            </Document>
-                          </div>
-                          <div className="xl:col-span-8 overflow-auto max-h-[72vh] border rounded p-2 bg-white">
+                        <div className={`grid gap-4 h-full ${showOutline ? "grid-cols-1 xl:grid-cols-12" : "grid-cols-1"}`}>
+                          {showOutline && (
+                            <div className="xl:col-span-4 border rounded p-2 overflow-auto bg-white h-full">
+                              <p className="text-xs text-gray-500 mb-2">目录（点击可跳转）</p>
+                              <Document file={pdfUrl} loading="目录加载中...">
+                                <Outline
+                                  onItemClick={({ pageNumber }) => {
+                                    if (typeof pageNumber === "number") {
+                                      void changePage(pageNumber);
+                                      if (isFullscreen) setShowOutline(false);
+                                    }
+                                  }}
+                                />
+                              </Document>
+                            </div>
+                          )}
+                          <div
+                            ref={pagePaneRef}
+                            className={`${showOutline ? "xl:col-span-8" : "col-span-1"} overflow-auto border rounded p-2 bg-white h-full`}
+                          >
                             <Document file={pdfUrl} loading="PDF 加载中...">
-                              <Page
-                                pageNumber={activeBook.currentPage}
-                                width={renderWidth}
-                                renderAnnotationLayer
-                                renderTextLayer
-                              />
+                              <div className="flex justify-center">
+                                <Page
+                                  pageNumber={activeBook.currentPage}
+                                  width={renderWidth}
+                                  renderAnnotationLayer
+                                  renderTextLayer
+                                />
+                              </div>
                             </Document>
                           </div>
                         </div>
