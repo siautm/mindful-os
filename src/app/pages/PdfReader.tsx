@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type UIEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type UIEvent, type WheelEvent } from "react";
 import { toast } from "sonner";
 import { Document, Outline, Page, pdfjs } from "react-pdf";
 import { BookOpen, Expand, List, Minimize, Trash2, Upload } from "lucide-react";
@@ -44,6 +44,7 @@ export function PdfReader() {
   const readerPaneRef = useRef<HTMLDivElement | null>(null);
   const pagePaneRef = useRef<HTMLDivElement | null>(null);
   const autoPageLockRef = useRef(false);
+  const edgeArmRef = useRef<{ top: boolean; bottom: boolean }>({ top: false, bottom: false });
   const [books, setBooks] = useState<PdfBookRecord[]>([]);
   const [bookmarks, setBookmarks] = useState<PdfBookmark[]>([]);
   const [quotes, setQuotes] = useState<PdfQuote[]>([]);
@@ -210,14 +211,31 @@ export function PdfReader() {
     }
   }
 
-  async function handlePagePaneScroll(event: UIEvent<HTMLDivElement>) {
+  function handlePagePaneScroll(event: UIEvent<HTMLDivElement>) {
+    const el = event.currentTarget;
+    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
+    const nearTop = el.scrollTop <= 6;
+    if (!nearBottom) edgeArmRef.current.bottom = false;
+    if (!nearTop) edgeArmRef.current.top = false;
+  }
+
+  async function handlePagePaneWheel(event: WheelEvent<HTMLDivElement>) {
     if (!activeBook || activeBook.completedAt || autoPageLockRef.current) return;
     const el = event.currentTarget;
-    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 24;
-    const nearTop = el.scrollTop <= 8;
+    const hasScrollableContent = el.scrollHeight - el.clientHeight > 12;
+    if (!hasScrollableContent) return;
+    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
+    const nearTop = el.scrollTop <= 6;
+    const strongDown = event.deltaY > 14;
+    const strongUp = event.deltaY < -14;
 
-    if (nearBottom && activeBook.currentPage < activeBook.totalPages) {
+    if (nearBottom && strongDown && activeBook.currentPage < activeBook.totalPages) {
+      if (!edgeArmRef.current.bottom) {
+        edgeArmRef.current.bottom = true;
+        return;
+      }
       autoPageLockRef.current = true;
+      edgeArmRef.current.bottom = false;
       await changePage(activeBook.currentPage + 1);
       requestAnimationFrame(() => {
         el.scrollTop = 0;
@@ -228,8 +246,13 @@ export function PdfReader() {
       return;
     }
 
-    if (nearTop && activeBook.currentPage > 1) {
+    if (nearTop && strongUp && activeBook.currentPage > 1) {
+      if (!edgeArmRef.current.top) {
+        edgeArmRef.current.top = true;
+        return;
+      }
       autoPageLockRef.current = true;
+      edgeArmRef.current.top = false;
       await changePage(activeBook.currentPage - 1);
       requestAnimationFrame(() => {
         el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight - 2);
@@ -435,7 +458,10 @@ export function PdfReader() {
                             ref={pagePaneRef}
                             className={`${showOutline ? "xl:col-span-8" : "col-span-1"} overflow-auto border rounded p-2 bg-white h-full`}
                             onScroll={(e) => {
-                              void handlePagePaneScroll(e);
+                              handlePagePaneScroll(e);
+                            }}
+                            onWheel={(e) => {
+                              void handlePagePaneWheel(e);
                             }}
                           >
                             <Document file={pdfUrl} loading="PDF 加载中...">
