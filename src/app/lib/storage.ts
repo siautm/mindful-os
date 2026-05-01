@@ -1225,6 +1225,7 @@ export interface BujoBullet {
   date?: string;
   scheduledDate?: string;
   scheduledTime?: string;
+  parentProjectId?: string;
 }
 
 export interface BujoYearlyGoal {
@@ -1252,13 +1253,32 @@ export interface BujoMonthlyEvent {
   text: string;
 }
 
+export interface BujoLongProject {
+  id: string;
+  title: string;
+  createdDate: string; // YYYY-MM-DD
+  sourceBulletId?: string;
+}
+
+export interface BujoLongProjectSubtask {
+  id: string;
+  projectId: string;
+  text: string;
+  completed: boolean;
+  plannedDate?: string; // YYYY-MM-DD
+  anchorBulletId?: string;
+  nextSubtaskId?: string;
+}
+
 export interface BujoState {
   yearlyGoals: BujoYearlyGoal[];
   yearlyEvents: BujoYearlyEvent[];
   monthlyGoals: Record<string, BujoMonthlyGoal[]>;
   monthlyEvents: Record<string, BujoMonthlyEvent[]>;
   dailyBullets: Record<string, BujoBullet[]>;
-  schemaVersion: 1;
+  longProjects: BujoLongProject[];
+  longProjectSubtasks: BujoLongProjectSubtask[];
+  schemaVersion: 2;
 }
 
 const BUJO_STORAGE_KEY = "mindful_bujo_state";
@@ -1270,7 +1290,9 @@ function getDefaultBujoState(): BujoState {
     monthlyGoals: {},
     monthlyEvents: {},
     dailyBullets: {},
-    schemaVersion: 1,
+    longProjects: [],
+    longProjectSubtasks: [],
+    schemaVersion: 2,
   };
 }
 
@@ -1293,12 +1315,16 @@ export function getBujoState(): BujoState {
       raw.dailyBullets && typeof raw.dailyBullets === "object"
         ? (raw.dailyBullets as Record<string, BujoBullet[]>)
         : defaults.dailyBullets,
-    schemaVersion: 1,
+    longProjects: Array.isArray(raw.longProjects) ? raw.longProjects : defaults.longProjects,
+    longProjectSubtasks: Array.isArray(raw.longProjectSubtasks)
+      ? raw.longProjectSubtasks
+      : defaults.longProjectSubtasks,
+    schemaVersion: 2,
   };
 }
 
 export function saveBujoState(state: BujoState): void {
-  setToStorage(BUJO_STORAGE_KEY, { ...state, schemaVersion: 1 });
+  setToStorage(BUJO_STORAGE_KEY, { ...state, schemaVersion: 2 });
 }
 
 const QUOTE_LOCALE_KEY = "mindful_quote_locale";

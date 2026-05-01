@@ -26,6 +26,7 @@ interface Bullet {
   date?: string;
   scheduledDate?: string;
   scheduledTime?: string;
+  parentProjectId?: string;
 }
 
 interface YearlyGoal {
@@ -53,14 +54,32 @@ interface MonthlyEvent {
   text: string;
 }
 
+interface LongProject {
+  id: string;
+  title: string;
+  createdDate: string;
+  sourceBulletId?: string;
+}
+
+interface LongProjectSubtask {
+  id: string;
+  projectId: string;
+  text: string;
+  completed: boolean;
+  plannedDate?: string;
+  anchorBulletId?: string;
+  nextSubtaskId?: string;
+}
+
 interface Page {
   id: number;
   type: 'index' | 'key' | 'yearlyGoals-tasks' | 'yearlyGoals-interested' | 'yearlyEvents' |
-        'monthlyIndex' | 'monthlyGoals' | 'monthlyEvents' | 'daily';
+        'longTaskIndex' | 'longTaskProject' | 'monthlyIndex' | 'monthlyGoals' | 'monthlyEvents' | 'daily';
   title: string;
   month?: number;
   dates?: string[];
   dailyPageRefs?: { title: string; pageNum: number }[];
+  projectId?: string;
 }
 
 const MONTHS = [
@@ -82,6 +101,8 @@ export function BulletJournal() {
   const [monthlyGoals, setMonthlyGoals] = useState<{ [key: number]: MonthlyGoal[] }>({});
   const [monthlyEvents, setMonthlyEvents] = useState<{ [key: number]: MonthlyEvent[] }>({});
   const [dailyBullets, setDailyBullets] = useState<{ [key: string]: Bullet[] }>({});
+  const [longProjects, setLongProjects] = useState<LongProject[]>([]);
+  const [longProjectSubtasks, setLongProjectSubtasks] = useState<LongProjectSubtask[]>([]);
 
   const [currentPageNumber, setCurrentPageNumber] = useState(1);
   const [newItemText, setNewItemText] = useState('');
@@ -100,6 +121,8 @@ export function BulletJournal() {
   const [editingBulletId, setEditingBulletId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [draggedBullet, setDraggedBullet] = useState<{ bullet: Bullet; sourceDate: string } | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [jumpToDate, setJumpToDate] = useState(today);
   const [storageReady, setStorageReady] = useState(false);
   const hasHydratedOnceRef = useRef(false);
   const lastSavedStateRef = useRef<string | null>(null);
@@ -112,7 +135,9 @@ export function BulletJournal() {
       monthlyGoals: state.monthlyGoals as BujoState["monthlyGoals"],
       monthlyEvents: state.monthlyEvents as BujoState["monthlyEvents"],
       dailyBullets: state.dailyBullets as BujoState["dailyBullets"],
-      schemaVersion: 1,
+      longProjects: (state as unknown as { longProjects?: BujoState["longProjects"] }).longProjects || [],
+      longProjectSubtasks: (state as unknown as { longProjectSubtasks?: BujoState["longProjectSubtasks"] }).longProjectSubtasks || [],
+      schemaVersion: 2,
     };
     lastSavedStateRef.current = JSON.stringify(hydratedState);
     hasHydratedOnceRef.current = true;
@@ -121,6 +146,8 @@ export function BulletJournal() {
     setMonthlyGoals(state.monthlyGoals as { [key: number]: MonthlyGoal[] });
     setMonthlyEvents(state.monthlyEvents as { [key: number]: MonthlyEvent[] });
     setDailyBullets(state.dailyBullets as { [key: string]: Bullet[] });
+    setLongProjects(((state as unknown as { longProjects?: LongProject[] }).longProjects) || []);
+    setLongProjectSubtasks(((state as unknown as { longProjectSubtasks?: LongProjectSubtask[] }).longProjectSubtasks) || []);
     setStorageReady(true);
   }, []);
 
@@ -141,7 +168,9 @@ export function BulletJournal() {
         monthlyGoals: monthlyGoals as BujoState["monthlyGoals"],
         monthlyEvents: monthlyEvents as BujoState["monthlyEvents"],
         dailyBullets: dailyBullets as BujoState["dailyBullets"],
-        schemaVersion: 1,
+        longProjects: longProjects as BujoState["longProjects"],
+        longProjectSubtasks: longProjectSubtasks as BujoState["longProjectSubtasks"],
+        schemaVersion: 2,
       };
       const serialized = JSON.stringify(next);
       if (serialized === lastSavedStateRef.current) return;
@@ -149,7 +178,7 @@ export function BulletJournal() {
       lastSavedStateRef.current = serialized;
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [storageReady, yearlyGoals, yearlyEvents, monthlyGoals, monthlyEvents, dailyBullets]);
+  }, [storageReady, yearlyGoals, yearlyEvents, monthlyGoals, monthlyEvents, dailyBullets, longProjects, longProjectSubtasks]);
 
   // Daily page *layout* (titles + which dates each spread covers). Page *ids* are assigned in `pages` useMemo
   // so they match the real order: monthly index → goals → events → dailies.
@@ -284,6 +313,26 @@ export function BulletJournal() {
       });
     }
 
+    // Long-running project index and pages (inserted before all monthly sections)
+    pageList.push({
+      id: pageNum++,
+      type: 'longTaskIndex',
+      title: 'Annual Long-running Projects',
+    });
+
+    longProjects.forEach((project) => {
+      const subtasksCount = longProjectSubtasks.filter(s => s.projectId === project.id).length;
+      const projectPages = Math.max(1, Math.ceil(subtasksCount / ITEMS_PER_PAGE));
+      for (let i = 0; i < projectPages; i++) {
+        pageList.push({
+          id: pageNum++,
+          type: 'longTaskProject',
+          projectId: project.id,
+          title: i === 0 ? `${project.title} - Project` : `${project.title} - Project (cont. ${i + 1})`,
+        });
+      }
+    });
+
     // Monthly pages
     for (let month = 0; month < 12; month++) {
       const daysInMonth = getDaysInMonth(new Date(currentYear, month));
@@ -350,7 +399,7 @@ export function BulletJournal() {
     }
 
     return pageList;
-  }, [yearlyGoals, yearlyEvents, monthlyGoals, monthlyEvents, dailyBullets, today]);
+  }, [yearlyGoals, yearlyEvents, monthlyGoals, monthlyEvents, dailyBullets, longProjects, longProjectSubtasks, today]);
 
   // Find today's page
   const todayPageNum = useMemo(() => {
@@ -413,6 +462,10 @@ export function BulletJournal() {
             e.preventDefault();
             handleStartEdit(selectedBulletId);
             break;
+          case 'p':
+            e.preventDefault();
+            createLongProjectFromSelected(selectedBulletId);
+            break;
         }
       }
 
@@ -424,7 +477,7 @@ export function BulletJournal() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedBulletId, isAddingNote, showScheduleModal, editingBulletId]);
+  }, [selectedBulletId, isAddingNote, showScheduleModal, editingBulletId, longProjects, pages]);
 
   // Helper to find bullet by ID across all dates
   const findBulletById = (id: string): { bullet: Bullet; date: string } | null => {
@@ -637,6 +690,9 @@ export function BulletJournal() {
       });
       return updated;
     });
+
+    setLongProjects(prev => prev.filter(p => p.sourceBulletId !== id));
+    setLongProjectSubtasks(prev => prev.filter(s => s.anchorBulletId !== id));
   };
 
   const handleDefer = (id: string) => {
@@ -956,6 +1012,86 @@ export function BulletJournal() {
     setNewItemText('');
   };
 
+  const createLongProjectFromSelected = (id: string) => {
+    const found = findBulletById(id);
+    if (!found) return;
+
+    const existing = longProjects.find(p => p.sourceBulletId === id);
+    if (existing) {
+      setSelectedProjectId(existing.id);
+      const firstProjectPage = pages.find(p => p.type === 'longTaskProject' && p.projectId === existing.id);
+      if (firstProjectPage) navigateToPage(firstProjectPage.id);
+      return;
+    }
+
+    const projectId = `lp-${Date.now()}`;
+    const project: LongProject = {
+      id: projectId,
+      title: found.bullet.text,
+      createdDate: found.date,
+      sourceBulletId: id,
+    };
+    setLongProjects(prev => [...prev, project]);
+    setSelectedProjectId(projectId);
+
+    setDailyBullets(prev => {
+      const updated = { ...prev };
+      updated[found.date] = updated[found.date].map(b =>
+        b.id === id ? { ...b, parentProjectId: projectId } : b
+      );
+      return updated;
+    });
+  };
+
+  const addSubtaskToProject = (projectId: string) => {
+    const text = newItemText.trim();
+    if (!text) return;
+    setLongProjectSubtasks(prev => [...prev, {
+      id: `ls-${Date.now()}`,
+      projectId,
+      text,
+      completed: false,
+    }]);
+    setNewItemText('');
+  };
+
+  const attachSelectedBulletToProject = (projectId: string) => {
+    if (!selectedBulletId) return;
+    const found = findBulletById(selectedBulletId);
+    if (!found) return;
+
+    setDailyBullets(prev => {
+      const updated = { ...prev };
+      updated[found.date] = updated[found.date].map(b =>
+        b.id === selectedBulletId ? { ...b, parentProjectId: projectId } : b
+      );
+      return updated;
+    });
+
+    const exists = longProjectSubtasks.some(s => s.anchorBulletId === selectedBulletId && s.projectId === projectId);
+    if (!exists) {
+      setLongProjectSubtasks(prev => [...prev, {
+        id: `ls-${Date.now()}`,
+        projectId,
+        text: found.bullet.text,
+        completed: found.bullet.status === 'completed',
+        anchorBulletId: selectedBulletId,
+        plannedDate: found.date,
+      }]);
+    }
+  };
+
+  const toggleProjectSubtask = (subtaskId: string) => {
+    setLongProjectSubtasks(prev => prev.map(s =>
+      s.id === subtaskId ? { ...s, completed: !s.completed } : s
+    ));
+  };
+
+  const jumpToDailyDate = (dateStr: string) => {
+    const page = pages.find(p => p.type === 'daily' && p.dates?.includes(dateStr));
+    if (page) navigateToPage(page.id);
+  };
+
   const exportYear = () => {
     const data = {
       year: currentYear,
@@ -963,7 +1099,9 @@ export function BulletJournal() {
       yearlyEvents,
       monthlyGoals,
       monthlyEvents,
-      dailyBullets
+      dailyBullets,
+      longProjects,
+      longProjectSubtasks,
     };
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -1046,6 +1184,11 @@ export function BulletJournal() {
           </span>
           <span className={`flex-1 ${bullet.status === 'cancelled' ? 'line-through text-gray-400' : ''} ${bullet.status === 'completed' ? 'text-gray-600' : ''}`}>
             {bullet.text}
+            {bullet.parentProjectId && (
+              <span className="ml-2 text-xs text-purple-600">
+                [project]
+              </span>
+            )}
             {showDate && bullet.date && (
               <span className="ml-2 text-xs text-gray-500">
                 ({format(new Date(bullet.date), 'MMM d')})
@@ -1060,7 +1203,7 @@ export function BulletJournal() {
           </span>
           {isSelected && (
             <span className="text-xs text-gray-500 whitespace-nowrap">
-              ⇧C ⇧X ⇧R ⇧D ⇧S ⇧A
+              ⇧C ⇧X ⇧R ⇧D ⇧S ⇧A ⇧P
             </span>
           )}
         </div>
@@ -1125,6 +1268,10 @@ export function BulletJournal() {
         return renderYearlyGoals(page, 'interested');
       case 'yearlyEvents':
         return renderYearlyEvents(page);
+      case 'longTaskIndex':
+        return renderLongTaskIndex();
+      case 'longTaskProject':
+        return renderLongTaskProject(page);
       case 'monthlyIndex':
         return renderMonthlyIndex(page);
       case 'monthlyGoals':
@@ -1142,6 +1289,7 @@ export function BulletJournal() {
     const yearlyGoalsTasksPage = pages.find(p => p.type === 'yearlyGoals-tasks');
     const yearlyGoalsInterestedPage = pages.find(p => p.type === 'yearlyGoals-interested');
     const yearlyEventsPage = pages.find(p => p.type === 'yearlyEvents');
+    const longTaskIndexPage = pages.find(p => p.type === 'longTaskIndex');
 
     return (
       <>
@@ -1151,10 +1299,22 @@ export function BulletJournal() {
         </div>
 
         <div className="mb-6">
-          <Button onClick={() => navigateToPage(todayPageNum)} className="w-full" size="lg">
-            <CalendarIcon className="h-5 w-5 mr-2" />
-            Go to Today
-          </Button>
+          <div className="space-y-2">
+            <Button onClick={() => navigateToPage(todayPageNum)} className="w-full" size="lg">
+              <CalendarIcon className="h-5 w-5 mr-2" />
+              Go to Today
+            </Button>
+            <div className="flex gap-2">
+              <Input
+                type="date"
+                value={jumpToDate}
+                onChange={(e) => setJumpToDate(e.target.value)}
+              />
+              <Button variant="outline" onClick={() => jumpToDailyDate(jumpToDate)}>
+                Jump to Date
+              </Button>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-6 text-lg">
@@ -1181,6 +1341,13 @@ export function BulletJournal() {
               >
                 <span>Events</span>
                 <span className="float-right text-gray-500">{yearlyEventsPage?.id || 5}</span>
+              </button>
+              <button
+                onClick={() => navigateToPage(longTaskIndexPage?.id || 6)}
+                className="block w-full text-left hover:bg-gray-100 p-2 rounded"
+              >
+                <span>Long-running Projects</span>
+                <span className="float-right text-gray-500">{longTaskIndexPage?.id || 6}</span>
               </button>
             </div>
           </div>
@@ -1265,6 +1432,10 @@ export function BulletJournal() {
               <kbd className="px-3 py-1 bg-gray-200 rounded text-sm">Shift + R</kbd>
               <span>Rename/Edit</span>
             </div>
+            <div className="flex gap-3">
+              <kbd className="px-3 py-1 bg-gray-200 rounded text-sm">Shift + P</kbd>
+              <span>Create long-running project from selected daily bullet</span>
+            </div>
           </div>
         </div>
 
@@ -1277,6 +1448,146 @@ export function BulletJournal() {
       </div>
     </>
   );
+
+  const renderLongTaskIndex = () => {
+    return (
+      <>
+        <div className="mb-6 pb-4 border-b-2 border-gray-800 flex items-center justify-between">
+          <h2 className="font-serif text-4xl">Annual Long-running Projects</h2>
+          <Button variant="ghost" size="sm" onClick={() => navigateToPage(1)}>
+            <BookOpen className="h-4 w-4 mr-2" />
+            Index
+          </Button>
+        </div>
+
+        <p className="text-sm text-gray-600 mb-4">
+          Shift + P on a selected daily bullet to create a project page block.
+        </p>
+
+        <div className="space-y-2 mb-6">
+          {longProjects.length === 0 && (
+            <p className="text-gray-400">No long-running projects yet.</p>
+          )}
+          {longProjects.map((project) => {
+            const firstProjectPage = pages.find(
+              p => p.type === 'longTaskProject' && p.projectId === project.id
+            );
+            const done = longProjectSubtasks.filter(s => s.projectId === project.id && s.completed).length;
+            const total = longProjectSubtasks.filter(s => s.projectId === project.id).length;
+            return (
+              <button
+                key={project.id}
+                onClick={() => {
+                  setSelectedProjectId(project.id);
+                  if (firstProjectPage) navigateToPage(firstProjectPage.id);
+                }}
+                className={`block w-full text-left p-2 rounded ${
+                  selectedProjectId === project.id ? 'bg-amber-100' : 'hover:bg-gray-100'
+                }`}
+              >
+                <span>{project.title}</span>
+                <span className="float-right text-gray-500">
+                  {firstProjectPage?.id} · {done}/{total}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </>
+    );
+  };
+
+  const renderLongTaskProject = (page: Page) => {
+    const project = longProjects.find(p => p.id === page.projectId);
+    if (!project) return <div className="text-gray-400">Project not found.</div>;
+
+    const projectPages = pages.filter(p => p.type === 'longTaskProject' && p.projectId === project.id);
+    const pageIndex = Math.max(0, projectPages.findIndex(p => p.id === page.id));
+    const allSubtasks = longProjectSubtasks.filter(s => s.projectId === project.id);
+    const visibleSubtasks = allSubtasks.slice(
+      pageIndex * ITEMS_PER_PAGE,
+      (pageIndex + 1) * ITEMS_PER_PAGE
+    );
+    const completedCount = allSubtasks.filter(s => s.completed).length;
+    const progress = allSubtasks.length === 0 ? 0 : Math.round((completedCount / allSubtasks.length) * 100);
+    const longIndexPage = pages.find(p => p.type === 'longTaskIndex');
+
+    return (
+      <>
+        <div className="mb-6 pb-4 border-b-2 border-gray-800 flex items-center justify-between">
+          <h2 className="font-serif text-4xl">{project.title}</h2>
+          <div className="flex gap-2">
+            {longIndexPage && (
+              <Button variant="ghost" size="sm" onClick={() => navigateToPage(longIndexPage.id)}>
+                <BookOpen className="h-4 w-4 mr-2" />
+                Projects
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => navigateToPage(1)}>
+              <BookOpen className="h-4 w-4 mr-2" />
+              Index
+            </Button>
+          </div>
+        </div>
+
+        <p className="text-sm text-gray-600 mb-4">
+          Created {project.createdDate} · Progress {completedCount}/{allSubtasks.length} ({progress}%)
+        </p>
+
+        <div className="space-y-2 mb-4">
+          {visibleSubtasks.map(subtask => (
+            <div
+              key={subtask.id}
+              className={`flex items-start gap-3 p-2 rounded ${subtask.completed ? 'bg-green-50' : 'hover:bg-gray-50'}`}
+            >
+              <button
+                onClick={() => toggleProjectSubtask(subtask.id)}
+                className="font-mono text-lg mt-0.5"
+              >
+                {subtask.completed ? '✕' : '○'}
+              </button>
+              <span className={`flex-1 ${subtask.completed ? 'line-through text-gray-500' : ''}`}>
+                {subtask.text}
+                {subtask.plannedDate && (
+                  <button
+                    className="ml-2 text-xs text-blue-600 hover:underline"
+                    onClick={() => jumpToDailyDate(subtask.plannedDate!)}
+                  >
+                    ({subtask.plannedDate})
+                  </button>
+                )}
+              </span>
+            </div>
+          ))}
+          {visibleSubtasks.length === 0 && (
+            <p className="text-gray-400">No subtasks on this page.</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Input
+            value={newItemText}
+            onChange={(e) => setNewItemText(e.target.value)}
+            placeholder="Add subtask..."
+            onKeyDown={(e) => e.key === 'Enter' && addSubtaskToProject(project.id)}
+            className="bg-transparent border-b-2 border-gray-300 rounded-none"
+          />
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => addSubtaskToProject(project.id)}>
+              Add subtask
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => attachSelectedBulletToProject(project.id)}
+            >
+              Link selected daily bullet
+            </Button>
+          </div>
+        </div>
+      </>
+    );
+  };
 
   const renderMonthlyIndex = (page: Page) => {
     const month = page.month!;
