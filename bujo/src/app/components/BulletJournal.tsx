@@ -151,11 +151,11 @@ export function BulletJournal() {
     return () => window.clearTimeout(timer);
   }, [storageReady, yearlyGoals, yearlyEvents, monthlyGoals, monthlyEvents, dailyBullets]);
 
-  // Calculate daily pages with auto-combining for past dates
-  const calculateDailyPages = (month: number, daysInMonth: number, startPageNum: number) => {
-    const dailyPages: { title: string; dates: string[]; pageNum: number }[] = [];
+  // Daily page *layout* (titles + which dates each spread covers). Page *ids* are assigned in `pages` useMemo
+  // so they match the real order: monthly index → goals → events → dailies.
+  const buildDailyLayouts = (month: number, daysInMonth: number) => {
+    const layouts: { title: string; dates: string[] }[] = [];
     const dates: string[] = [];
-    let currentPageNum = startPageNum;
 
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${currentYear}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -173,12 +173,12 @@ export function BulletJournal() {
       if (isToday || isFuture) {
         const pagesNeeded = Math.max(1, Math.ceil(bullets.length / ITEMS_PER_PAGE));
         for (let p = 0; p < pagesNeeded; p++) {
-          dailyPages.push({
-            title: p === 0
-              ? format(new Date(currentDate), 'MMMM d')
-              : format(new Date(currentDate), 'MMMM d') + ` (cont. ${p + 1})`,
+          layouts.push({
+            title:
+              p === 0
+                ? format(new Date(currentDate), 'MMMM d')
+                : format(new Date(currentDate), 'MMMM d') + ` (cont. ${p + 1})`,
             dates: [currentDate],
-            pageNum: currentPageNum++
           });
         }
         i++;
@@ -193,8 +193,10 @@ export function BulletJournal() {
         ) {
           const nextDate = dates[j];
           const nextBullets = dailyBullets[nextDate] || [];
-          const currentTotal = combinableDates.reduce((sum, d) =>
-            sum + (dailyBullets[d] || []).length, 0);
+          const currentTotal = combinableDates.reduce(
+            (sum, d) => sum + (dailyBullets[d] || []).length,
+            0
+          );
 
           if (currentTotal <= ITEMS_FOR_COMBINING && nextBullets.length <= ITEMS_FOR_COMBINING) {
             combinableDates.push(nextDate);
@@ -207,12 +209,12 @@ export function BulletJournal() {
         if (combinableDates.length === 1) {
           const pagesNeeded = Math.max(1, Math.ceil(bullets.length / ITEMS_PER_PAGE));
           for (let p = 0; p < pagesNeeded; p++) {
-            dailyPages.push({
-              title: p === 0
-                ? format(new Date(currentDate), 'MMMM d')
-                : format(new Date(currentDate), 'MMMM d') + ` (cont. ${p + 1})`,
+            layouts.push({
+              title:
+                p === 0
+                  ? format(new Date(currentDate), 'MMMM d')
+                  : format(new Date(currentDate), 'MMMM d') + ` (cont. ${p + 1})`,
               dates: [currentDate],
-              pageNum: currentPageNum++
             });
           }
         } else {
@@ -224,12 +226,12 @@ export function BulletJournal() {
           );
           const combinedPagesNeeded = Math.max(1, Math.ceil(combinedBulletsCount / ITEMS_PER_PAGE));
           for (let p = 0; p < combinedPagesNeeded; p++) {
-            dailyPages.push({
-              title: p === 0
-                ? `${MONTHS[month]} ${startDay}-${endDay}`
-                : `${MONTHS[month]} ${startDay}-${endDay} (cont. ${p + 1})`,
+            layouts.push({
+              title:
+                p === 0
+                  ? `${MONTHS[month]} ${startDay}-${endDay}`
+                  : `${MONTHS[month]} ${startDay}-${endDay} (cont. ${p + 1})`,
               dates: combinableDates,
-              pageNum: currentPageNum++
             });
           }
         }
@@ -238,7 +240,7 @@ export function BulletJournal() {
       }
     }
 
-    return dailyPages;
+    return layouts;
   };
 
   // Calculate pages dynamically
@@ -290,13 +292,16 @@ export function BulletJournal() {
       const monthGoalPages = Math.max(1, Math.ceil(monthGoalsCount / ITEMS_PER_PAGE));
       const monthEventPages = Math.max(1, Math.ceil(monthEventsCount / ITEMS_PER_PAGE));
 
-      // Calculate daily pages first to get references
-      const dailyPagesStart = pageNum + 1 + monthGoalPages + monthEventPages; // After month index/goals/events
-      const dailyPagesData = calculateDailyPages(month, daysInMonth, dailyPagesStart);
+      const dailyLayouts = buildDailyLayouts(month, daysInMonth);
+      const monthIndexSpreads = Math.max(1, Math.ceil(dailyLayouts.length / MAX_INDEX_ENTRIES));
+      // Book order within the month: #month index spread(s)# → goals → events → dailies
+      const dailyPagesStartId = pageNum + monthIndexSpreads + monthGoalPages + monthEventPages;
+      const dailyPagesData = dailyLayouts.map((layout, idx) => ({
+        ...layout,
+        pageNum: dailyPagesStartId + idx,
+      }));
 
-      // Monthly Index (1 or 2 pages)
-      const indexPages = Math.ceil(dailyPagesData.length / MAX_INDEX_ENTRIES);
-      for (let i = 0; i < indexPages; i++) {
+      for (let i = 0; i < monthIndexSpreads; i++) {
         const startIdx = i * MAX_INDEX_ENTRIES;
         const endIdx = Math.min((i + 1) * MAX_INDEX_ENTRIES, dailyPagesData.length);
 
@@ -305,10 +310,10 @@ export function BulletJournal() {
           type: 'monthlyIndex',
           title: i === 0 ? `${MONTHS[month]} - Index` : `${MONTHS[month]} - Index (cont.)`,
           month,
-          dailyPageRefs: dailyPagesData.slice(startIdx, endIdx).map(dp => ({
+          dailyPageRefs: dailyPagesData.slice(startIdx, endIdx).map((dp) => ({
             title: dp.title,
-            pageNum: dp.pageNum
-          }))
+            pageNum: dp.pageNum,
+          })),
         });
       }
 
@@ -677,36 +682,60 @@ export function BulletJournal() {
       return updated;
     });
 
-    // If important, add to monthly and yearly goals (with same ID)
+    // If important, mirror to monthly/yearly goals (tasks) or events — same ID
     if (found.bullet.important) {
       const targetMonth = parseInt(dateStr.split('-')[1]) - 1;
 
-      setMonthlyGoals(prev => {
-        const exists = prev[targetMonth]?.some(g => g.id === selectedBulletId);
-        if (exists) return prev;
+      if (found.bullet.type === 'event') {
+        setMonthlyEvents(prev => {
+          const exists = prev[targetMonth]?.some(ev => ev.id === selectedBulletId);
+          if (exists) return prev;
+          return {
+            ...prev,
+            [targetMonth]: [...(prev[targetMonth] || []), {
+              id: selectedBulletId,
+              text: found.bullet.text,
+            }],
+          };
+        });
 
-        return {
-          ...prev,
-          [targetMonth]: [...(prev[targetMonth] || []), {
+        setYearlyEvents(prev => {
+          const exists = prev.some(e => e.id === selectedBulletId);
+          if (exists) return prev;
+          return [...prev, {
+            id: selectedBulletId,
+            text: found.bullet.text,
+            month: targetMonth,
+          }];
+        });
+      } else {
+        setMonthlyGoals(prev => {
+          const exists = prev[targetMonth]?.some(g => g.id === selectedBulletId);
+          if (exists) return prev;
+
+          return {
+            ...prev,
+            [targetMonth]: [...(prev[targetMonth] || []), {
+              id: selectedBulletId,
+              text: found.bullet.text,
+              completed: false,
+              category: 'tasks' as const
+            }]
+          };
+        });
+
+        setYearlyGoals(prev => {
+          const exists = prev.some(g => g.id === selectedBulletId);
+          if (exists) return prev;
+
+          return [...prev, {
             id: selectedBulletId,
             text: found.bullet.text,
             completed: false,
             category: 'tasks' as const
-          }]
-        };
-      });
-
-      setYearlyGoals(prev => {
-        const exists = prev.some(g => g.id === selectedBulletId);
-        if (exists) return prev;
-
-        return [...prev, {
-          id: selectedBulletId,
-          text: found.bullet.text,
-          completed: false,
-          category: 'tasks' as const
-        }];
-      });
+          }];
+        });
+      }
     }
 
     setShowScheduleModal(false);
@@ -731,45 +760,70 @@ export function BulletJournal() {
     });
 
     if (newImportantState) {
-      // Mark as important - add to monthly/yearly IF NOT EXISTS
       const month = parseInt(found.date.split('-')[1]) - 1;
+      const isEvent = found.bullet.type === 'event';
 
-      setMonthlyGoals(prev => {
-        const exists = prev[month]?.some(g => g.id === id);
-        if (exists) return prev;
+      if (isEvent) {
+        setMonthlyEvents(prev => {
+          const exists = prev[month]?.some(ev => ev.id === id);
+          if (exists) return prev;
+          return {
+            ...prev,
+            [month]: [...(prev[month] || []), { id, text: found.bullet.text }],
+          };
+        });
 
-        return {
-          ...prev,
-          [month]: [...(prev[month] || []), {
+        setYearlyEvents(prev => {
+          const exists = prev.some(e => e.id === id);
+          if (exists) return prev;
+          return [...prev, { id, text: found.bullet.text, month }];
+        });
+      } else {
+        setMonthlyGoals(prev => {
+          const exists = prev[month]?.some(g => g.id === id);
+          if (exists) return prev;
+
+          return {
+            ...prev,
+            [month]: [...(prev[month] || []), {
+              id,
+              text: found.bullet.text,
+              completed: found.bullet.status === 'completed',
+              category: 'tasks' as const
+            }]
+          };
+        });
+
+        setYearlyGoals(prev => {
+          const exists = prev.some(g => g.id === id);
+          if (exists) return prev;
+
+          return [...prev, {
             id,
             text: found.bullet.text,
             completed: found.bullet.status === 'completed',
             category: 'tasks' as const
-          }]
-        };
-      });
-
-      setYearlyGoals(prev => {
-        const exists = prev.some(g => g.id === id);
-        if (exists) return prev;
-
-        return [...prev, {
-          id,
-          text: found.bullet.text,
-          completed: found.bullet.status === 'completed',
-          category: 'tasks' as const
-        }];
-      });
+          }];
+        });
+      }
     } else {
-      // Unmark - remove from monthly/yearly
       const month = parseInt(found.date.split('-')[1]) - 1;
+      const isEvent = found.bullet.type === 'event';
 
-      setMonthlyGoals(prev => ({
-        ...prev,
-        [month]: (prev[month] || []).filter(g => g.id !== id)
-      }));
+      if (isEvent) {
+        setMonthlyEvents(prev => ({
+          ...prev,
+          [month]: (prev[month] || []).filter(e => e.id !== id)
+        }));
+        setYearlyEvents(prev => prev.filter(e => e.id !== id));
+      } else {
+        setMonthlyGoals(prev => ({
+          ...prev,
+          [month]: (prev[month] || []).filter(g => g.id !== id)
+        }));
 
-      setYearlyGoals(prev => prev.filter(g => g.id !== id));
+        setYearlyGoals(prev => prev.filter(g => g.id !== id));
+      }
     }
   };
 
@@ -1205,7 +1259,7 @@ export function BulletJournal() {
             </div>
             <div className="flex gap-3">
               <kbd className="px-3 py-1 bg-gray-200 rounded text-sm">Shift + A</kbd>
-              <span>Mark Important</span>
+              <span>Mark important — tasks/notes sync to monthly & yearly goals; events sync to monthly & yearly events</span>
             </div>
             <div className="flex gap-3">
               <kbd className="px-3 py-1 bg-gray-200 rounded text-sm">Shift + R</kbd>
