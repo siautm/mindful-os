@@ -1144,22 +1144,33 @@ export function BulletJournal() {
         const items = bullets
           .map((b) => {
             const icon = getBulletIcon(b.type, b.status);
-            return `<li><span class="icon">${icon}</span> ${escapeHtml(b.text)}</li>`;
+            const noteRows = (b.notes || [])
+              .map((n) => `<li class="subnote"><span class="icon">−</span> ${escapeHtml(n)}</li>`)
+              .join('');
+            return `
+              <li>
+                <span class="icon">${icon}</span>
+                <span class="bullet-text ${b.status === 'completed' ? 'done' : ''} ${b.status === 'cancelled' ? 'cancelled' : ''}">
+                  ${escapeHtml(b.text)}
+                </span>
+                ${noteRows ? `<ul class="subnotes">${noteRows}</ul>` : ''}
+              </li>
+            `;
           })
           .join('');
         return `
           <section class="day">
             <h3>${escapeHtml(format(new Date(date), 'MMM d, yyyy'))}</h3>
-            ${items ? `<ul>${items}</ul>` : '<p class="empty">No entries</p>'}
+            ${items ? `<ul class="bullets">${items}</ul>` : '<p class="empty">No entries</p>'}
           </section>
         `;
       })
       .join('');
 
     const goalRows = monthGoals
-      .map((g) => `<li>${g.completed ? '✓' : '○'} ${escapeHtml(g.text)}</li>`)
+      .map((g) => `<li><span class="icon">${g.completed ? '✕' : '○'}</span> ${escapeHtml(g.text)}</li>`)
       .join('');
-    const eventRows = monthEvents.map((e) => `<li>○ ${escapeHtml(e.text)}</li>`).join('');
+    const eventRows = monthEvents.map((e) => `<li><span class="icon">○</span> ${escapeHtml(e.text)}</li>`).join('');
 
     const html = `
       <!doctype html>
@@ -1168,37 +1179,76 @@ export function BulletJournal() {
         <meta charset="utf-8" />
         <title>Bujo ${year}-${String(month).padStart(2, '0')}</title>
         <style>
-          @page { size: A4; margin: 16mm; }
-          body { font-family: Georgia, "Times New Roman", serif; color: #222; }
-          h1 { margin: 0 0 6px; font-size: 28px; }
-          h2 { margin: 20px 0 8px; font-size: 20px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
-          h3 { margin: 12px 0 6px; font-size: 16px; }
-          ul { margin: 0; padding-left: 20px; }
-          li { margin: 4px 0; line-height: 1.45; }
-          .meta { color: #666; margin-bottom: 10px; }
-          .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-          .day { break-inside: avoid; margin-bottom: 10px; padding: 8px; border: 1px solid #eee; border-radius: 8px; }
+          @page { size: A4; margin: 10mm; }
+          html, body { margin: 0; padding: 0; }
+          body {
+            font-family: Georgia, "Times New Roman", serif;
+            color: #1f2937;
+            background: #7a3e17;
+          }
+          .spread {
+            border: 18px solid #7a3e17;
+            border-radius: 12px;
+            min-height: calc(100vh - 20mm);
+            background: #f6eddc;
+            box-shadow: inset 0 0 0 1px #caa77a;
+            padding: 18px;
+          }
+          .pages {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            border: 1px solid #caa77a;
+            background: #f7f1e6;
+          }
+          .page {
+            padding: 18px 20px;
+            min-height: 240mm;
+            background-image: radial-gradient(circle, #d7d0c4 1px, transparent 1px);
+            background-size: 14px 14px;
+            break-inside: avoid;
+          }
+          .page.left {
+            border-right: 1px solid #c8baa6;
+          }
+          h1 { margin: 0; font-size: 30px; }
+          h2 {
+            margin: 16px 0 8px;
+            font-size: 19px;
+            border-bottom: 1px solid #7f7f7f;
+            padding-bottom: 4px;
+          }
+          h3 { margin: 0 0 6px; font-size: 17px; }
+          .meta { margin: 4px 0 14px; color: #6b7280; font-size: 13px; }
+          .day { margin-bottom: 10px; break-inside: avoid; page-break-inside: avoid; }
+          .bullets, .list { margin: 0; padding-left: 18px; }
+          .bullets > li, .list > li { margin: 4px 0; line-height: 1.5; }
           .icon { display: inline-block; width: 18px; font-weight: 700; }
-          .empty { color: #888; font-style: italic; margin: 0; }
+          .subnotes { margin: 3px 0 2px 20px; padding-left: 10px; }
+          .subnote { color: #4b5563; font-size: 13px; }
+          .bullet-text.done { text-decoration: line-through; color: #6b7280; }
+          .bullet-text.cancelled { text-decoration: line-through; color: #9ca3af; }
+          .empty { color: #9ca3af; font-style: italic; margin: 0; }
         </style>
       </head>
       <body>
-        <h1>Bullet Journal</h1>
-        <p class="meta">${escapeHtml(MONTHS[monthIndex])} ${year}</p>
-
-        <div class="two-col">
-          <section>
-            <h2>Monthly Goals</h2>
-            ${goalRows ? `<ul>${goalRows}</ul>` : '<p class="empty">No goals</p>'}
-          </section>
-          <section>
-            <h2>Monthly Events</h2>
-            ${eventRows ? `<ul>${eventRows}</ul>` : '<p class="empty">No events</p>'}
-          </section>
+        <div class="spread">
+          <div class="pages">
+            <section class="page left">
+              <h1>${escapeHtml(MONTHS[monthIndex])}</h1>
+              <p class="meta">${year} · Bullet Journal Export</p>
+              <h2>Monthly Goals</h2>
+              ${goalRows ? `<ul class="list">${goalRows}</ul>` : '<p class="empty">No goals</p>'}
+              <h2>Monthly Events</h2>
+              ${eventRows ? `<ul class="list">${eventRows}</ul>` : '<p class="empty">No events</p>'}
+            </section>
+            <section class="page">
+              <h1>Daily Log</h1>
+              <p class="meta">${escapeHtml(MONTHS[monthIndex])} ${year}</p>
+              ${dailySections || '<p class="empty">No daily entries in this month</p>'}
+            </section>
+          </div>
         </div>
-
-        <h2>Daily Log</h2>
-        ${dailySections || '<p class="empty">No daily entries in this month</p>'}
       </body>
       </html>
     `;
