@@ -1138,39 +1138,59 @@ export function BulletJournal() {
       .filter((d) => d.startsWith(monthPrefix))
       .sort((a, b) => a.localeCompare(b));
 
-    const dailySections = monthDailyDates
-      .map((date) => {
-        const bullets = dailyBullets[date] || [];
-        const items = bullets
-          .map((b) => {
-            const icon = getBulletIcon(b.type, b.status);
-            const noteRows = (b.notes || [])
-              .map((n) => `<li class="subnote"><span class="icon">−</span> ${escapeHtml(n)}</li>`)
-              .join('');
-            return `
-              <li>
-                <span class="icon">${icon}</span>
-                <span class="bullet-text ${b.status === 'completed' ? 'done' : ''} ${b.status === 'cancelled' ? 'cancelled' : ''}">
-                  ${escapeHtml(b.text)}
-                </span>
-                ${noteRows ? `<ul class="subnotes">${noteRows}</ul>` : ''}
-              </li>
-            `;
-          })
-          .join('');
-        return `
-          <section class="day">
-            <h3>${escapeHtml(format(new Date(date), 'MMM d, yyyy'))}</h3>
-            ${items ? `<ul class="bullets">${items}</ul>` : '<p class="empty">No entries</p>'}
-          </section>
-        `;
-      })
-      .join('');
+    const renderDaySection = (date: string) => {
+      const bullets = dailyBullets[date] || [];
+      const items = bullets
+        .map((b) => {
+          const icon = getBulletIcon(b.type, b.status);
+          const noteRows = (b.notes || [])
+            .map((n) => `<li class="subnote"><span class="icon">−</span> ${escapeHtml(n)}</li>`)
+            .join('');
+          return `
+            <li>
+              <span class="icon">${icon}</span>
+              <span class="bullet-text ${b.status === 'completed' ? 'done' : ''} ${b.status === 'cancelled' ? 'cancelled' : ''}">
+                ${escapeHtml(b.text)}
+              </span>
+              ${noteRows ? `<ul class="subnotes">${noteRows}</ul>` : ''}
+            </li>
+          `;
+        })
+        .join('');
+      return `
+        <section class="day">
+          <h3>${escapeHtml(format(new Date(date), 'MMM d, yyyy'))}</h3>
+          ${items ? `<ul class="bullets">${items}</ul>` : '<p class="empty">No entries</p>'}
+        </section>
+      `;
+    };
+
+    const dailyChunks: string[][] = [];
+    for (let i = 0; i < monthDailyDates.length; i += 6) {
+      dailyChunks.push(monthDailyDates.slice(i, i + 6));
+    }
 
     const goalRows = monthGoals
       .map((g) => `<li><span class="icon">${g.completed ? '✕' : '○'}</span> ${escapeHtml(g.text)}</li>`)
       .join('');
     const eventRows = monthEvents.map((e) => `<li><span class="icon">○</span> ${escapeHtml(e.text)}</li>`).join('');
+    const dailyPagesHtml = dailyChunks
+      .map(
+        (chunk, idx) => `
+          <section class="sheet ${idx === 0 ? '' : 'page-break'}">
+            <div class="paper">
+              <div class="paper-inner">
+                <header class="sheet-header">
+                  <h1>Daily Log</h1>
+                  <p class="meta">${escapeHtml(MONTHS[monthIndex])} ${year} · Page ${idx + 2}</p>
+                </header>
+                ${chunk.map((d) => renderDaySection(d)).join('')}
+              </div>
+            </div>
+          </section>
+        `
+      )
+      .join('');
 
     const html = `
       <!doctype html>
@@ -1184,33 +1204,54 @@ export function BulletJournal() {
           body {
             font-family: Georgia, "Times New Roman", serif;
             color: #1f2937;
-            background: #7a3e17;
+            background: #8a4316;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
-          .spread {
-            border: 18px solid #7a3e17;
-            border-radius: 12px;
-            min-height: calc(100vh - 20mm);
-            background: #f6eddc;
-            box-shadow: inset 0 0 0 1px #caa77a;
-            padding: 18px;
+          .sheet {
+            border: 16px solid #8a4316;
+            border-radius: 10px;
+            background: #f0dfc4;
+            box-shadow: inset 0 0 0 1px #c9a87c;
+            padding: 14px;
+            min-height: 270mm;
+            box-sizing: border-box;
           }
-          .pages {
+          .page-break {
+            page-break-before: always;
+            break-before: page;
+            margin-top: 8px;
+          }
+          .paper {
+            min-height: 100%;
+            border: 1px solid #ccb892;
+            background: #f7f0e4;
+            padding: 12px;
+            box-sizing: border-box;
+          }
+          .paper-inner {
+            min-height: 252mm;
+            border: 1px solid #d5c7ad;
+            background:
+              radial-gradient(circle, rgba(120, 107, 86, 0.18) 0.8px, transparent 0.9px),
+              #f8f3e8;
+            background-size: 12px 12px;
+            padding: 16px 18px;
+            box-sizing: border-box;
+          }
+          .first-spread {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 0;
-            border: 1px solid #caa77a;
-            background: #f7f1e6;
           }
-          .page {
-            padding: 18px 20px;
-            min-height: 240mm;
-            background-image: radial-gradient(circle, #d7d0c4 1px, transparent 1px);
-            background-size: 14px 14px;
-            break-inside: avoid;
-          }
-          .page.left {
+          .first-left {
             border-right: 1px solid #c8baa6;
+            padding-right: 16px;
           }
+          .first-right {
+            padding-left: 16px;
+          }
+          .sheet-header { margin-bottom: 8px; }
           h1 { margin: 0; font-size: 30px; }
           h2 {
             margin: 16px 0 8px;
@@ -1229,26 +1270,44 @@ export function BulletJournal() {
           .bullet-text.done { text-decoration: line-through; color: #6b7280; }
           .bullet-text.cancelled { text-decoration: line-through; color: #9ca3af; }
           .empty { color: #9ca3af; font-style: italic; margin: 0; }
+          .hint {
+            font-size: 11px;
+            color: #6b7280;
+            margin-top: 18px;
+          }
         </style>
       </head>
       <body>
-        <div class="spread">
-          <div class="pages">
-            <section class="page left">
-              <h1>${escapeHtml(MONTHS[monthIndex])}</h1>
-              <p class="meta">${year} · Bullet Journal Export</p>
-              <h2>Monthly Goals</h2>
-              ${goalRows ? `<ul class="list">${goalRows}</ul>` : '<p class="empty">No goals</p>'}
-              <h2>Monthly Events</h2>
-              ${eventRows ? `<ul class="list">${eventRows}</ul>` : '<p class="empty">No events</p>'}
-            </section>
-            <section class="page">
-              <h1>Daily Log</h1>
-              <p class="meta">${escapeHtml(MONTHS[monthIndex])} ${year}</p>
-              ${dailySections || '<p class="empty">No daily entries in this month</p>'}
+        <section class="sheet">
+          <div class="paper">
+            <section class="paper-inner first-spread">
+              <div class="first-left">
+                <h1>${escapeHtml(MONTHS[monthIndex])}</h1>
+                <p class="meta">${year} · Bullet Journal Export · Page 1</p>
+                <h2>Monthly Goals</h2>
+                ${goalRows ? `<ul class="list">${goalRows}</ul>` : '<p class="empty">No goals</p>'}
+                <h2>Monthly Events</h2>
+                ${eventRows ? `<ul class="list">${eventRows}</ul>` : '<p class="empty">No events</p>'}
+              </div>
+              <div class="first-right">
+                <h1>Overview</h1>
+                <p class="meta">${escapeHtml(MONTHS[monthIndex])} ${year}</p>
+                <p class="hint">Next pages contain Daily Log entries with subnotes.</p>
+              </div>
             </section>
           </div>
-        </div>
+        </section>
+        ${dailyPagesHtml || `
+          <section class="sheet page-break">
+            <div class="paper">
+              <div class="paper-inner">
+                <h1>Daily Log</h1>
+                <p class="meta">${escapeHtml(MONTHS[monthIndex])} ${year} · Page 2</p>
+                <p class="empty">No daily entries in this month</p>
+              </div>
+            </div>
+          </section>
+        `}
       </body>
       </html>
     `;
