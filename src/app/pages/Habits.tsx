@@ -1,4 +1,4 @@
-import { useState, useEffect, useReducer } from "react";
+import { useState, useEffect, useReducer, useCallback } from "react";
 import { Link } from "react-router";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -23,6 +23,8 @@ import {
   setHabitCompletedOnDate,
   type Habit,
 } from "../lib/storage";
+import { useStorageHydration } from "../lib/useStorageHydration";
+import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
 
 function toYmdLocal(d: Date): string {
@@ -30,8 +32,11 @@ function toYmdLocal(d: Date): string {
   x.setHours(0, 0, 0, 0);
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
 }
+const API_BASE = import.meta.env.VITE_API_BASE_URL?.trim() || "";
+const HABITS_ENDPOINT = `${API_BASE}/api/habits`;
 
 export function Habits() {
+  const { session } = useAuth();
   const [habits, setHabits] = useState<Habit[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
@@ -39,13 +44,58 @@ export function Habits() {
   const [, bumpCompletionUi] = useReducer((n: number) => n + 1, 0);
   const todayYmd = toYmdLocal(new Date());
 
-  useEffect(() => {
-    setHabits(getHabits());
-  }, []);
+  const refreshHabits = useCallback(async () => {
+    const token = session?.access_token;
+    if (!token) {
+      setHabits(getHabits());
+      return;
+    }
+    try {
+      const res = await fetch(HABITS_ENDPOINT, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as {
+        habits?: Habit[];
+        habitDays?: Array<{ habitId: string; date: string }>;
+      };
+      const nextHabits = json.habits ?? [];
+      const nextDays = json.habitDays ?? [];
+      setHabits(nextHabits);
+      saveHabits(nextHabits);
+      saveHabitDayEntries(nextDays);
+    } catch {
+      setHabits(getHabits());
+    }
+  }, [session?.access_token]);
+
+  useStorageHydration(refreshHabits);
+
+  async function syncHabitsSnapshot(nextHabits: Habit[]) {
+    const token = session?.access_token;
+    if (!token) return;
+    try {
+      const res = await fetch(HABITS_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          habits: nextHabits,
+          habitDays: getHabitDayEntries(),
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      toast.error("Saved locally, but cloud sync failed.");
+    }
+  }
 
   function persistHabits(next: Habit[]) {
     setHabits(next);
     saveHabits(next);
+    void syncHabitsSnapshot(next);
   }
 
   function handleCreate() {
@@ -69,12 +119,14 @@ export function Habits() {
   function handleDelete(id: string) {
     persistHabits(habits.filter((h) => h.id !== id));
     saveHabitDayEntries(getHabitDayEntries().filter((e) => e.habitId !== id));
+    void syncHabitsSnapshot(habits.filter((h) => h.id !== id));
     toast.success("Habit removed");
   }
 
   function toggleToday(habitId: string, done: boolean) {
     setHabitCompletedOnDate(habitId, todayYmd, done);
     bumpCompletionUi();
+    void syncHabitsSnapshot(habits);
   }
 
   return (

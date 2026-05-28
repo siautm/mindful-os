@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -42,6 +42,7 @@ import {
   WeightEntry,
   type StudyPlan,
 } from "../lib/storage";
+import { useStorageHydration } from "../lib/useStorageHydration";
 
 type TimePeriod = "daily" | "weekly" | "monthly" | "yearly" | "total";
 
@@ -165,15 +166,13 @@ export function Analytics() {
   const [financeEntries, setFinanceEntries] = useState<FinanceEntry[]>([]);
   const [studyPlans, setStudyPlans] = useState<StudyPlan[]>([]);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  function loadData() {
+  const loadData = useCallback(() => {
     setFocusSessions(getFocusSessions());
     setFinanceEntries(getFinanceEntries());
     setStudyPlans(getStudyPlans());
-  }
+  }, []);
+
+  useStorageHydration(loadData);
 
   // Helper function to get date range based on period
   function getDateRange(period: TimePeriod): { start: Date; end: Date } {

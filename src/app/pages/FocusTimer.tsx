@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Label } from "../components/ui/label";
@@ -8,8 +8,6 @@ import { Input } from "../components/ui/input";
 import { Slider } from "../components/ui/slider";
 import { Play, Pause, RotateCcw, Coffee, Target, Plus, Trash2, Edit2, Volume2, VolumeX, Maximize2, Square } from "lucide-react";
 import {
-  getTasks,
-  getTimetable,
   getFocusSessions,
   saveFocusSessions,
   FocusSession,
@@ -17,10 +15,6 @@ import {
   getFocusPresets,
   saveFocusPresets,
   FocusPreset,
-  Task,
-  TimetableEntry,
-  resolveTaskCourseLabel,
-  formatTaskDueDateTime,
   getFocusWallpaperChoice,
   saveFocusWallpaperChoice,
   getStudyPlans,
@@ -28,6 +22,8 @@ import {
   getFocusNoiseTypeChoice,
   saveFocusNoiseTypeChoice,
 } from "../lib/storage";
+import { useStorageHydration } from "../lib/useStorageHydration";
+import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
 import {
   FOCUS_LIVE_WALLPAPER_OPTIONS,
@@ -38,10 +34,13 @@ import { FOLDER_MUSIC_TRACKS } from "../lib/localMusicCatalog";
 import { getWhiteNoisePlayer, NoiseType, noiseCategories, parseStoredNoiseType } from "../lib/whiteNoise";
 import { FocusImmersiveOverlay } from "../components/FocusImmersiveOverlay";
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL?.trim() || "";
+const FOCUS_PRESETS_ENDPOINT = `${API_BASE}/api/focus-presets`;
+const FOCUS_SESSIONS_ENDPOINT = `${API_BASE}/api/focus-sessions`;
+const STUDY_PLANS_ENDPOINT = `${API_BASE}/api/study-plans`;
+
 export function FocusTimer() {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [timetableForTasks, setTimetableForTasks] = useState<TimetableEntry[]>([]);
-  const [selectedTask, setSelectedTask] = useState<string>("none");
+  const { session } = useAuth();
   const [studyPlans, setStudyPlans] = useState<StudyPlan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string>("none");
   const [selectedPartId, setSelectedPartId] = useState<string>("none");
@@ -74,10 +73,115 @@ export function FocusTimer() {
 
   const intervalRef = useRef<number>();
 
+  async function syncPresetsSnapshot(nextPresets: FocusPreset[]) {
+    const token = session?.access_token;
+    if (!token) return;
+    try {
+      const res = await fetch(FOCUS_PRESETS_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ presets: nextPresets }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      toast.error("Saved locally, but cloud sync failed.");
+    }
+  }
+
+  async function postSessionToApi(sessionItem: FocusSession) {
+    const token = session?.access_token;
+    if (!token) return;
+    try {
+      const res = await fetch(FOCUS_SESSIONS_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          taskTitle: sessionItem.taskTitle,
+          duration: sessionItem.duration,
+          completed: sessionItem.completed,
+          date: sessionItem.date,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      toast.error("Session saved locally, but cloud sync failed.");
+    }
+  }
+
+  const loadData = useCallback(async () => {
+    const token = session?.access_token;
+    if (!token) {
+      setStudyPlans(getStudyPlans());
+      const loadedPresets = getFocusPresets();
+      setPresets(loadedPresets);
+      if (loadedPresets.length > 0 && !selectedPreset) {
+        setSelectedPreset(loadedPresets[0].id);
+        setDuration(loadedPresets[0].duration);
+        setTimeLeft(loadedPresets[0].duration * 60);
+      }
+      void loadTodayStats();
+      return;
+    }
+    try {
+      const [plansRes, presetsRes] = await Promise.all([
+        fetch(STUDY_PLANS_ENDPOINT, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(FOCUS_PRESETS_ENDPOINT, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      if (plansRes.ok) {
+        const plansJson = (await plansRes.json()) as { items?: StudyPlan[] };
+        const nextPlans = plansJson.items ?? [];
+        setStudyPlans(nextPlans);
+        saveStudyPlans(nextPlans);
+      } else {
+        setStudyPlans(getStudyPlans());
+      }
+
+      let loadedPresets = getFocusPresets();
+      if (presetsRes.ok) {
+        const presetsJson = (await presetsRes.json()) as { items?: Array<Record<string, unknown>> };
+        loadedPresets = (presetsJson.items ?? []).map((row) => ({
+          id: String(row.id ?? ""),
+          name: String(row.name ?? "Preset"),
+          duration: Number(row.duration ?? 25),
+        }));
+        saveFocusPresets(loadedPresets);
+      }
+
+      setPresets(loadedPresets);
+      if (loadedPresets.length > 0 && !selectedPreset) {
+        setSelectedPreset(loadedPresets[0].id);
+        setDuration(loadedPresets[0].duration);
+        setTimeLeft(loadedPresets[0].duration * 60);
+      }
+      void loadTodayStats();
+    } catch {
+      setStudyPlans(getStudyPlans());
+      const loadedPresets = getFocusPresets();
+      setPresets(loadedPresets);
+      if (loadedPresets.length > 0 && !selectedPreset) {
+        setSelectedPreset(loadedPresets[0].id);
+        setDuration(loadedPresets[0].duration);
+        setTimeLeft(loadedPresets[0].duration * 60);
+      }
+      void loadTodayStats();
+    }
+  }, [selectedPreset, session?.access_token]);
+
+  useStorageHydration(loadData);
+
   useEffect(() => {
-    loadData();
     return () => {
-      // Cleanup: stop noise when component unmounts
       noisePlayerRef.current.stop();
     };
   }, []);
@@ -129,34 +233,51 @@ export function FocusTimer() {
     if (!isRunning) setImmersiveOpen(false);
   }, [isRunning]);
 
-  function loadData() {
-    const loadedTasks = getTasks().filter(t => !t.completed);
-    setTasks(loadedTasks);
-    setTimetableForTasks(getTimetable());
-    setStudyPlans(getStudyPlans());
-    
-    const loadedPresets = getFocusPresets();
-    setPresets(loadedPresets);
-    if (loadedPresets.length > 0 && !selectedPreset) {
-      setSelectedPreset(loadedPresets[0].id);
-      setDuration(loadedPresets[0].duration);
-      setTimeLeft(loadedPresets[0].duration * 60);
+  async function loadTodayStats() {
+    const token = session?.access_token;
+    if (!token) {
+      const sessions = getFocusSessions();
+      const today = new Date().toDateString();
+      const todaySessions = sessions.filter(
+        s => s.completed && new Date(s.date).toDateString() === today
+      );
+      setTodayStats({
+        sessions: todaySessions.length,
+        totalMinutes: Math.round(getTodayFocusTime()),
+      });
+      return;
     }
-    
-    loadTodayStats();
-  }
-
-  function loadTodayStats() {
-    const sessions = getFocusSessions();
-    const today = new Date().toDateString();
-    const todaySessions = sessions.filter(
-      s => s.completed && new Date(s.date).toDateString() === today
-    );
-
-    setTodayStats({
-      sessions: todaySessions.length,
-      totalMinutes: Math.round(getTodayFocusTime()),
-    });
+    try {
+      const res = await fetch(`${FOCUS_SESSIONS_ENDPOINT}?limit=500`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as { items?: Array<Record<string, unknown>> };
+      const sessions = (json.items ?? []).map((row) => ({
+        id: String(row.id ?? ""),
+        duration: Number(row.duration ?? 0),
+        completed: Boolean(row.completed),
+        date: String(row.date ?? ""),
+      }));
+      const today = new Date().toDateString();
+      const todaySessions = sessions.filter(
+        (s) => s.completed && new Date(s.date).toDateString() === today
+      );
+      setTodayStats({
+        sessions: todaySessions.length,
+        totalMinutes: Math.round(todaySessions.reduce((sum, s) => sum + s.duration, 0)),
+      });
+    } catch {
+      const sessions = getFocusSessions();
+      const today = new Date().toDateString();
+      const todaySessions = sessions.filter(
+        s => s.completed && new Date(s.date).toDateString() === today
+      );
+      setTodayStats({
+        sessions: todaySessions.length,
+        totalMinutes: Math.round(getTodayFocusTime()),
+      });
+    }
   }
 
   function handlePresetChange(presetId: string) {
@@ -193,6 +314,7 @@ export function FocusTimer() {
     const updated = [...presets, newPreset];
     setPresets(updated);
     saveFocusPresets(updated);
+    void syncPresetsSnapshot(updated);
     toast.success("Preset added!");
   }
 
@@ -219,6 +341,7 @@ export function FocusTimer() {
     );
     setPresets(updated);
     saveFocusPresets(updated);
+    void syncPresetsSnapshot(updated);
     setEditingPreset(null);
     
     // Update current session if this preset is selected
@@ -238,6 +361,7 @@ export function FocusTimer() {
     const updated = presets.filter(p => p.id !== presetId);
     setPresets(updated);
     saveFocusPresets(updated);
+    void syncPresetsSnapshot(updated);
     if (selectedPreset === presetId) {
       setSelectedPreset(updated[0].id);
       setDuration(updated[0].duration);
@@ -270,17 +394,13 @@ export function FocusTimer() {
 
     setIsRunning(false);
 
-    const taskTitle = selectedTask !== "none"
-      ? tasks.find(t => t.id === selectedTask)?.title
-      : undefined;
     const plan = studyPlans.find((p) => p.id === selectedPlanId);
     const part = plan?.parts.find((x) => x.id === selectedPartId);
 
     const elapsedMinutes = Math.max(1, Math.round(elapsedSeconds / 60));
     const session: FocusSession = {
       id: Date.now().toString(),
-      taskId: selectedTask !== "none" ? selectedTask : undefined,
-      taskTitle,
+      taskTitle: part?.title ?? plan?.name,
       duration: elapsedMinutes,
       completed: false,
       date: new Date().toISOString(),
@@ -292,7 +412,8 @@ export function FocusTimer() {
 
     const sessions = getFocusSessions();
     saveFocusSessions([...sessions, session]);
-    loadTodayStats();
+    void postSessionToApi(session);
+    void loadTodayStats();
     setTimeLeft(duration * 60);
     toast.info("Session stopped and saved as incomplete.");
   }
@@ -300,17 +421,12 @@ export function FocusTimer() {
   function handleComplete() {
     setIsRunning(false);
     
-    const taskTitle = selectedTask !== "none" 
-      ? tasks.find(t => t.id === selectedTask)?.title 
-      : undefined;
-
     const plan = studyPlans.find((p) => p.id === selectedPlanId);
     const part = plan?.parts.find((x) => x.id === selectedPartId);
-    
+
     const session: FocusSession = {
       id: Date.now().toString(),
-      taskId: selectedTask !== "none" ? selectedTask : undefined,
-      taskTitle: taskTitle,
+      taskTitle: part?.title ?? plan?.name,
       duration: duration,
       completed: true,
       date: new Date().toISOString(),
@@ -322,8 +438,9 @@ export function FocusTimer() {
 
     const sessions = getFocusSessions();
     saveFocusSessions([...sessions, session]);
-    
-    loadTodayStats();
+
+    void postSessionToApi(session);
+    void loadTodayStats();
     toast.success("Focus session completed! 🎉");
     
     const audio = new Audio("data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYHGGS57OihUBELTKXh8bllHAU2jdXwy3cqBSh+zPDckj4JFF2y6OyrWBQLRp7f8r9vIAUrgsvy2Ik2Bxhju+zooVARC0yl4fG5ZRwFNo3V8Mt3KgUofszy3JI+CRRdsujsq1gVC0ae3/K/byAFK4LL8tmJNgcYY7vs6KFQEQtMpeHxuWUcBTaN1fDLdyoFKH7M8tySPgkUXbLo7KtYFQtGnt/yv28gBSuCy/LZiTYHGGO77OihUBELTKXh8bllHAU2jdXwy3cqBSh+zPLckj4JFF2y6OyrWBULRp7f8r9vIAUrgsvy2Yk2Bxhju+zooVARC0yl4fG5ZRwFNo3V8Mt3KgUofszy3JI+CRRdsujsq1gVC0ae3/K/byAFK4LL8tmJNgcYY7vs6KFQEQtMpeHxuWUcBTaN1fDLdyoFKH7M8tySPgkUXbLo7KtYFQtGnt/yv28gBSuCy/LZiTYHGGO77OihUBELTKXh8bllHAU2jdXwy3cqBSh+zPLckj4JFF2y6OyrWBULRp7f8r9vIAUrgsvy2Yk2Bxhju+zooVARC0yl4fG5ZRwFNo3V8Mt3KgUofszy3JI+CRRdsujsq1gVC0ae3/K/byAFK4LL8tmJNgcYY7vs6KFQEQtMpeHxuWUcBTaN1fDLdyoFKH7M8tySPgkUXbLo7KtYFQtGnt/yv28gBSuCy/LZiTYHGGO77OihUBELTKXh8bllHAU2jdXwy3cqBSh+zPLckj4JFF2y6OyrWBULRp7f8r9vIAUrgsvy2Yk2Bxhju+zooVARC0yl4fG5ZRwFNo3V8Mt3KgUofszy3JI+CRRdsujsq1gVC0ae3/K/byAFK4LL8tmJNgcYY7vs6KFQEQtMpeHxuWUcBTaN1fDLdyoFKH7M8tySPgkUXbLo7KtYFQtGnt/yv28gBSuCy/LZiTYHGGO77OihUBELTKXh8bllHAU2jdXwy3cqBSh+zPLckj4JFF2y6OyrWBULRp7f8r9vIAUrgsvy2Yk2Bxhju+zooVARC0yl4fG5ZRwFNo3V8Mt3KgUofszy3JI+CRRdsujsq1gVC0ae3/K/byAFK4LL8tmJNgcYY7vs6KFQEQtMpeHxuWUcBTaN1fDLdyoFKH7M8tySPgkUXbLo7KtYFQtGnt/yv28gBSuCy/LZiTYHGGO77OihUBELTKXh8bllHAU2jdXwy3cqBSh+zPLckj4JFF2y6OyrWBULRp7f8r9vIAUrgsvy2Yk2Bxhju+zooVARC0yl4fG5ZRwFNo3V8Mt3KgUofszy3JI+CRRdsujsq1gVC0ae3/K/byAFK4LL8tmJNgcYY7vs6KFQEQtMpeHxuWUcBTaN1fDLdyoFKH7M8tySPgkUXbLo7KtYFQtGnt/yv28gBSuCy/LZiTYHGGO77OihUBELTKXh8bllHAU2jdXwy3cqBSh+zPLckj4JFF2y6OyrWBULRp7f8r9vIAUrgsvy2Yk2Bxhju+zooVARC0yl4fG5ZRwFNo3V8Mt3KgUofszy3JI+CRRdsujsq1gVC0ae3/K/byAFK4LL8tmJNgcYY7vs6KFQEQtMpeHxuWUcBTaN1fDLdyoFKH7M8tySPgkUXbLo7KtYFQtGnt/yv28gBSuCy/LZiTYHGGO77OihUBELTKXh8bllHAU2jdXwy3cqBSh+zPLckj4JFF2y6OyrWBULRp7f8r9vIAUrgsvy2Yk2Bxhju+zooVARC0yl4fG5ZRwFNo3V8Mt3KgUofszy3JI+CRRdsujsq1gVC0ae3/K/byAFK4LL8tmJNgcYY7vs6KFQEQtMpeHxuWUcBTaN1fDLdyoFKH7M8tySPgkUXbLo7KtYFQtGnt/yv28gBSuCy/LZiTYHGGO77OihUBELTKXh8bllHAU2jdXwy3cqBSh+zPLckj4JFF2y6OyrWBULRp7f8r9vIAUrgsvy2Yk2Bxhju+zooVARC0yl4fG5ZRwFNo3V8Mt3KgUofszy3JI+CRRdsujsq1gVC0ae3/K/byAFK4LL8tmJNgcYY7vs6KFQEQtMpeHxuWUcBTaN1fDLdyoFKH7M8tySPgkUXbLo7KtYFQtGnt/yv28gBSuCy/LZiTYHGGO77OihUBELTKXh8bllHAU2jdXwy3cqBSh+zPLckj4JFF2y6OyrWBULRp7f8r9vIAUrgsvy2Yk2Bxhju+zooVARC0yl4fG5ZRwFNo3V8Mt3KgUofszy3JI+CRRdsujsq1gVC0ae3/K/byAFK4LL8tmJNgcYY7vs6KFQEQtMpeHxuWUcBTaN1fDLdyoFKH7M8tySPgkUXbLo7KtYFQtGnt/yv28gBSuCy/LZiTYHGGO77OihUBELTKXh8bllHAU2jdXwy3cqBSh+zPLckj4JFF2y6OyrWBULRp7f8r9vIAUrgsvy2Yk2Bxhju+zooVARC0yl4fG5ZRwFNo3V8Mt3KgUofszy3JI+CRRdsujsq1gVC0ae3/K/byAFK4LL8tmJNgcYY7vs6KFQEQtMpeHxuWUcBTaN1fDLdyoFKH7M8tySPgkUXbLo7KtYFQtGnt/yv28gBSuCy/LZiTYHGGO77OihUBELTKXh8bllHAU2jdXwy3cqBSh+zPLckj4JFF2y6OyrWBULRp7f8r9vIAUrgsvy2Yk2Bxhju+zooVARC0yl4fG5ZRwFNo3V8Mt3KgUofszy3JI+CRRdsujsq1gVC0ae3/K/byAFK4LL");
@@ -483,32 +600,6 @@ export function FocusTimer() {
 
           {/* Settings */}
           <div className="space-y-4 pt-6 border-t">
-            <div>
-              <Label htmlFor="task">Focus Task</Label>
-              <Select
-                value={selectedTask}
-                onValueChange={setSelectedTask}
-                disabled={isRunning}
-              >
-                <SelectTrigger id="task">
-                  <SelectValue placeholder="Select a task..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No specific task</SelectItem>
-                  {tasks.map((task) => {
-                    const course = resolveTaskCourseLabel(task, timetableForTasks);
-                    const due = formatTaskDueDateTime(task);
-                    const bits = [task.title, course, due].filter(Boolean);
-                    return (
-                      <SelectItem key={task.id} value={task.id}>
-                        {bits.join(" · ")}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-
             <div>
               <Label htmlFor="studyPlan">Study plan (optional)</Label>
               <Select

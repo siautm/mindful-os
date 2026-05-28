@@ -20,28 +20,6 @@ export interface TimetableEntry {
   instructor: string;
 }
 
-export interface Task {
-  id: string;
-  title: string;
-  description: string;
-  urgency: number; // 1-10
-  importance: number; // 1-10
-  priority: number; // calculated
-  dueDate: string;
-  /** Optional due time same calendar day as `dueDate`, 24h `HH:mm` from time input. */
-  dueTime?: string;
-  completed: boolean;
-  /** @deprecated Optional; UI no longer collects this (defaults to 0). */
-  estimatedMinutes?: number;
-  createdAt: string;
-  /** study | game | hobby | other */
-  category?: string;
-  /** Optional link to a Timetable row (representative slot for this course). */
-  linkedTimetableEntryId?: string;
-  /** Denormalized label, e.g. "PSY101 — Intro"; kept if the timetable row is removed. */
-  courseLabel?: string;
-}
-
 export interface FocusSession {
   id: string;
   taskId?: string;
@@ -64,17 +42,6 @@ export interface FinanceEntry {
   date: string;
 }
 
-export interface JournalEntry {
-  id: string;
-  date: string;
-  wins: string[];
-  reflection: string;
-  mood: number; // 1-5
-  pomodoroSessions?: FocusSession[];
-  completedTasks?: Task[];
-  expenses?: FinanceEntry[];
-}
-
 export interface Song {
   id: string;
   title: string;
@@ -88,28 +55,6 @@ export interface Playlist {
   name: string;
   songIds: string[];
   createdAt: string;
-}
-
-export interface IdeaEntry {
-  id: string;
-  date: string;
-  title: string;
-  content: string;
-  tags: string[];
-}
-
-export interface EventEntry {
-  id: string;
-  title: string;
-  description: string;
-  date: string;
-  /** Optional; omit or empty for all-day style events. */
-  startTime?: string;
-  endTime?: string;
-  /** Optional duration in minutes (informational). */
-  durationMinutes?: number;
-  category: string;
-  location?: string;
 }
 
 export interface CheckInEntry {
@@ -150,18 +95,6 @@ export interface ExerciseEntry {
   duration?: number; // optional minutes
   times: number; // how many times
   calories?: number;
-  notes: string;
-}
-
-export interface FoodEntry {
-  id: string;
-  date: string;
-  mealType: string; // breakfast, lunch, dinner, snack
-  foodName: string;
-  calories: number;
-  protein?: number; // grams
-  carbs?: number; // grams
-  fats?: number; // grams
   notes: string;
 }
 
@@ -247,6 +180,37 @@ let lastCloudErrorAt = 0;
 let cloudUserId: string | null = null;
 let cloudToken: string | null = null;
 
+/** Keys removed from the app; stripped from localStorage on sync. */
+const DEPRECATED_STORAGE_KEYS = [
+  "mindful_tasks",
+  "mindful_events",
+  "mindful_ideas",
+  "mindful_journal",
+  "mindful_food",
+] as const;
+
+/** Array-backed app_state keys: merge from local when cloud is empty/missing. */
+const MERGE_FROM_LOCAL_KEYS = [
+  "mindful_timetable",
+  "mindful_finance",
+  "mindful_focus_sessions",
+  "mindful_checkins",
+  "mindful_sleep",
+  "mindful_meditation",
+  "mindful_exercise",
+  "mindful_weight",
+  "mindful_habits",
+  "mindful_habit_days",
+  "mindful_study_plans",
+  "mindful_focus_presets",
+  "mindful_favorite_quotes",
+  "mindful_pdf_books",
+  "mindful_pdf_bookmarks",
+  "mindful_pdf_quotes",
+] as const;
+
+const MERGE_OBJECT_KEYS = ["mindful_bujo_state", "mindful_daily_memo"] as const;
+
 export const STORAGE_HYDRATED_EVENT = "mindful-storage-hydrated";
 
 function dispatchStorageHydrated(): void {
@@ -316,6 +280,83 @@ function normalizeExerciseEntries(raw: unknown): ExerciseEntry[] {
   });
 }
 
+function purgeDeprecatedLocalKeys(): void {
+  if (typeof localStorage === "undefined") return;
+  for (const key of DEPRECATED_STORAGE_KEYS) {
+    localStorage.removeItem(key);
+  }
+}
+
+function isEmptyCloudValue(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === "object") {
+    const o = value as Record<string, unknown>;
+    if (Array.isArray(o.items) && o.items.length === 0 && Object.keys(o).length <= 2) {
+      return true;
+    }
+    if ("dailyBullets" in o || "schemaVersion" in o) {
+      const daily = (o.dailyBullets ?? {}) as Record<string, unknown[]>;
+      const hasDaily = Object.values(daily).some((b) => Array.isArray(b) && b.length > 0);
+      const yearlyGoals = o.yearlyGoals;
+      const yearlyEvents = o.yearlyEvents;
+      const longProjects = o.longProjects;
+      const hasYearly =
+        (Array.isArray(yearlyGoals) && yearlyGoals.length > 0) ||
+        (Array.isArray(yearlyEvents) && yearlyEvents.length > 0) ||
+        (Array.isArray(longProjects) && longProjects.length > 0);
+      const monthlyGoals = o.monthlyGoals as Record<string, unknown[]> | undefined;
+      const monthlyEvents = o.monthlyEvents as Record<string, unknown[]> | undefined;
+      const hasMonthly =
+        Object.values(monthlyGoals ?? {}).some((g) => Array.isArray(g) && g.length > 0) ||
+        Object.values(monthlyEvents ?? {}).some((e) => Array.isArray(e) && e.length > 0);
+      return !hasDaily && !hasYearly && !hasMonthly;
+    }
+    return Object.keys(o).length === 0;
+  }
+  return false;
+}
+
+function localValueHasContent(key: string, value: unknown): boolean {
+  return !isEmptyCloudValue(value);
+}
+
+async function mergeLocalStorageIntoCloud(): Promise<void> {
+  if (!isCloudReady()) return;
+  purgeDeprecatedLocalKeys();
+
+  const uploads: { key: string; value: unknown }[] = [];
+
+  for (const key of MERGE_FROM_LOCAL_KEYS) {
+    const cloudVal = cloudState[key];
+    const localVal = readLocalFallback<unknown>(key, undefined);
+    if (localVal === undefined) continue;
+    if (isEmptyCloudValue(cloudVal) && localValueHasContent(key, localVal)) {
+      cloudState[key] = localVal;
+      uploads.push({ key, value: localVal });
+    }
+  }
+
+  for (const key of MERGE_OBJECT_KEYS) {
+    const cloudVal = cloudState[key];
+    const localVal = readLocalFallback<unknown>(key, undefined);
+    if (localVal === undefined) continue;
+    if (isEmptyCloudValue(cloudVal) && localValueHasContent(key, localVal)) {
+      cloudState[key] = localVal;
+      uploads.push({ key, value: localVal });
+    }
+  }
+
+  for (const { key, value } of uploads) {
+    writeLocalFallback(key, value);
+    await postState(key, value);
+  }
+
+  if (uploads.length > 0) {
+    toast.success(`Synced ${uploads.length} local dataset(s) to cloud.`);
+  }
+}
+
 async function runCloudMigrations(): Promise<void> {
   const currentVersionRaw = cloudState[STORAGE_SCHEMA_VERSION_KEY];
   const currentVersion =
@@ -351,6 +392,7 @@ export async function initializeCloudStorage(): Promise<void> {
     }
     const json = (await response.json()) as { state?: Record<string, unknown> };
     cloudState = json.state ?? {};
+    await mergeLocalStorageIntoCloud();
     await runCloudMigrations();
   } catch (error) {
     console.error("Failed to initialize cloud state:", error);
@@ -399,22 +441,53 @@ function writeLocalFallback(key: string, value: unknown): void {
 
 // Generic storage: cloud when signed in; otherwise localStorage so prefs & data persist offline.
 function getFromStorage<T>(key: string, defaultValue: T): T {
+  if ((DEPRECATED_STORAGE_KEYS as readonly string[]).includes(key)) {
+    return defaultValue;
+  }
   if (isCloudReady()) {
+    if (!isCloudStateInitialized) {
+      return readLocalFallback(key, defaultValue);
+    }
     const value = cloudState[key];
     if (value !== undefined) return value as T;
+    const local = readLocalFallback<T | undefined>(key, undefined);
+    if (local !== undefined) return local;
     return defaultValue;
   }
   runLocalMigrations();
+  purgeDeprecatedLocalKeys();
   return readLocalFallback(key, defaultValue);
 }
 
 function setToStorage<T>(key: string, value: T): void {
-  const previousValue = cloudState[key];
-  cloudState[key] = value as unknown;
-  if (!isCloudReady()) {
-    writeLocalFallback(key, value);
+  if ((DEPRECATED_STORAGE_KEYS as readonly string[]).includes(key)) {
     return;
   }
+
+  writeLocalFallback(key, value);
+
+  if (!isCloudReady()) {
+    return;
+  }
+
+  if (!isCloudStateInitialized) {
+    showCloudError("Still loading cloud data — try again in a moment.");
+    return;
+  }
+
+  const previousValue = cloudState[key];
+  if (
+    Array.isArray(value) &&
+    value.length === 0 &&
+    Array.isArray(previousValue) &&
+    previousValue.length > 1
+  ) {
+    console.warn(`Blocked clearing non-empty cloud key: ${key}`);
+    showCloudError("Could not clear all items at once. Remove entries one by one.");
+    return;
+  }
+
+  cloudState[key] = value as unknown;
   void postState(key, value).catch((error) => {
     cloudState[key] = previousValue;
     console.error(`Cloud save failed for ${key}:`, error);
@@ -458,126 +531,6 @@ export function getTimetableCourseSelectOptions(entries: TimetableEntry[]): {
   }
   out.sort((a, b) => a.label.localeCompare(b.label));
   return out;
-}
-
-export function resolveTaskCourseLabel(
-  task: Task,
-  timetable: TimetableEntry[]
-): string | undefined {
-  if (task.linkedTimetableEntryId) {
-    const row = timetable.find((r) => r.id === task.linkedTimetableEntryId);
-    if (row) return timetableCourseDisplayLabel(row);
-  }
-  const legacy = task.courseLabel?.trim();
-  return legacy || undefined;
-}
-
-export function taskDueDayISO(task: Task): string {
-  return task.dueDate.split("T")[0];
-}
-
-/** For sorting by deadline (end of day if no time). */
-export function taskDueSortKey(task: Task): number {
-  const day = taskDueDayISO(task);
-  const [y, mo, d] = day.split("-").map(Number);
-  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) {
-    return 0;
-  }
-  const t = task.dueTime?.trim();
-  if (t && /^\d{1,2}:\d{2}$/.test(t)) {
-    const [H, M] = t.split(":").map((s) => parseInt(s, 10));
-    return new Date(y, mo - 1, d, H, M).getTime();
-  }
-  return new Date(y, mo - 1, d, 23, 59, 59, 999).getTime();
-}
-
-export function formatTaskDueDateTime(task: Task, locale = "en-US"): string {
-  const day = taskDueDayISO(task);
-  const [y, mo, d] = day.split("-").map(Number);
-  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) {
-    return task.dueDate;
-  }
-  const dateObj = new Date(y, mo - 1, d);
-  const datePart = dateObj.toLocaleDateString(locale, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-  const t = task.dueTime?.trim();
-  if (!t || !/^\d{1,2}:\d{2}$/.test(t)) return datePart;
-  const [H, M] = t.split(":").map((s) => parseInt(s, 10));
-  const timeObj = new Date(y, mo - 1, d, H, M);
-  const timePart = timeObj.toLocaleTimeString(locale, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-  return `${datePart} · ${timePart}`;
-}
-
-function normalizeTask(t: Task): Task {
-  return {
-    ...t,
-    category: t.category ?? "other",
-    estimatedMinutes: t.estimatedMinutes ?? 0,
-  };
-}
-
-// Task functions
-export function getTasks(): Task[] {
-  const raw = getFromStorage<Task[]>("mindful_tasks", []);
-  return raw.map(normalizeTask);
-}
-
-export function saveTasks(tasks: Task[]): void {
-  setToStorage("mindful_tasks", tasks);
-}
-
-export function calculatePriority(urgency: number, importance: number): number {
-  // Eisenhower Matrix scoring: urgency * 0.6 + importance * 0.4
-  return Math.round((urgency * 0.6 + importance * 0.4) * 10) / 10;
-}
-
-export function getTaskSuggestions(tasks: Task[]): string[] {
-  const incompleteTasks = tasks.filter(t => !t.completed);
-  const suggestions: string[] = [];
-
-  if (incompleteTasks.length === 0) {
-    suggestions.push("🎉 All tasks completed! Time to add new goals or take a well-deserved break.");
-    return suggestions;
-  }
-
-  // Sort by priority
-  const sortedTasks = [...incompleteTasks].sort((a, b) => b.priority - a.priority);
-  const highPriorityTasks = sortedTasks.filter(t => t.priority >= 8);
-  
-  if (highPriorityTasks.length > 0) {
-    suggestions.push(`🎯 Focus on high-priority tasks: "${highPriorityTasks[0].title}" (Priority: ${highPriorityTasks[0].priority})`);
-  }
-
-  // Check for urgent tasks (due soon)
-  const urgentTasks = incompleteTasks.filter(t => {
-    const dueDate = new Date(t.dueDate);
-    const today = new Date();
-    const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    return diffDays <= 2 && diffDays >= 0;
-  });
-
-  if (urgentTasks.length > 0) {
-    suggestions.push(`⏰ ${urgentTasks.length} task(s) due within 2 days. Consider tackling them today!`);
-  }
-
-  // Quick wins (legacy estimated minutes only)
-  const quickTasks = incompleteTasks.filter(t => (t.estimatedMinutes ?? 0) > 0 && (t.estimatedMinutes ?? 0) <= 15);
-  if (quickTasks.length > 0) {
-    suggestions.push(`⚡ ${quickTasks.length} quick task(s) (<15 min). Perfect for a short focus session!`);
-  }
-
-  const longTasks = incompleteTasks.filter(t => (t.estimatedMinutes ?? 0) > 60);
-  if (longTasks.length > 0) {
-    suggestions.push(`📚 ${longTasks.length} time-intensive task(s). Break them into smaller chunks for better progress.`);
-  }
-
-  return suggestions;
 }
 
 // Focus session functions
@@ -640,21 +593,6 @@ export function getTodayFinanceEntries(): FinanceEntry[] {
   return entries.filter(e => new Date(e.date).toDateString() === today);
 }
 
-// Journal functions
-export function getJournalEntries(): JournalEntry[] {
-  return getFromStorage<JournalEntry[]>("mindful_journal", []);
-}
-
-export function saveJournalEntries(entries: JournalEntry[]): void {
-  setToStorage("mindful_journal", entries);
-}
-
-export function getTodayJournalEntry(): JournalEntry | null {
-  const entries = getJournalEntries();
-  const today = new Date().toDateString();
-  return entries.find(e => new Date(e.date).toDateString() === today) || null;
-}
-
 // Song functions
 export function getSongs(): Song[] {
   return getFromStorage<Song[]>("mindful_songs", []);
@@ -662,84 +600,6 @@ export function getSongs(): Song[] {
 
 export function saveSongs(songs: Song[]): void {
   setToStorage("mindful_songs", songs);
-}
-
-// Idea functions
-export function getIdeas(): IdeaEntry[] {
-  return getFromStorage<IdeaEntry[]>("mindful_ideas", []);
-}
-
-export function saveIdeas(ideas: IdeaEntry[]): void {
-  setToStorage("mindful_ideas", ideas);
-}
-
-// Event functions
-function normalizeEvent(e: EventEntry): EventEntry {
-  return {
-    ...e,
-    startTime: e.startTime?.trim() || undefined,
-    endTime: e.endTime?.trim() || undefined,
-    durationMinutes:
-      e.durationMinutes != null && Number.isFinite(e.durationMinutes)
-        ? e.durationMinutes
-        : undefined,
-  };
-}
-
-export function getEvents(): EventEntry[] {
-  const raw = getFromStorage<EventEntry[]>("mindful_events", []);
-  return raw.map(normalizeEvent);
-}
-
-export function saveEvents(events: EventEntry[]): void {
-  setToStorage("mindful_events", events);
-}
-
-/** Start of event in ms (local); midnight if no start time. */
-export function eventStartMs(e: EventEntry): number {
-  const d = e.date.split("T")[0];
-  const st = e.startTime?.trim();
-  if (st) {
-    const t = new Date(`${d}T${st}`).getTime();
-    if (!Number.isNaN(t)) return t;
-  }
-  return new Date(`${d}T00:00:00`).getTime();
-}
-
-/** End of event in ms; end of calendar day if no times/duration. */
-export function eventEndMs(e: EventEntry): number {
-  const d = e.date.split("T")[0];
-  const en = e.endTime?.trim();
-  if (en) {
-    const t = new Date(`${d}T${en}`).getTime();
-    if (!Number.isNaN(t)) return t;
-  }
-  const st = e.startTime?.trim();
-  if (st) {
-    const start = new Date(`${d}T${st}`).getTime();
-    if (!Number.isNaN(start)) {
-      if (e.durationMinutes != null && e.durationMinutes > 0) {
-        return start + e.durationMinutes * 60000;
-      }
-      return start + 3600000;
-    }
-  }
-  if (e.durationMinutes != null && e.durationMinutes > 0) {
-    return eventStartMs(e) + e.durationMinutes * 60000;
-  }
-  return new Date(`${d}T23:59:59.999`).getTime();
-}
-
-export function formatEventTimeRange(e: EventEntry): string {
-  const st = e.startTime?.trim();
-  const en = e.endTime?.trim();
-  const dm = e.durationMinutes;
-  if (st && en) return `${st} – ${en}`;
-  if (st && dm != null && dm > 0) return `${st} · ${dm} min`;
-  if (st) return `From ${st}`;
-  if (en) return `Until ${en}`;
-  if (dm != null && dm > 0) return `${dm} min`;
-  return "All day";
 }
 
 // Study plans
@@ -992,21 +852,6 @@ export function getTodayExerciseEntry(): ExerciseEntry | null {
   const entries = getExerciseEntries();
   const today = new Date().toDateString();
   return entries.find(e => new Date(e.date).toDateString() === today) || null;
-}
-
-// Food functions
-export function getFoodEntries(): FoodEntry[] {
-  return getFromStorage<FoodEntry[]>("mindful_food", []);
-}
-
-export function saveFoodEntries(entries: FoodEntry[]): void {
-  setToStorage("mindful_food", entries);
-}
-
-export function getTodayFoodEntries(): FoodEntry[] {
-  const entries = getFoodEntries();
-  const today = new Date().toDateString();
-  return entries.filter(e => new Date(e.date).toDateString() === today);
 }
 
 // Weight functions
@@ -1394,4 +1239,116 @@ export function getCheckInTrackingStartYmd(): string {
 
 export function saveMinigameHighScore(score: number): void {
   setToStorage("minigame-highscore", score);
+}
+
+export type MindfulBackupV1 = {
+  version: 1;
+  exportedAt: string;
+  data: {
+    timetable: TimetableEntry[];
+    focusSessions: FocusSession[];
+    financeEntries: FinanceEntry[];
+    studyPlans: StudyPlan[];
+    habits: Habit[];
+    habitDays: HabitDayEntry[];
+    focusPresets: FocusPreset[];
+    checkIns: CheckInEntry[];
+    sleepEntries: SleepEntry[];
+    meditationEntries: MeditationEntry[];
+    exerciseEntries: ExerciseEntry[];
+    weightEntries: WeightEntry[];
+    favoriteQuotes: QuoteEntry[];
+    pdfBooks: PdfBookRecord[];
+    pdfBookmarks: PdfBookmark[];
+    pdfQuotes: PdfQuote[];
+    dailyMemoItems: DailyMemoItem[];
+    bujoState: BujoState;
+    theme: "light" | "dark";
+    quoteLocale: QuoteLocale;
+    quoteTags: QuoteSourceTag[];
+    minigameHighScore: number;
+    focusWallpaperChoice: FocusWallpaperChoice;
+    focusNoiseType: string;
+    checkinTrackingStartYmd: string;
+    loadingShownDate: string | null;
+  };
+};
+
+export function createBackupSnapshot(): MindfulBackupV1 {
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    data: {
+      timetable: getTimetable(),
+      focusSessions: getFocusSessions(),
+      financeEntries: getFinanceEntries(),
+      studyPlans: getStudyPlans(),
+      habits: getHabits(),
+      habitDays: getHabitDayEntries(),
+      focusPresets: getFocusPresets(),
+      checkIns: getCheckIns(),
+      sleepEntries: getSleepEntries(),
+      meditationEntries: getMeditationEntries(),
+      exerciseEntries: getExerciseEntries(),
+      weightEntries: getWeightEntries(),
+      favoriteQuotes: getFavoriteQuotes(),
+      pdfBooks: getPdfBooks(),
+      pdfBookmarks: getPdfBookmarks(),
+      pdfQuotes: getPdfQuotes(),
+      dailyMemoItems: getDailyMemoState().items,
+      bujoState: getBujoState(),
+      theme: getThemePreference(),
+      quoteLocale: getQuoteLocale(),
+      quoteTags: getQuoteTags(),
+      minigameHighScore: getMinigameHighScore(),
+      focusWallpaperChoice: getFocusWallpaperChoice(),
+      focusNoiseType: getFocusNoiseTypeChoice(),
+      checkinTrackingStartYmd: getCheckInTrackingStartYmd(),
+      loadingShownDate: getLoadingShownDate(),
+    },
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+export function importBackupSnapshot(raw: unknown): void {
+  if (!isRecord(raw)) throw new Error("Backup file is invalid.");
+  const version = Number(raw.version ?? 0);
+  if (version !== 1) throw new Error(`Unsupported backup version: ${version}`);
+  const data = raw.data;
+  if (!isRecord(data)) throw new Error("Backup payload is missing.");
+
+  if (Array.isArray(data.timetable)) saveTimetable(data.timetable as TimetableEntry[]);
+  if (Array.isArray(data.focusSessions)) saveFocusSessions(data.focusSessions as FocusSession[]);
+  if (Array.isArray(data.financeEntries)) saveFinanceEntries(data.financeEntries as FinanceEntry[]);
+  if (Array.isArray(data.studyPlans)) saveStudyPlans(data.studyPlans as StudyPlan[]);
+  if (Array.isArray(data.habits)) saveHabits(data.habits as Habit[]);
+  if (Array.isArray(data.habitDays)) saveHabitDayEntries(data.habitDays as HabitDayEntry[]);
+  if (Array.isArray(data.focusPresets)) saveFocusPresets(data.focusPresets as FocusPreset[]);
+  if (Array.isArray(data.checkIns)) saveCheckIns(data.checkIns as CheckInEntry[]);
+  if (Array.isArray(data.sleepEntries)) saveSleepEntries(data.sleepEntries as SleepEntry[]);
+  if (Array.isArray(data.meditationEntries)) saveMeditationEntries(data.meditationEntries as MeditationEntry[]);
+  if (Array.isArray(data.exerciseEntries)) saveExerciseEntries(data.exerciseEntries as ExerciseEntry[]);
+  if (Array.isArray(data.weightEntries)) saveWeightEntries(data.weightEntries as WeightEntry[]);
+  if (Array.isArray(data.favoriteQuotes)) saveFavoriteQuotes(data.favoriteQuotes as QuoteEntry[]);
+  if (Array.isArray(data.pdfBooks)) savePdfBooks(data.pdfBooks as PdfBookRecord[]);
+  if (Array.isArray(data.pdfBookmarks)) savePdfBookmarks(data.pdfBookmarks as PdfBookmark[]);
+  if (Array.isArray(data.pdfQuotes)) savePdfQuotes(data.pdfQuotes as PdfQuote[]);
+  if (Array.isArray(data.dailyMemoItems)) saveDailyMemoItems(data.dailyMemoItems as DailyMemoItem[]);
+  if (isRecord(data.bujoState)) saveBujoState(data.bujoState as BujoState);
+
+  if (data.theme === "light" || data.theme === "dark") saveThemePreference(data.theme);
+  if (data.quoteLocale === "en" || data.quoteLocale === "zh") saveQuoteLocale(data.quoteLocale);
+  if (Array.isArray(data.quoteTags)) saveQuoteTags(data.quoteTags as QuoteSourceTag[]);
+  if (typeof data.minigameHighScore === "number") saveMinigameHighScore(data.minigameHighScore);
+  if (typeof data.focusNoiseType === "string") saveFocusNoiseTypeChoice(data.focusNoiseType);
+  if (typeof data.focusWallpaperChoice === "string") {
+    saveFocusWallpaperChoice(data.focusWallpaperChoice as FocusWallpaperChoice);
+  }
+  if (typeof data.loadingShownDate === "string") saveLoadingShownDate(data.loadingShownDate);
+  if (typeof data.checkinTrackingStartYmd === "string") {
+    setToStorage(CHECKIN_TRACKING_START_KEY, data.checkinTrackingStartYmd);
+  }
 }

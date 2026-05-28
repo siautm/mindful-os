@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -12,6 +12,8 @@ import {
   FinanceEntry,
   getFinanceSummary,
 } from "../lib/storage";
+import { useStorageHydration } from "../lib/useStorageHydration";
+import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -27,6 +29,8 @@ const EXPENSE_CATEGORIES = [
 const INCOME_CATEGORIES = ["Salary", "Living Expenses", "Other"];
 
 const COLORS = ["#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#6366f1"];
+const API_BASE = import.meta.env.VITE_API_BASE_URL?.trim() || "";
+const FINANCE_ENDPOINT = `${API_BASE}/api/finance`;
 
 function uniqueOrderedCategories(lists: readonly string[][]): string[] {
   const seen = new Set<string>();
@@ -43,6 +47,7 @@ function uniqueOrderedCategories(lists: readonly string[][]): string[] {
 }
 
 export function Finance() {
+  const { session } = useAuth();
   const [entries, setEntries] = useState<FinanceEntry[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<FinanceEntry | null>(null);
@@ -64,15 +69,54 @@ export function Finance() {
     if (!categoryOptions.includes(categoryFilter)) setCategoryFilter("");
   }, [filter, categoryFilter, categoryOptions]);
 
-  useEffect(() => {
-    loadEntries();
-  }, []);
+  const loadEntries = useCallback(async () => {
+    const token = session?.access_token;
+    if (!token) {
+      setEntries(getFinanceEntries());
+      return;
+    }
+    try {
+      const res = await fetch(FINANCE_ENDPOINT, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as { items?: Array<Record<string, unknown>> };
+      const next = (json.items ?? []).map((row) => ({
+        id: String(row.id ?? ""),
+        type: row.type === "income" ? "income" : "expense",
+        amount: Number(row.amount ?? 0),
+        category: String(row.category ?? ""),
+        description: String(row.description ?? ""),
+        date: String(row.entry_date ?? row.date ?? ""),
+      })) satisfies FinanceEntry[];
+      setEntries(next);
+      // Keep legacy store in sync for pages not migrated yet.
+      saveFinanceEntries(next);
+    } catch {
+      setEntries(getFinanceEntries());
+    }
+  }, [session?.access_token]);
 
-  function loadEntries() {
-    setEntries(getFinanceEntries());
+  useStorageHydration(loadEntries);
+
+  async function saveViaApi(
+    method: "POST" | "PATCH" | "DELETE",
+    body: Record<string, unknown>
+  ): Promise<boolean> {
+    const token = session?.access_token;
+    if (!token) return false;
+    const res = await fetch(FINANCE_ENDPOINT, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+    return res.ok;
   }
 
-  function handleAddEntry() {
+  async function handleAddEntry() {
     if (!newEntry.amount || !newEntry.category || !newEntry.date) {
       toast.error("Please fill in all required fields");
       return;
@@ -90,6 +134,12 @@ export function Finance() {
     const updatedEntries = [...entries, entry];
     setEntries(updatedEntries);
     saveFinanceEntries(updatedEntries);
+    try {
+      const ok = await saveViaApi("POST", entry);
+      if (!ok) throw new Error("save failed");
+    } catch {
+      toast.error("Saved locally, but cloud sync failed.");
+    }
     setIsAddDialogOpen(false);
     setNewEntry({
       type: "expense",
@@ -98,14 +148,20 @@ export function Finance() {
     toast.success(`${entry.type === "income" ? "Income" : "Expense"} added`);
   }
 
-  function handleDeleteEntry(id: string) {
+  async function handleDeleteEntry(id: string) {
     const updatedEntries = entries.filter(e => e.id !== id);
     setEntries(updatedEntries);
     saveFinanceEntries(updatedEntries);
+    try {
+      const ok = await saveViaApi("DELETE", { id });
+      if (!ok) throw new Error("delete failed");
+    } catch {
+      toast.error("Deleted locally, but cloud sync failed.");
+    }
     toast.success("Entry deleted");
   }
 
-  function handleUpdateEntry() {
+  async function handleUpdateEntry() {
     if (!editingEntry) return;
     if (!editingEntry.amount || !editingEntry.category?.trim() || !editingEntry.date) {
       toast.error("Please fill in all required fields");
@@ -125,6 +181,12 @@ export function Finance() {
     const updatedEntries = entries.map((e) => (e.id === next.id ? next : e));
     setEntries(updatedEntries);
     saveFinanceEntries(updatedEntries);
+    try {
+      const ok = await saveViaApi("PATCH", next);
+      if (!ok) throw new Error("update failed");
+    } catch {
+      toast.error("Updated locally, but cloud sync failed.");
+    }
     setEditingEntry(null);
     toast.success("Entry updated");
   }

@@ -44,6 +44,7 @@ import {
   WeightEntry,
   getWellnessChecklistStatusForDate,
 } from "../lib/storage";
+import { useStorageHydration } from "../lib/useStorageHydration";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 import { getWhiteNoisePlayer, NoiseType, noiseCategories } from "../lib/whiteNoise";
@@ -136,10 +137,6 @@ export function CheckIn() {
   }, []);
 
   useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
     const onVis = () => {
       if (document.visibilityState === "visible") {
         syncChecklistFromStorage();
@@ -199,7 +196,7 @@ export function CheckIn() {
     toast.success("5 minutes completed. Meditation timer stopped.");
   }, [meditationTimer, meditationTimerRunning]);
 
-  function loadData() {
+  const loadData = useCallback(() => {
     setStreak(getCheckInStreak());
 
     const all = getCheckIns();
@@ -217,7 +214,9 @@ export function CheckIn() {
     setUserExerciseTypes(knownTypes);
 
     syncChecklistFromStorage();
-  }
+  }, [syncChecklistFromStorage]);
+
+  useStorageHydration(loadData);
 
   /** Call after mutating checklist-related storage; optionally play streak +1 animation. */
   function afterWellnessLogSaved() {

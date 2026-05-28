@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Brain, Trophy, RefreshCw, Zap } from "lucide-react";
 import { motion } from "motion/react";
 import { getMinigameHighScore, saveMinigameHighScore } from "../lib/storage";
+import { useStorageHydration } from "../lib/useStorageHydration";
 
 const COLORS = [
   { name: "red", bg: "bg-red-500", hover: "hover:bg-red-600" },
@@ -21,9 +22,11 @@ export function Minigame() {
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
 
-  useEffect(() => {
+  const refreshHighScore = useCallback(() => {
     setHighScore(getMinigameHighScore());
   }, []);
+
+  useStorageHydration(refreshHighScore);
 
   function updateHighScore(newScore: number) {
     if (newScore > highScore) {

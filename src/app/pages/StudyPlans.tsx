@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -19,10 +19,14 @@ import {
   type StudyPlan,
   type StudyPlanPart,
 } from "../lib/storage";
+import { useStorageHydration } from "../lib/useStorageHydration";
+import { useAuth } from "../contexts/AuthContext";
 import { parseStudyPlanBulkText } from "../lib/studyPlanParse";
 import { toast } from "sonner";
 
 const PARTS_PREVIEW_COUNT = 5;
+const API_BASE = import.meta.env.VITE_API_BASE_URL?.trim() || "";
+const STUDY_PLANS_ENDPOINT = `${API_BASE}/api/study-plans`;
 
 function orderPartsForDisplay(parts: StudyPlanPart[]): StudyPlanPart[] {
   return [...parts].sort((a, b) => a.order - b.order);
@@ -56,6 +60,7 @@ function newPart(title: string, detail: string, order: number): StudyPlanPart {
 }
 
 export function StudyPlans() {
+  const { session } = useAuth();
   const [plans, setPlans] = useState<StudyPlan[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -70,18 +75,51 @@ export function StudyPlans() {
   /** planId -> show every part instead of preview */
   const [showAllParts, setShowAllParts] = useState<Record<string, boolean>>({});
 
-  useEffect(() => {
-    setPlans(getStudyPlans());
-  }, []);
+  const refreshPlans = useCallback(async () => {
+    const token = session?.access_token;
+    if (!token) {
+      setPlans(getStudyPlans());
+      return;
+    }
+    try {
+      const res = await fetch(STUDY_PLANS_ENDPOINT, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as { items?: StudyPlan[] };
+      const next = (json.items ?? []) as StudyPlan[];
+      setPlans(next);
+      saveStudyPlans(next);
+    } catch {
+      setPlans(getStudyPlans());
+    }
+  }, [session?.access_token]);
+
+  useStorageHydration(refreshPlans);
 
   const sortedPlans = useMemo(
     () => [...plans].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     [plans]
   );
 
-  function persist(next: StudyPlan[]) {
+  async function persist(next: StudyPlan[]) {
     setPlans(next);
     saveStudyPlans(next);
+    const token = session?.access_token;
+    if (!token) return;
+    try {
+      const res = await fetch(STUDY_PLANS_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ plans: next }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      toast.error("Saved locally, but cloud sync failed.");
+    }
   }
 
   function resetCreateForm() {

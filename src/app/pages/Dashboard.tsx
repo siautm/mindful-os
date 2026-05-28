@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Link, useLocation } from "react-router";
 import { Button } from "../components/ui/button";
 import { Checkbox } from "../components/ui/checkbox";
@@ -37,10 +37,13 @@ import {
   saveLoadingShownDate,
   getDailyMemoState,
   toggleDailyMemoItem,
-  STORAGE_HYDRATED_EVENT,
+  createBackupSnapshot,
+  importBackupSnapshot,
   type DailyMemoItem,
 } from "../lib/storage";
+import { useStorageHydration } from "../lib/useStorageHydration";
 import { motion } from "motion/react";
+import { toast } from "sonner";
 import { LoadingQuoteScreen } from "../components/LoadingQuoteScreen";
 import { useTheme } from "../contexts/ThemeContext";
 import { useQuoteLocale } from "../contexts/QuoteLocaleContext";
@@ -110,6 +113,7 @@ export function Dashboard() {
   const [checkInStreak, setCheckInStreak] = useState(0);
   const [memoItems, setMemoItems] = useState<DailyMemoItem[]>([]);
   const cursorGlowRef = useRef<HTMLDivElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const particleConfigs = useMemo(
     () =>
@@ -150,12 +154,6 @@ export function Dashboard() {
   useEffect(() => {
     setMemoItems(getDailyMemoState().items);
   }, [location.pathname]);
-
-  useEffect(() => {
-    const onHydrated = () => setMemoItems(getDailyMemoState().items);
-    window.addEventListener(STORAGE_HYDRATED_EVENT, onHydrated);
-    return () => window.removeEventListener(STORAGE_HYDRATED_EVENT, onHydrated);
-  }, []);
 
   useEffect(() => {
     scheduleIdleQuotePrefetch(quoteTags);
@@ -275,6 +273,13 @@ export function Dashboard() {
     setFavoriteQuotes(getFavoriteQuotes());
   }
 
+  const refreshFromStorage = useCallback(() => {
+    loadAllData();
+    setMemoItems(getDailyMemoState().items);
+  }, []);
+
+  useStorageHydration(refreshFromStorage);
+
   function handleToggleFavorite() {
     if (!quote.text.trim()) return;
     if (isFavorite) {
@@ -296,6 +301,43 @@ export function Dashboard() {
     loadFavorites();
     if (quote.text === favoriteQuote.text && quote.author === favoriteQuote.author) {
       setIsFavorite(false);
+    }
+  }
+
+  function handleExportBackup() {
+    try {
+      const snapshot = createBackupSnapshot();
+      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const ymd = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `mindful-backup-${ymd}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Backup exported.");
+    } catch {
+      toast.error("Failed to export backup.");
+    }
+  }
+
+  async function handleImportBackupFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const ok = window.confirm(
+      "Importing backup will overwrite current data for supported modules. Continue?"
+    );
+    if (!ok) return;
+
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text) as unknown;
+      importBackupSnapshot(json);
+      refreshFromStorage();
+      toast.success("Backup imported.");
+    } catch {
+      toast.error("Invalid backup file.");
     }
   }
 
@@ -813,6 +855,51 @@ export function Dashboard() {
               </Link>
             );
           })}
+          <motion.div
+            whileHover={{ scale: 1.1, y: -5 }}
+            whileTap={{ scale: 0.95 }}
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.75, type: "spring" }}
+          >
+            <Button
+              variant="outline"
+              onClick={handleExportBackup}
+              className={`${
+                theme === "dark"
+                  ? "bg-gray-800 border-gray-700 text-gray-200 hover:bg-gray-700"
+                  : "bg-white border-gray-300 hover:bg-gray-50"
+              } shadow-md hover:shadow-xl transition-all`}
+            >
+              Export Backup
+            </Button>
+          </motion.div>
+          <motion.div
+            whileHover={{ scale: 1.1, y: -5 }}
+            whileTap={{ scale: 0.95 }}
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.8, type: "spring" }}
+          >
+            <Button
+              variant="outline"
+              onClick={() => importInputRef.current?.click()}
+              className={`${
+                theme === "dark"
+                  ? "bg-gray-800 border-gray-700 text-gray-200 hover:bg-gray-700"
+                  : "bg-white border-gray-300 hover:bg-gray-50"
+              } shadow-md hover:shadow-xl transition-all`}
+            >
+              Import Backup
+            </Button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              onChange={handleImportBackupFile}
+            />
+          </motion.div>
         </motion.div>
       </div>
 

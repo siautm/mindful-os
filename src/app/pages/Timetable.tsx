@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Papa from "papaparse";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -22,6 +22,8 @@ import {
   saveTimetable,
   TimetableEntry,
 } from "../lib/storage";
+import { useStorageHydration } from "../lib/useStorageHydration";
+import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -54,6 +56,8 @@ const COURSE_COLORS = [
   "bg-indigo-200",
   "bg-teal-200",
 ];
+const API_BASE = import.meta.env.VITE_API_BASE_URL?.trim() || "";
+const TIMETABLE_ENDPOINT = `${API_BASE}/api/timetable`;
 
 type TimetableTab = "grid" | "combined" | "courses";
 
@@ -63,6 +67,7 @@ function getInitialTimetableTab(): TimetableTab {
 }
 
 export function Timetable() {
+  const { session } = useAuth();
   const [entries, setEntries] = useState<TimetableEntry[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<TimetableEntry | null>(null);
@@ -71,9 +76,50 @@ export function Timetable() {
   });
   const [timetableTab, setTimetableTab] = useState<TimetableTab>(getInitialTimetableTab);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const loadData = useCallback(async () => {
+    const token = session?.access_token;
+    if (!token) {
+      setEntries(getTimetable());
+      return;
+    }
+    try {
+      const res = await fetch(TIMETABLE_ENDPOINT, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as { items?: Array<Record<string, unknown>> };
+      const next = (json.items ?? []).map((row) => ({
+        id: String(row.id ?? ""),
+        courseName: String(row.course_name ?? ""),
+        courseCode: String(row.course_code ?? ""),
+        day: String(row.day ?? "Monday"),
+        startTime: String(row.start_time ?? ""),
+        endTime: String(row.end_time ?? ""),
+        location: String(row.location ?? ""),
+        instructor: String(row.instructor ?? ""),
+      })) satisfies TimetableEntry[];
+      setEntries(next);
+      saveTimetable(next);
+    } catch {
+      setEntries(getTimetable());
+    }
+  }, [session?.access_token]);
+
+  useStorageHydration(loadData);
+
+  async function saveViaApi(method: "POST" | "PATCH" | "DELETE", body: Record<string, unknown>) {
+    const token = session?.access_token;
+    if (!token) return false;
+    const res = await fetch(TIMETABLE_ENDPOINT, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+    return res.ok;
+  }
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
@@ -85,11 +131,7 @@ export function Timetable() {
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
-  function loadData() {
-    setEntries(getTimetable());
-  }
-
-  function handleAddEntry() {
+  async function handleAddEntry() {
     if (!newEntry.courseName || !newEntry.startTime || !newEntry.endTime) {
       toast.error("Please fill in all required fields");
       return;
@@ -109,12 +151,18 @@ export function Timetable() {
     const updatedEntries = [...entries, entry];
     setEntries(updatedEntries);
     saveTimetable(updatedEntries);
+    try {
+      const ok = await saveViaApi("POST", entry);
+      if (!ok) throw new Error("save failed");
+    } catch {
+      toast.error("Saved locally, but cloud sync failed.");
+    }
     setIsAddDialogOpen(false);
     setNewEntry({ day: "Monday" });
     toast.success("Class added successfully");
   }
 
-  function handleUpdateEntry() {
+  async function handleUpdateEntry() {
     if (!editingEntry) return;
     if (
       !editingEntry.courseName?.trim() ||
@@ -137,14 +185,26 @@ export function Timetable() {
     );
     setEntries(updated);
     saveTimetable(updated);
+    try {
+      const ok = await saveViaApi("PATCH", editingEntry);
+      if (!ok) throw new Error("update failed");
+    } catch {
+      toast.error("Updated locally, but cloud sync failed.");
+    }
     setEditingEntry(null);
     toast.success("Class updated");
   }
 
-  function handleDeleteEntry(id: string) {
+  async function handleDeleteEntry(id: string) {
     const updatedEntries = entries.filter(e => e.id !== id);
     setEntries(updatedEntries);
     saveTimetable(updatedEntries);
+    try {
+      const ok = await saveViaApi("DELETE", { id });
+      if (!ok) throw new Error("delete failed");
+    } catch {
+      toast.error("Deleted locally, but cloud sync failed.");
+    }
     toast.success("Class deleted");
   }
 
@@ -154,7 +214,7 @@ export function Timetable() {
 
     Papa.parse(file, {
       header: true,
-      complete: (results) => {
+      complete: async (results) => {
         try {
           const parsedEntries: TimetableEntry[] = results.data
             .filter((row: any) => row.courseName || row.CourseName)
@@ -173,6 +233,9 @@ export function Timetable() {
             const updatedEntries = [...entries, ...parsedEntries];
             setEntries(updatedEntries);
             saveTimetable(updatedEntries);
+            for (const item of parsedEntries) {
+              await saveViaApi("POST", item);
+            }
             toast.success(`Imported ${parsedEntries.length} classes`);
           } else {
             toast.error("No valid data found in CSV");
