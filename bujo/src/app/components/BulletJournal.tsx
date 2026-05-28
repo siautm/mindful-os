@@ -124,6 +124,8 @@ export function BulletJournal() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [jumpToDate, setJumpToDate] = useState(today);
   const [storageReady, setStorageReady] = useState(false);
+  const [showExportPdfDialog, setShowExportPdfDialog] = useState(false);
+  const [exportMonthYm, setExportMonthYm] = useState(format(new Date(), 'yyyy-MM'));
   const hasHydratedOnceRef = useRef(false);
   const lastSavedStateRef = useRef<string | null>(null);
 
@@ -1113,6 +1115,105 @@ export function BulletJournal() {
     URL.revokeObjectURL(url);
   };
 
+  const escapeHtml = (text: string) =>
+    text
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+
+  const exportMonthAsPdf = () => {
+    const [yearStr, monthStr] = exportMonthYm.split('-');
+    const year = Number(yearStr);
+    const month = Number(monthStr);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return;
+
+    const monthIndex = month - 1;
+    const monthPrefix = `${year}-${String(month).padStart(2, '0')}-`;
+
+    const monthGoals = monthlyGoals[monthIndex] || [];
+    const monthEvents = monthlyEvents[monthIndex] || [];
+    const monthDailyDates = Object.keys(dailyBullets)
+      .filter((d) => d.startsWith(monthPrefix))
+      .sort((a, b) => a.localeCompare(b));
+
+    const dailySections = monthDailyDates
+      .map((date) => {
+        const bullets = dailyBullets[date] || [];
+        const items = bullets
+          .map((b) => {
+            const icon = getBulletIcon(b.type, b.status);
+            return `<li><span class="icon">${icon}</span> ${escapeHtml(b.text)}</li>`;
+          })
+          .join('');
+        return `
+          <section class="day">
+            <h3>${escapeHtml(format(new Date(date), 'MMM d, yyyy'))}</h3>
+            ${items ? `<ul>${items}</ul>` : '<p class="empty">No entries</p>'}
+          </section>
+        `;
+      })
+      .join('');
+
+    const goalRows = monthGoals
+      .map((g) => `<li>${g.completed ? '✓' : '○'} ${escapeHtml(g.text)}</li>`)
+      .join('');
+    const eventRows = monthEvents.map((e) => `<li>○ ${escapeHtml(e.text)}</li>`).join('');
+
+    const html = `
+      <!doctype html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Bujo ${year}-${String(month).padStart(2, '0')}</title>
+        <style>
+          @page { size: A4; margin: 16mm; }
+          body { font-family: Georgia, "Times New Roman", serif; color: #222; }
+          h1 { margin: 0 0 6px; font-size: 28px; }
+          h2 { margin: 20px 0 8px; font-size: 20px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+          h3 { margin: 12px 0 6px; font-size: 16px; }
+          ul { margin: 0; padding-left: 20px; }
+          li { margin: 4px 0; line-height: 1.45; }
+          .meta { color: #666; margin-bottom: 10px; }
+          .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+          .day { break-inside: avoid; margin-bottom: 10px; padding: 8px; border: 1px solid #eee; border-radius: 8px; }
+          .icon { display: inline-block; width: 18px; font-weight: 700; }
+          .empty { color: #888; font-style: italic; margin: 0; }
+        </style>
+      </head>
+      <body>
+        <h1>Bullet Journal</h1>
+        <p class="meta">${escapeHtml(MONTHS[monthIndex])} ${year}</p>
+
+        <div class="two-col">
+          <section>
+            <h2>Monthly Goals</h2>
+            ${goalRows ? `<ul>${goalRows}</ul>` : '<p class="empty">No goals</p>'}
+          </section>
+          <section>
+            <h2>Monthly Events</h2>
+            ${eventRows ? `<ul>${eventRows}</ul>` : '<p class="empty">No events</p>'}
+          </section>
+        </div>
+
+        <h2>Daily Log</h2>
+        ${dailySections || '<p class="empty">No daily entries in this month</p>'}
+      </body>
+      </html>
+    `;
+
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    window.setTimeout(() => {
+      win.print();
+    }, 250);
+  };
+
   const navigateToPage = (pageNum: number) => {
     if (pageNum < 1 || pageNum > pages.length) return;
 
@@ -1440,10 +1541,16 @@ export function BulletJournal() {
         </div>
 
         <div className="pt-4 border-t border-gray-300">
-          <Button onClick={exportYear} variant="outline" size="lg" className="w-full">
-            <Download className="h-5 w-5 mr-2" />
-            Export {currentYear}
-          </Button>
+          <div className="grid grid-cols-2 gap-2">
+            <Button onClick={exportYear} variant="outline" size="lg" className="w-full">
+              <Download className="h-5 w-5 mr-2" />
+              Export JSON
+            </Button>
+            <Button onClick={() => setShowExportPdfDialog(true)} variant="outline" size="lg" className="w-full">
+              <Download className="h-5 w-5 mr-2" />
+              Export PDF
+            </Button>
+          </div>
         </div>
       </div>
     </>
@@ -2131,6 +2238,39 @@ export function BulletJournal() {
                 variant="outline"
                 className="flex-1"
               >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Export PDF Modal */}
+      <Dialog open={showExportPdfDialog} onOpenChange={setShowExportPdfDialog}>
+        <DialogContent className="bg-amber-50 border-2 border-gray-800">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl">Export Bujo PDF</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">
+              Select a month, then save as PDF in the browser print window.
+            </p>
+            <Input
+              type="month"
+              value={exportMonthYm}
+              onChange={(e) => setExportMonthYm(e.target.value)}
+            />
+            <div className="flex gap-2">
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  exportMonthAsPdf();
+                  setShowExportPdfDialog(false);
+                }}
+              >
+                Export
+              </Button>
+              <Button className="flex-1" variant="outline" onClick={() => setShowExportPdfDialog(false)}>
                 Cancel
               </Button>
             </div>
