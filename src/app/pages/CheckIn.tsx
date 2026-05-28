@@ -45,6 +45,7 @@ import {
   getWellnessChecklistStatusForDate,
 } from "../lib/storage";
 import { useStorageHydration } from "../lib/useStorageHydration";
+import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 import { getWhiteNoisePlayer, NoiseType, noiseCategories } from "../lib/whiteNoise";
@@ -62,9 +63,12 @@ const PREDEFINED_EXERCISE_TYPES = [
   "Other",
 ] as const;
 const CREATE_NEW_TYPE_VALUE = "__create_new__";
+const API_BASE = import.meta.env.VITE_API_BASE_URL?.trim() || "";
+const WELLNESS_ENDPOINT = `${API_BASE}/api/wellness`;
 
 export function CheckIn() {
   const MEDITATION_AUTO_STOP_SECONDS = 5 * 60;
+  const { session } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [streak, setStreak] = useState(0);
@@ -197,26 +201,81 @@ export function CheckIn() {
   }, [meditationTimer, meditationTimerRunning]);
 
   const loadData = useCallback(() => {
-    setStreak(getCheckInStreak());
+    const token = session?.access_token;
+    const loadLocal = () => {
+      setStreak(getCheckInStreak());
+      const all = getCheckIns();
+      const sorted = [...all].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      setPastCheckIns(sorted.slice(0, 7));
+      const knownTypes = Array.from(
+        new Set(
+          getExerciseEntries()
+            .map((e) => e.type.trim())
+            .filter((t) => t !== "")
+        )
+      );
+      setUserExerciseTypes(knownTypes);
+      syncChecklistFromStorage();
+    };
 
-    const all = getCheckIns();
-    const sorted = [...all].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    setPastCheckIns(sorted.slice(0, 7));
-    const knownTypes = Array.from(
-      new Set(
-        getExerciseEntries()
-          .map((e) => e.type.trim())
-          .filter((t) => t !== "")
-      )
-    );
-    setUserExerciseTypes(knownTypes);
+    if (!token) {
+      loadLocal();
+      return;
+    }
 
-    syncChecklistFromStorage();
-  }, [syncChecklistFromStorage]);
+    void (async () => {
+      try {
+        const res = await fetch(WELLNESS_ENDPOINT, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as {
+          checkIns?: CheckInEntry[];
+          sleepEntries?: SleepEntry[];
+          meditationEntries?: MeditationEntry[];
+          exerciseEntries?: ExerciseEntry[];
+          weightEntries?: WeightEntry[];
+        };
+        const checkIns = Array.isArray(json.checkIns) ? json.checkIns : [];
+        const sleepEntries = Array.isArray(json.sleepEntries) ? json.sleepEntries : [];
+        const meditationEntries = Array.isArray(json.meditationEntries) ? json.meditationEntries : [];
+        const exerciseEntries = Array.isArray(json.exerciseEntries) ? json.exerciseEntries : [];
+        const weightEntries = Array.isArray(json.weightEntries) ? json.weightEntries : [];
+
+        saveCheckIns(checkIns);
+        saveSleepEntries(sleepEntries);
+        saveMeditationEntries(meditationEntries);
+        saveExerciseEntries(exerciseEntries);
+        saveWeightEntries(weightEntries);
+        loadLocal();
+      } catch {
+        loadLocal();
+      }
+    })();
+  }, [session?.access_token, syncChecklistFromStorage]);
 
   useStorageHydration(loadData);
+
+  async function syncWellnessSnapshot(): Promise<void> {
+    const token = session?.access_token;
+    if (!token) return;
+    await fetch(WELLNESS_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        checkIns: getCheckIns(),
+        sleepEntries: getSleepEntries(),
+        meditationEntries: getMeditationEntries(),
+        exerciseEntries: getExerciseEntries(),
+        weightEntries: getWeightEntries(),
+      }),
+    });
+  }
 
   /** Call after mutating checklist-related storage; optionally play streak +1 animation. */
   function afterWellnessLogSaved() {
@@ -234,7 +293,7 @@ export function CheckIn() {
     }
   }
 
-  function handleExerciseLog() {
+  async function handleExerciseLog() {
     const type =
       exerciseForm.selectedType === CREATE_NEW_TYPE_VALUE
         ? exerciseForm.customType.trim()
@@ -278,6 +337,9 @@ export function CheckIn() {
 
     const nextEntries = [...exercises, newExercise];
     saveExerciseEntries(nextEntries);
+    try {
+      await syncWellnessSnapshot();
+    } catch {}
     toast.success("Exercise logged! 💪");
     setExerciseDialogOpen(false);
     setExerciseForm({
@@ -294,7 +356,7 @@ export function CheckIn() {
     afterWellnessLogSaved();
   }
 
-  function handleSleepLog() {
+  async function handleSleepLog() {
     if (!sleepForm.bedTime) {
       toast.error("Please enter bed time");
       return;
@@ -309,6 +371,9 @@ export function CheckIn() {
     };
 
     saveSleepEntries([...sleeps, newSleep]);
+    try {
+      await syncWellnessSnapshot();
+    } catch {}
     toast.success("Sleep logged! 😴");
     setSleepDialogOpen(false);
     setSleepForm({ bedTime: "", notes: "" });
@@ -328,7 +393,7 @@ export function CheckIn() {
     setMeditationTimer(0);
   }
 
-  function handleMeditationComplete() {
+  async function handleMeditationComplete() {
     if (meditationTimer < 30) {
       toast.error("Meditation must be at least 30 seconds");
       return;
@@ -344,6 +409,9 @@ export function CheckIn() {
     };
 
     saveMeditationEntries([...meditations, newMeditation]);
+    try {
+      await syncWellnessSnapshot();
+    } catch {}
     toast.success("Meditation completed! 🧘");
     setMeditationDialogOpen(false);
     resetMeditationTimer();
@@ -352,7 +420,7 @@ export function CheckIn() {
     afterWellnessLogSaved();
   }
 
-  function handleWeightLog() {
+  async function handleWeightLog() {
     if (weightForm.weight <= 0) {
       toast.error("Please enter a valid weight");
       return;
@@ -368,13 +436,16 @@ export function CheckIn() {
     };
 
     saveWeightEntries([...weights, newWeight]);
+    try {
+      await syncWellnessSnapshot();
+    } catch {}
     toast.success("Weight logged! ⚖️");
     setWeightDialogOpen(false);
     setWeightForm({ weight: 0, unit: "kg", notes: "" });
     afterWellnessLogSaved();
   }
 
-  function handleOptionalNotesSave() {
+  async function handleOptionalNotesSave() {
     if (!optionalNotes.trim()) {
       toast.error("Please enter some notes");
       return;
@@ -394,6 +465,9 @@ export function CheckIn() {
           : c
       );
       saveCheckIns(updated);
+      try {
+        await syncWellnessSnapshot();
+      } catch {}
       toast.success("Notes updated! 📝");
     } else {
       // Create new
@@ -407,6 +481,9 @@ export function CheckIn() {
         note: optionalNotes,
       };
       saveCheckIns([...checkIns, newCheckIn]);
+      try {
+        await syncWellnessSnapshot();
+      } catch {}
       toast.success("Notes saved! 📝");
     }
 

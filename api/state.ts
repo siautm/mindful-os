@@ -13,7 +13,7 @@ export default async function handler(req: any, res: any) {
   try {
     if (req.method === "GET") {
       const { data, error } = await db
-        .from("app_state")
+        .from("user_state")
         .select("state_key, state_value")
         .eq("user_id", userId);
       if (error) throw error;
@@ -35,7 +35,7 @@ export default async function handler(req: any, res: any) {
       }
 
       const { data, error } = await db
-        .from("app_state")
+        .from("user_state")
         .upsert(
           { user_id: userId, state_key: key, state_value: value ?? null },
           { onConflict: "user_id,state_key" }
@@ -54,7 +54,7 @@ export default async function handler(req: any, res: any) {
     if (code === "42P01") {
       sendJson(res, 500, {
         error:
-          "Supabase table app_state is missing. Run supabase/schema.sql in Supabase SQL Editor, then redeploy.",
+          "Supabase table user_state is missing. Run supabase/phase5_migrate_remaining_state.sql in Supabase SQL Editor, then redeploy.",
       });
       return;
     }

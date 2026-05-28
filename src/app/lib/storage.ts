@@ -189,20 +189,27 @@ const DEPRECATED_STORAGE_KEYS = [
   "mindful_food",
 ] as const;
 
-/** Array-backed app_state keys: merge from local when cloud is empty/missing. */
-const MERGE_FROM_LOCAL_KEYS = [
-  "mindful_timetable",
+/**
+ * Keys fully migrated to row-based tables/APIs.
+ * Keep local cache for UI fallback, but stop reading/writing cloud app_state.
+ */
+const LOCAL_ONLY_STORAGE_KEYS = [
   "mindful_finance",
-  "mindful_focus_sessions",
+  "mindful_timetable",
+  "mindful_study_plans",
+  "mindful_habits",
+  "mindful_habit_days",
+  "mindful_focus_presets",
   "mindful_checkins",
   "mindful_sleep",
   "mindful_meditation",
   "mindful_exercise",
   "mindful_weight",
-  "mindful_habits",
-  "mindful_habit_days",
-  "mindful_study_plans",
-  "mindful_focus_presets",
+] as const;
+
+/** Array-backed app_state keys: merge from local when cloud is empty/missing. */
+const MERGE_FROM_LOCAL_KEYS = [
+  "mindful_focus_sessions",
   "mindful_favorite_quotes",
   "mindful_pdf_books",
   "mindful_pdf_bookmarks",
@@ -444,6 +451,11 @@ function getFromStorage<T>(key: string, defaultValue: T): T {
   if ((DEPRECATED_STORAGE_KEYS as readonly string[]).includes(key)) {
     return defaultValue;
   }
+  if ((LOCAL_ONLY_STORAGE_KEYS as readonly string[]).includes(key)) {
+    runLocalMigrations();
+    purgeDeprecatedLocalKeys();
+    return readLocalFallback(key, defaultValue);
+  }
   if (isCloudReady()) {
     if (!isCloudStateInitialized) {
       return readLocalFallback(key, defaultValue);
@@ -465,6 +477,10 @@ function setToStorage<T>(key: string, value: T): void {
   }
 
   writeLocalFallback(key, value);
+
+  if ((LOCAL_ONLY_STORAGE_KEYS as readonly string[]).includes(key)) {
+    return;
+  }
 
   if (!isCloudReady()) {
     return;
