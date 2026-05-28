@@ -1165,9 +1165,25 @@ export function BulletJournal() {
       `;
     };
 
+    // Chunk daily pages by estimated printed line usage to avoid overflow beyond bordered page.
     const dailyChunks: string[][] = [];
-    for (let i = 0; i < monthDailyDates.length; i += 6) {
-      dailyChunks.push(monthDailyDates.slice(i, i + 6));
+    let currentChunk: string[] = [];
+    let currentUnits = 0;
+    const maxUnitsPerPage = 34;
+    for (const date of monthDailyDates) {
+      const bullets = dailyBullets[date] || [];
+      const bulletUnits = bullets.reduce((sum, b) => sum + 1 + (b.notes?.length || 0), 0);
+      const dateUnits = 1 + Math.max(1, bulletUnits);
+      if (currentChunk.length > 0 && currentUnits + dateUnits > maxUnitsPerPage) {
+        dailyChunks.push(currentChunk);
+        currentChunk = [];
+        currentUnits = 0;
+      }
+      currentChunk.push(date);
+      currentUnits += dateUnits;
+    }
+    if (currentChunk.length > 0) {
+      dailyChunks.push(currentChunk);
     }
 
     const goalRows = monthGoals
@@ -1199,7 +1215,7 @@ export function BulletJournal() {
         <meta charset="utf-8" />
         <title>Bujo ${year}-${String(month).padStart(2, '0')}</title>
         <style>
-          @page { size: A4; margin: 10mm; }
+          @page { size: A4; margin: 0; }
           html, body { margin: 0; padding: 0; }
           body {
             font-family: Georgia, "Times New Roman", serif;
@@ -1214,13 +1230,15 @@ export function BulletJournal() {
             background: #f0dfc4;
             box-shadow: inset 0 0 0 1px #c9a87c;
             padding: 14px;
-            min-height: 270mm;
+            margin: 0;
+            width: 210mm;
+            height: 297mm;
             box-sizing: border-box;
+            overflow: hidden;
           }
           .page-break {
             page-break-before: always;
             break-before: page;
-            margin-top: 8px;
           }
           .paper {
             min-height: 100%;
@@ -1230,7 +1248,7 @@ export function BulletJournal() {
             box-sizing: border-box;
           }
           .paper-inner {
-            min-height: 252mm;
+            height: 100%;
             border: 1px solid #d5c7ad;
             background:
               radial-gradient(circle, rgba(120, 107, 86, 0.18) 0.8px, transparent 0.9px),
@@ -1240,16 +1258,7 @@ export function BulletJournal() {
             box-sizing: border-box;
           }
           .first-spread {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0;
-          }
-          .first-left {
-            border-right: 1px solid #c8baa6;
-            padding-right: 16px;
-          }
-          .first-right {
-            padding-left: 16px;
+            display: block;
           }
           .sheet-header { margin-bottom: 8px; }
           h1 { margin: 0; font-size: 30px; }
@@ -1270,30 +1279,18 @@ export function BulletJournal() {
           .bullet-text.done { text-decoration: line-through; color: #6b7280; }
           .bullet-text.cancelled { text-decoration: line-through; color: #9ca3af; }
           .empty { color: #9ca3af; font-style: italic; margin: 0; }
-          .hint {
-            font-size: 11px;
-            color: #6b7280;
-            margin-top: 18px;
-          }
         </style>
       </head>
       <body>
         <section class="sheet">
           <div class="paper">
             <section class="paper-inner first-spread">
-              <div class="first-left">
-                <h1>${escapeHtml(MONTHS[monthIndex])}</h1>
-                <p class="meta">${year} · Bullet Journal Export · Page 1</p>
-                <h2>Monthly Goals</h2>
-                ${goalRows ? `<ul class="list">${goalRows}</ul>` : '<p class="empty">No goals</p>'}
-                <h2>Monthly Events</h2>
-                ${eventRows ? `<ul class="list">${eventRows}</ul>` : '<p class="empty">No events</p>'}
-              </div>
-              <div class="first-right">
-                <h1>Overview</h1>
-                <p class="meta">${escapeHtml(MONTHS[monthIndex])} ${year}</p>
-                <p class="hint">Next pages contain Daily Log entries with subnotes.</p>
-              </div>
+              <h1>${escapeHtml(MONTHS[monthIndex])}</h1>
+              <p class="meta">${year} · Bullet Journal Export · Page 1</p>
+              <h2>Monthly Goals</h2>
+              ${goalRows ? `<ul class="list">${goalRows}</ul>` : '<p class="empty">No goals</p>'}
+              <h2>Monthly Events</h2>
+              ${eventRows ? `<ul class="list">${eventRows}</ul>` : '<p class="empty">No events</p>'}
             </section>
           </div>
         </section>
