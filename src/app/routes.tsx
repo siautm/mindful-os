@@ -83,6 +83,13 @@ export const router = createBrowserRouter([
           return { Component: m.PdfReader };
         },
       },
+      {
+        path: "entries",
+        lazy: async () => {
+          const m = await import("./pages/Entries");
+          return { Component: m.Entries };
+        },
+      },
     ],
   },
   {

@@ -6,6 +6,12 @@ import {
   normalizeFocusWallpaperChoice,
   type FocusWallpaperChoice,
 } from "./focusWallpapers";
+import {
+  readEntriesCache,
+  saveEntriesCache,
+  type EntryCatalog,
+  type KnowledgeEntry,
+} from "./entryTypes";
 
 // Storage utility functions for Mindful OS
 
@@ -1287,10 +1293,14 @@ export type MindfulBackupV1 = {
     focusNoiseType: string;
     checkinTrackingStartYmd: string;
     loadingShownDate: string | null;
+    entriesCatalog?: EntryCatalog | null;
+    knowledgeEntries?: KnowledgeEntry[];
   };
 };
 
 export function createBackupSnapshot(): MindfulBackupV1 {
+  const cached = readEntriesCache();
+
   return {
     version: 1,
     exportedAt: new Date().toISOString(),
@@ -1321,6 +1331,8 @@ export function createBackupSnapshot(): MindfulBackupV1 {
       focusNoiseType: getFocusNoiseTypeChoice(),
       checkinTrackingStartYmd: getCheckInTrackingStartYmd(),
       loadingShownDate: getLoadingShownDate(),
+      entriesCatalog: cached.catalog,
+      knowledgeEntries: cached.entries,
     },
   };
 }
@@ -1366,5 +1378,11 @@ export function importBackupSnapshot(raw: unknown): void {
   if (typeof data.loadingShownDate === "string") saveLoadingShownDate(data.loadingShownDate);
   if (typeof data.checkinTrackingStartYmd === "string") {
     setToStorage(CHECKIN_TRACKING_START_KEY, data.checkinTrackingStartYmd);
+  }
+  if (isRecord(data.entriesCatalog) && Array.isArray(data.knowledgeEntries)) {
+    saveEntriesCache(
+      data.entriesCatalog as EntryCatalog,
+      data.knowledgeEntries as KnowledgeEntry[]
+    );
   }
 }

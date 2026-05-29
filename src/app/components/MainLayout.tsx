@@ -12,6 +12,7 @@ import {
   Menu,
   BookOpen,
   Repeat2,
+  BookMarked,
 } from "lucide-react";
 import { cn } from "./ui/utils";
 import { motion, AnimatePresence } from "motion/react";
@@ -38,6 +39,7 @@ const routePreloaders: Record<string, () => Promise<unknown>> = {
   "/journal": () => import("../pages/Journal"),
   "/minigame": () => import("../pages/Minigame"),
   "/pdf-reader": () => import("../pages/PdfReader"),
+  "/entries": () => import("../pages/Entries"),
 };
 
 const preloadedRoutes = new Set<string>();
@@ -79,6 +81,7 @@ const navigationGroups = [
     collapsible: true,
     items: [
       { name: "Memo", path: "/memo", icon: StickyNote },
+      { name: "Entries", path: "/entries", icon: BookMarked },
       { name: "Brain Break", path: "/minigame", icon: Brain },
       { name: "PDF Reader", path: "/pdf-reader", icon: BookOpen },
     ],
