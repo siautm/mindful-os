@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -287,59 +287,75 @@ export function Entries() {
       </Card>
 
       {filtered.length === 0 ? (
-        <p className="text-center text-gray-500 py-12 border border-dashed rounded-xl">
-          No entries yet. Create your first recipe or note.
-        </p>
+        <button
+          type="button"
+          onClick={() => openCreate()}
+          className="w-full rounded-2xl border border-dashed border-violet-200/80 bg-white/60 py-14 text-center text-sm text-gray-500 transition-all duration-200 hover:border-violet-300 hover:bg-violet-50/40 hover:text-violet-700 active:scale-[0.99]"
+        >
+          <Plus className="size-5 mx-auto mb-2 text-violet-400" />
+          No entries yet — tap to create one
+        </button>
       ) : (
         <ul className="space-y-3">
-          {filtered.map((e) => (
-            <li key={e.id}>
-              <Card
-                className="hover:border-violet-200 transition-colors cursor-pointer"
-                onClick={() => openEdit(e)}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        {e.isPinned && <Pin className="size-4 text-amber-500 shrink-0" />}
-                        <span className="truncate">{e.title}</span>
-                      </CardTitle>
-                      <p className="text-sm text-violet-700 mt-0.5">{typeLabelById.get(e.typeId)}</p>
+          {filtered.map((e) => {
+            const metaKeys = Object.keys(e.metadata ?? {});
+            return (
+              <li key={e.id}>
+                <button
+                  type="button"
+                  onClick={() => openEdit(e)}
+                  className="w-full text-left rounded-2xl border border-white/80 bg-white shadow-sm ring-1 ring-black/[0.03] transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-200/90 hover:shadow-md hover:ring-violet-100 active:translate-y-0 active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60"
+                >
+                  <div className="px-4 pt-4 pb-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                          {e.isPinned && <Pin className="size-4 text-amber-500 shrink-0" />}
+                          <span className="truncate">{e.title}</span>
+                        </h3>
+                        <span className="inline-block mt-1 rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-medium text-violet-700">
+                          {typeLabelById.get(e.typeId)}
+                        </span>
+                      </div>
+                      <time className="text-xs text-gray-400 shrink-0 tabular-nums">
+                        {new Date(e.entryAt).toLocaleDateString()}
+                      </time>
                     </div>
-                    <span className="text-xs text-gray-500 shrink-0">
-                      {new Date(e.entryAt).toLocaleDateString()}
-                    </span>
+                    {e.note && (
+                      <p className="text-sm text-gray-600 line-clamp-2 mt-3 leading-relaxed">{e.note}</p>
+                    )}
+                    {metaKeys.length > 0 && (
+                      <p className="text-xs text-gray-400 mt-2 tracking-wide">
+                        {metaKeys.slice(0, 4).join(" · ")}
+                        {metaKeys.length > 4 ? " …" : ""}
+                      </p>
+                    )}
+                    {e.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-3">
+                        {e.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-800"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  {e.note && <p className="text-sm text-gray-700 line-clamp-2">{e.note}</p>}
-                  {Object.keys(e.metadata ?? {}).length > 0 && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      {Object.keys(e.metadata).slice(0, 4).join(" · ")}
-                      {Object.keys(e.metadata).length > 4 ? " …" : ""}
-                    </p>
-                  )}
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {e.tags.map((tag) => (
-                      <Badge key={tag} variant="secondary" className="text-xs">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </li>
-          ))}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
-        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit entry" : "New entry"}</DialogTitle>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border-violet-100/80 shadow-xl">
+          <DialogHeader className="pb-0">
+            <DialogTitle className="text-xl">{editing ? "Edit entry" : "New entry"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div className="space-y-2">
               <Label>Type</Label>
               <select
@@ -403,57 +419,52 @@ export function Entries() {
               </div>
             </div>
 
-            <div className="border-t pt-4 space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-medium text-gray-800">Metadata</p>
-                  <p className="text-xs text-gray-500">
-                    Add fields yourself. Pick a saved name or type a new one (e.g. ingredients, steps).
-                  </p>
-                </div>
-                <Button type="button" size="sm" variant="outline" onClick={addMetadataRow}>
+            <div className="space-y-3 pt-1">
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full border-violet-200/90 text-violet-700 shadow-sm transition-all hover:border-violet-300 hover:bg-violet-50 active:scale-95"
+                  onClick={addMetadataRow}
+                >
                   <Plus className="size-4 mr-1" />
                   Add field
                 </Button>
               </div>
 
-              {metadataRows.length === 0 ? (
-                <p className="text-sm text-gray-500 italic py-2">No metadata yet — tap Add field.</p>
-              ) : (
+              {metadataRows.length > 0 && (
                 <ul className="space-y-3">
-                  {metadataRows.map((row) => (
+                  {metadataRows.map((row, index) => (
                     <li
                       key={row.id}
-                      className="grid grid-cols-1 sm:grid-cols-[minmax(0,9rem)_1fr_auto] gap-2 items-start rounded-lg border border-gray-200 p-2 bg-gray-50/80"
+                      className="group relative rounded-2xl border border-violet-100/70 bg-gradient-to-b from-white to-violet-50/20 p-4 shadow-sm ring-1 ring-black/[0.02] transition-all duration-200 hover:border-violet-200 hover:shadow-md focus-within:border-violet-300 focus-within:shadow-md focus-within:ring-violet-100/80"
+                      style={{ animationDelay: `${index * 40}ms` }}
                     >
-                      <div className="space-y-1">
-                        <Label className="text-xs text-gray-500">Field</Label>
-                        <Input
-                          list={datalistId}
-                          placeholder="e.g. ingredients"
-                          value={row.key}
-                          onChange={(e) => updateMetadataRow(row.id, { key: e.target.value })}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-gray-500">Content</Label>
-                        <Textarea
-                          rows={3}
-                          placeholder="Value for this field"
-                          value={row.value}
-                          onChange={(e) => updateMetadataRow(row.id, { value: e.target.value })}
-                        />
-                      </div>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="shrink-0 text-gray-500 hover:text-red-600 sm:mt-6"
+                        className="absolute right-2 top-2 size-8 rounded-full text-gray-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 focus-visible:opacity-100"
                         aria-label="Remove field"
                         onClick={() => removeMetadataRow(row.id)}
                       >
                         <X className="size-4" />
                       </Button>
+                      <Input
+                        list={datalistId}
+                        placeholder="Field name"
+                        value={row.key}
+                        onChange={(e) => updateMetadataRow(row.id, { key: e.target.value })}
+                        className="border-0 bg-transparent px-0 pr-10 text-sm font-semibold text-gray-900 shadow-none placeholder:font-normal placeholder:text-gray-400 focus-visible:ring-0"
+                      />
+                      <Textarea
+                        rows={3}
+                        placeholder="Content…"
+                        value={row.value}
+                        onChange={(e) => updateMetadataRow(row.id, { value: e.target.value })}
+                        className="mt-2 min-h-[4.5rem] resize-y rounded-xl border-violet-100/60 bg-white/80 text-sm leading-relaxed shadow-none transition-colors focus-visible:border-violet-200 focus-visible:ring-violet-200/50"
+                      />
                     </li>
                   ))}
                 </ul>
@@ -466,8 +477,11 @@ export function Entries() {
               </datalist>
             </div>
 
-            <div className="flex flex-wrap gap-2 pt-2">
-              <Button className="flex-1 bg-violet-600 hover:bg-violet-700" onClick={() => void saveEntry()}>
+            <div className="flex flex-wrap gap-2 pt-1 border-t border-violet-100/60">
+              <Button
+                className="flex-1 rounded-xl bg-violet-600 shadow-sm transition-all hover:bg-violet-700 active:scale-[0.98]"
+                onClick={() => void saveEntry()}
+              >
                 Save
               </Button>
               <Button
