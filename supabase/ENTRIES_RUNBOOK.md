@@ -7,4 +7,4 @@ Run in Supabase SQL Editor (in order):
 
 Then redeploy the app.
 
-**Full module documentation (for AI / maintainers):** [`docs/ENTRIES_MODULE.md`](../docs/ENTRIES_MODULE.md)
+**Frontend design brief (for UI AI):** [`docs/ENTRIES_MODULE.md`](../docs/ENTRIES_MODULE.md)
