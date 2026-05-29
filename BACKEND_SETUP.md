@@ -5,9 +5,9 @@ This project now includes backend routes in `api/` for:
 - `GET /api/health`
 - `GET /api/sounds?type=rain`
 - `GET|POST /api/state`
-- `GET|POST|PATCH|DELETE /api/tasks`
-- `GET|POST /api/focus-sessions`
-- `GET|POST /api/checkins`
+- `GET|POST|PATCH|DELETE /api/finance`, `/api/timetable`, `/api/habits`, `/api/study-plans`, `/api/entries`, etc.
+- `GET|POST /api/focus-sessions`, `/api/focus-presets`
+- `GET|POST /api/wellness` (check-in health data)
 
 ## 1) Supabase project
 
