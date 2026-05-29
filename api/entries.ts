@@ -2,52 +2,18 @@ import { requireUserId } from "./_lib/auth.js";
 import { handleOptions, sendJson } from "./_lib/http.js";
 import { getSupabaseAdmin } from "./_lib/supabase.js";
 
-const DEFAULT_CATALOG = [
-  {
-    id: "recipe",
-    type_key: "recipe",
-    label: "Recipe",
-    sort_order: 0,
-    fields: [
-      { id: "recipe_ingredients", field_key: "ingredients", label: "Ingredients", value_kind: "list", allow_preset: false, sort_order: 0 },
-      { id: "recipe_cook_time", field_key: "cook_time", label: "Cook time (min)", value_kind: "number", allow_preset: true, sort_order: 1 },
-      { id: "recipe_steps", field_key: "steps", label: "Steps", value_kind: "mindmap_list", allow_preset: false, sort_order: 2 },
-      { id: "recipe_allergy", field_key: "allergy", label: "Allergy notes", value_kind: "list", allow_preset: true, sort_order: 3 },
-      { id: "recipe_dislike_by", field_key: "dislike_by", label: "Disliked by (this entry only)", value_kind: "text", allow_preset: false, sort_order: 4 },
-    ],
-    presets: [{ field_key: "allergy", preset_value: [] }, { field_key: "cook_time", preset_value: null }],
-  },
-  {
-    id: "book_note",
-    type_key: "book_note",
-    label: "Book notes",
-    sort_order: 1,
-    fields: [
-      { id: "book_author", field_key: "author", label: "Author", value_kind: "text", allow_preset: false, sort_order: 0 },
-      { id: "book_rating", field_key: "rating", label: "Rating (1-5)", value_kind: "number", allow_preset: false, sort_order: 1 },
-      { id: "book_quotes", field_key: "quotes", label: "Quotes", value_kind: "list", allow_preset: false, sort_order: 2 },
-    ],
-    presets: [],
-  },
-  {
-    id: "learning",
-    type_key: "learning",
-    label: "Learning",
-    sort_order: 2,
-    fields: [
-      { id: "learning_source", field_key: "source", label: "Source", value_kind: "text", allow_preset: false, sort_order: 0 },
-      { id: "learning_url", field_key: "url", label: "URL", value_kind: "text", allow_preset: false, sort_order: 1 },
-      { id: "learning_key_points", field_key: "key_points", label: "Key points", value_kind: "mindmap_list", allow_preset: false, sort_order: 2 },
-    ],
-    presets: [],
-  },
+/** Types only — metadata fields are added by the user per entry. */
+const DEFAULT_TYPES = [
+  { id: "recipe", type_key: "recipe", label: "Recipe", sort_order: 0 },
+  { id: "book_note", type_key: "book_note", label: "Book notes", sort_order: 1 },
+  { id: "learning", type_key: "learning", label: "Learning", sort_order: 2 },
 ] as const;
 
 async function ensureDefaultCatalog(db: ReturnType<typeof getSupabaseAdmin>, userId: string) {
   const { data: existing } = await db.from("entry_types").select("id").eq("user_id", userId).limit(1);
   if ((existing ?? []).length > 0) return;
 
-  for (const t of DEFAULT_CATALOG) {
+  for (const t of DEFAULT_TYPES) {
     await db.from("entry_types").upsert({
       id: t.id,
       user_id: userId,
@@ -55,28 +21,32 @@ async function ensureDefaultCatalog(db: ReturnType<typeof getSupabaseAdmin>, use
       label: t.label,
       sort_order: t.sort_order,
     });
-    for (const f of t.fields) {
-      await db.from("entry_type_fields").upsert({
-        id: f.id,
-        user_id: userId,
-        type_id: t.id,
-        field_key: f.field_key,
-        label: f.label,
-        value_kind: f.value_kind,
-        allow_preset: f.allow_preset,
-        sort_order: f.sort_order,
-      });
-    }
-    for (const p of t.presets) {
-      await db.from("entry_type_presets").upsert({
-        user_id: userId,
-        type_id: t.id,
-        field_key: p.field_key,
-        preset_value: p.preset_value,
-        updated_at: new Date().toISOString(),
-      });
+  }
+}
+
+function collectKeyCatalog(
+  types: Array<{ id: string }>,
+  fields: Array<{ type_id: string; field_key: string }>,
+  entries: Array<{ type_id: string; metadata: Record<string, unknown> }>
+): Record<string, string[]> {
+  const catalog: Record<string, Set<string>> = {};
+  for (const t of types) catalog[t.id] = new Set();
+  for (const f of fields) {
+    const k = String(f.field_key ?? "").trim();
+    if (k && catalog[f.type_id]) catalog[f.type_id].add(k);
+  }
+  for (const e of entries) {
+    const meta = (e.metadata ?? {}) as Record<string, unknown>;
+    for (const k of Object.keys(meta)) {
+      const key = k.trim();
+      if (key && catalog[e.type_id]) catalog[e.type_id].add(key);
     }
   }
+  const out: Record<string, string[]> = {};
+  for (const [typeId, set] of Object.entries(catalog)) {
+    out[typeId] = Array.from(set).sort((a, b) => a.localeCompare(b));
+  }
+  return out;
 }
 
 function mapEntry(row: Record<string, unknown>) {
@@ -92,22 +62,6 @@ function mapEntry(row: Record<string, unknown>) {
     createdAt: row.created_at ? String(row.created_at) : undefined,
     updatedAt: row.updated_at ? String(row.updated_at) : undefined,
   };
-}
-
-function mergePresetsIntoMetadata(
-  metadata: Record<string, unknown>,
-  typeId: string,
-  fields: Array<{ type_id: string; field_key: string; allow_preset: boolean }>,
-  presets: Array<{ type_id: string; field_key: string; preset_value: unknown }>
-) {
-  const next = { ...metadata };
-  for (const f of fields) {
-    if (f.type_id !== typeId || !f.allow_preset) continue;
-    if (next[f.field_key] !== undefined) continue;
-    const p = presets.find((x) => x.type_id === typeId && x.field_key === f.field_key);
-    if (p) next[f.field_key] = p.preset_value;
-  }
-  return next;
 }
 
 export default async function handler(req: any, res: any) {
@@ -132,13 +86,21 @@ export default async function handler(req: any, res: any) {
       if (presetsRes.error) throw presetsRes.error;
       if (entriesRes.error) throw entriesRes.error;
 
+      const types = (typesRes.data ?? []).map((t) => ({
+        id: t.id,
+        typeKey: t.type_key,
+        label: t.label,
+        sortOrder: t.sort_order,
+      }));
+      const entries = (entriesRes.data ?? []).map((e) => mapEntry(e as Record<string, unknown>));
+      const keyCatalog = collectKeyCatalog(
+        types,
+        fieldsRes.data ?? [],
+        (entriesRes.data ?? []) as Array<{ type_id: string; metadata: Record<string, unknown> }>
+      );
+
       sendJson(res, 200, {
-        types: (typesRes.data ?? []).map((t) => ({
-          id: t.id,
-          typeKey: t.type_key,
-          label: t.label,
-          sortOrder: t.sort_order,
-        })),
+        types,
         fields: (fieldsRes.data ?? []).map((f) => ({
           id: f.id,
           typeId: f.type_id,
@@ -153,7 +115,8 @@ export default async function handler(req: any, res: any) {
           fieldKey: p.field_key,
           value: p.preset_value,
         })),
-        entries: (entriesRes.data ?? []).map((e) => mapEntry(e as Record<string, unknown>)),
+        keyCatalog,
+        entries,
       });
       return;
     }
@@ -162,19 +125,23 @@ export default async function handler(req: any, res: any) {
       const body = req.body ?? {};
       const action = String(body.action ?? "create_entry");
 
-      if (action === "update_preset") {
+      if (action === "remember_key") {
         const typeId = String(body.typeId ?? "");
-        const fieldKey = String(body.fieldKey ?? "");
+        const fieldKey = String(body.fieldKey ?? "").trim().toLowerCase().replace(/\s+/g, "_");
+        const label = String(body.label ?? body.fieldKey ?? fieldKey).trim();
         if (!typeId || !fieldKey) {
           sendJson(res, 400, { error: "typeId and fieldKey required" });
           return;
         }
-        const { error } = await db.from("entry_type_presets").upsert({
+        const { error } = await db.from("entry_type_fields").upsert({
+          id: `${typeId}_${fieldKey}`,
           user_id: userId,
           type_id: typeId,
           field_key: fieldKey,
-          preset_value: body.value ?? null,
-          updated_at: new Date().toISOString(),
+          label: label || fieldKey,
+          value_kind: "text",
+          allow_preset: false,
+          sort_order: 99,
         });
         if (error) throw error;
         sendJson(res, 200, { ok: true });
@@ -223,15 +190,10 @@ export default async function handler(req: any, res: any) {
         return;
       }
 
-      const [fieldsRes, presetsRes] = await Promise.all([
-        db.from("entry_type_fields").select("type_id, field_key, allow_preset").eq("user_id", userId).eq("type_id", typeId),
-        db.from("entry_type_presets").select("type_id, field_key, preset_value").eq("user_id", userId).eq("type_id", typeId),
-      ]);
-      if (fieldsRes.error) throw fieldsRes.error;
-      if (presetsRes.error) throw presetsRes.error;
-
-      const metadataIn = (body.metadata && typeof body.metadata === "object" ? body.metadata : {}) as Record<string, unknown>;
-      const metadata = mergePresetsIntoMetadata(metadataIn, typeId, fieldsRes.data ?? [], presetsRes.data ?? []);
+      const metadata =
+        body.metadata && typeof body.metadata === "object"
+          ? (body.metadata as Record<string, unknown>)
+          : {};
 
       const payload = {
         id: String(body.id ?? "").trim() || `${Date.now()}`,

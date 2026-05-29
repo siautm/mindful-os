@@ -52,6 +52,8 @@ export interface EntryCatalog {
   types: EntryType[];
   fields: EntryTypeField[];
   presets: EntryTypePreset[];
+  /** Suggested metadata keys per type (for datalist). */
+  keyCatalog: Record<string, string[]>;
 }
 
 const ENTRIES_CACHE_KEY = "mindful_entries_catalog";
@@ -72,8 +74,10 @@ export function readEntriesCache(): { catalog: EntryCatalog | null; entries: Kno
   try {
     const catalogRaw = localStorage.getItem(ENTRIES_CACHE_KEY);
     const entriesRaw = localStorage.getItem(ENTRIES_LIST_KEY);
+    const catalog = catalogRaw ? (JSON.parse(catalogRaw) as EntryCatalog) : null;
+    if (catalog && !catalog.keyCatalog) catalog.keyCatalog = {};
     return {
-      catalog: catalogRaw ? (JSON.parse(catalogRaw) as EntryCatalog) : null,
+      catalog,
       entries: entriesRaw ? (JSON.parse(entriesRaw) as KnowledgeEntry[]) : [],
     };
   } catch {
@@ -81,22 +85,65 @@ export function readEntriesCache(): { catalog: EntryCatalog | null; entries: Kno
   }
 }
 
-/** Copy type presets into metadata for fields that allow presets. */
-export function applyPresetsToMetadata(
+export interface MetadataRow {
+  id: string;
+  key: string;
+  value: string;
+}
+
+/** Turn stored metadata into editable key/value rows (values as text). */
+export function metadataToRows(metadata: Record<string, unknown> | undefined): MetadataRow[] {
+  if (!metadata || typeof metadata !== "object") return [];
+  return Object.entries(metadata).map(([key, value], i) => ({
+    id: `row-${i}-${key}`,
+    key,
+    value: metadataValueToText(value),
+  }));
+}
+
+export function metadataValueToText(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.map(String).join(", ");
+  if (typeof value === "object" && (value as MindmapListValue).format === "mindmap_list") {
+    return mindmapListToText(value);
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+/** Build metadata object from rows; empty keys are skipped. */
+export function rowsToMetadata(rows: MetadataRow[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const row of rows) {
+    const key = row.key.trim();
+    if (!key) continue;
+    out[key] = row.value;
+  }
+  return out;
+}
+
+/** Suggested field names for a type (saved keys + keys used in entries). */
+export function buildKeySuggestions(
   typeId: string,
-  metadata: Record<string, unknown>,
   fields: EntryTypeField[],
-  presets: EntryTypePreset[]
-): Record<string, unknown> {
-  const next = { ...metadata };
-  for (const field of fields.filter((f) => f.typeId === typeId && f.allowPreset)) {
-    if (next[field.fieldKey] !== undefined) continue;
-    const preset = presets.find((p) => p.typeId === typeId && p.fieldKey === field.fieldKey);
-    if (preset?.value !== undefined) {
-      next[field.fieldKey] = structuredClone(preset.value);
+  entries: KnowledgeEntry[]
+): string[] {
+  const set = new Set<string>();
+  for (const f of fields) {
+    if (f.typeId === typeId && f.fieldKey.trim()) set.add(f.fieldKey.trim());
+  }
+  for (const e of entries) {
+    if (e.typeId !== typeId) continue;
+    for (const k of Object.keys(e.metadata ?? {})) {
+      if (k.trim()) set.add(k.trim());
     }
   }
-  return next;
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
 
 export function parseMindmapListText(raw: string): MindmapListValue {
@@ -130,17 +177,6 @@ export function mindmapListToText(value: unknown): string {
       return subs ? `${head}\n${subs}` : head;
     })
     .join("\n");
-}
-
-export function emptyMetadataForFields(fields: EntryTypeField[], typeId: string): Record<string, unknown> {
-  const meta: Record<string, unknown> = {};
-  for (const f of fields.filter((x) => x.typeId === typeId)) {
-    if (f.valueKind === "list") meta[f.fieldKey] = [];
-    else if (f.valueKind === "number") meta[f.fieldKey] = null;
-    else if (f.valueKind === "mindmap_list") meta[f.fieldKey] = { format: "mindmap_list", items: [] };
-    else meta[f.fieldKey] = "";
-  }
-  return meta;
 }
 
 export function entrySearchBlob(entry: KnowledgeEntry, typeLabel: string): string {

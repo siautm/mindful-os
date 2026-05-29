@@ -5,66 +5,45 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { Badge } from "../components/ui/badge";
-import {
-  ArrowLeft,
-  BookMarked,
-  Pin,
-  PinOff,
-  Plus,
-  Search,
-  Settings2,
-  Trash2,
-} from "lucide-react";
+import { ArrowLeft, BookMarked, Pin, PinOff, Plus, Search, Trash2, X } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useStorageHydration } from "../lib/useStorageHydration";
 import { toast } from "sonner";
 import {
-  applyPresetsToMetadata,
-  emptyMetadataForFields,
+  buildKeySuggestions,
   entrySearchBlob,
-  mindmapListToText,
-  parseMindmapListText,
+  metadataToRows,
   readEntriesCache,
+  rowsToMetadata,
   saveEntriesCache,
   type EntryCatalog,
-  type EntryTypeField,
   type KnowledgeEntry,
+  type MetadataRow,
 } from "../lib/entryTypes";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.trim() || "";
 const ENTRIES_ENDPOINT = `${API_BASE}/api/entries`;
 
-function MindmapPreview({ value }: { value: unknown }) {
-  const text = mindmapListToText(value);
-  if (!text) return <p className="text-xs text-gray-500 italic">No steps yet</p>;
-  return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm space-y-2">
-      {text.split("\n").map((line, i) => (
-        <div
-          key={i}
-          className={line.startsWith("  -") ? "ml-6 text-gray-600" : "font-medium text-gray-900"}
-        >
-          {line}
-        </div>
-      ))}
-    </div>
-  );
-}
+const emptyCatalog = (): EntryCatalog => ({
+  types: [],
+  fields: [],
+  presets: [],
+  keyCatalog: {},
+});
 
 export function Entries() {
   const { session } = useAuth();
-  const [catalog, setCatalog] = useState<EntryCatalog>({ types: [], fields: [], presets: [] });
+  const [catalog, setCatalog] = useState<EntryCatalog>(emptyCatalog);
   const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [editorOpen, setEditorOpen] = useState(false);
-  const [presetOpen, setPresetOpen] = useState(false);
   const [editing, setEditing] = useState<KnowledgeEntry | null>(null);
   const [draft, setDraft] = useState<Partial<KnowledgeEntry>>({});
+  const [metadataRows, setMetadataRows] = useState<MetadataRow[]>([]);
   const [tagInput, setTagInput] = useState("");
-  const [mindmapDrafts, setMindmapDrafts] = useState<Record<string, string>>({});
 
   const loadAll = useCallback(async () => {
     const token = session?.access_token;
@@ -81,12 +60,14 @@ export function Entries() {
         types?: EntryCatalog["types"];
         fields?: EntryCatalog["fields"];
         presets?: EntryCatalog["presets"];
+        keyCatalog?: Record<string, string[]>;
         entries?: KnowledgeEntry[];
       };
       const nextCatalog: EntryCatalog = {
         types: json.types ?? [],
         fields: json.fields ?? [],
-        presets: json.presets ?? [],
+        presets: [],
+        keyCatalog: json.keyCatalog ?? {},
       };
       const nextEntries = json.entries ?? [];
       setCatalog(nextCatalog);
@@ -117,9 +98,13 @@ export function Entries() {
     });
   }, [entries, query, typeFilter, typeLabelById]);
 
-  const fieldsForType = useCallback(
-    (typeId: string) => catalog.fields.filter((f) => f.typeId === typeId).sort((a, b) => a.sortOrder - b.sortOrder),
-    [catalog.fields]
+  const keySuggestions = useCallback(
+    (typeId: string) => {
+      const fromApi = catalog.keyCatalog[typeId] ?? [];
+      const merged = buildKeySuggestions(typeId, catalog.fields, entries);
+      return Array.from(new Set([...fromApi, ...merged])).sort((a, b) => a.localeCompare(b));
+    },
+    [catalog.keyCatalog, catalog.fields, entries]
   );
 
   async function apiJson(method: string, body?: Record<string, unknown>) {
@@ -137,46 +122,53 @@ export function Entries() {
     return res.json();
   }
 
+  async function rememberKeys(typeId: string, keys: string[]) {
+    const unique = Array.from(new Set(keys.map((k) => k.trim()).filter(Boolean)));
+    for (const fieldKey of unique) {
+      try {
+        await apiJson("POST", { action: "remember_key", typeId, fieldKey, label: fieldKey });
+      } catch {
+        /* non-blocking */
+      }
+    }
+  }
+
   function openCreate(typeId?: string) {
     const tid = typeId ?? catalog.types[0]?.id ?? "recipe";
-    const meta = applyPresetsToMetadata(
-      emptyMetadataForFields(catalog.fields, tid),
-      tid,
-      catalog.fields,
-      catalog.presets
-    );
     setEditing(null);
     setDraft({
       typeId: tid,
       title: "",
       note: "",
       tags: [],
-      metadata: meta,
+      metadata: {},
       isPinned: false,
       entryAt: new Date().toISOString(),
     });
-    setMindmapDrafts({});
+    setMetadataRows([]);
     setEditorOpen(true);
   }
 
   function openEdit(entry: KnowledgeEntry) {
     setEditing(entry);
     setDraft({ ...entry });
-    const drafts: Record<string, string> = {};
-    for (const f of fieldsForType(entry.typeId)) {
-      if (f.valueKind === "mindmap_list") {
-        drafts[f.fieldKey] = mindmapListToText(entry.metadata[f.fieldKey]);
-      }
-    }
-    setMindmapDrafts(drafts);
+    setMetadataRows(metadataToRows(entry.metadata));
     setEditorOpen(true);
   }
 
-  function setMetaField(key: string, value: unknown) {
-    setDraft((d) => ({
-      ...d,
-      metadata: { ...(d.metadata ?? {}), [key]: value },
-    }));
+  function addMetadataRow() {
+    setMetadataRows((rows) => [
+      ...rows,
+      { id: `row-${Date.now()}`, key: "", value: "" },
+    ]);
+  }
+
+  function updateMetadataRow(id: string, patch: Partial<MetadataRow>) {
+    setMetadataRows((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }
+
+  function removeMetadataRow(id: string) {
+    setMetadataRows((rows) => rows.filter((r) => r.id !== id));
   }
 
   async function saveEntry() {
@@ -187,12 +179,8 @@ export function Entries() {
       return;
     }
 
-    const metadata = { ...(draft.metadata ?? {}) };
-    for (const f of fieldsForType(typeId)) {
-      if (f.valueKind === "mindmap_list" && mindmapDrafts[f.fieldKey] !== undefined) {
-        metadata[f.fieldKey] = parseMindmapListText(mindmapDrafts[f.fieldKey]);
-      }
-    }
+    const metadata = rowsToMetadata(metadataRows);
+    const keys = Object.keys(metadata);
 
     const payload = {
       id: editing?.id,
@@ -213,6 +201,7 @@ export function Entries() {
         await apiJson("POST", payload);
         toast.success("Entry created");
       }
+      await rememberKeys(typeId, keys);
       setEditorOpen(false);
       await loadAll();
     } catch (e) {
@@ -236,112 +225,9 @@ export function Entries() {
     }
   }
 
-  async function savePreset(typeId: string, fieldKey: string, value: unknown) {
-    try {
-      await apiJson("POST", { action: "update_preset", typeId, fieldKey, value });
-      toast.success("Preset saved for future entries");
-      await loadAll();
-    } catch {
-      toast.error("Could not save preset");
-    }
-  }
-
-  function renderMetadataField(field: EntryTypeField) {
-    const typeId = String(draft.typeId ?? "");
-    const value = draft.metadata?.[field.fieldKey];
-
-    if (field.valueKind === "mindmap_list") {
-      return (
-        <div key={field.id} className="space-y-2">
-          <Label>{field.label}</Label>
-          <Textarea
-            rows={6}
-            placeholder={"1. Add water\n2. Add sauce\n  - stir slowly"}
-            value={mindmapDrafts[field.fieldKey] ?? mindmapListToText(value)}
-            onChange={(e) =>
-              setMindmapDrafts((m) => ({ ...m, [field.fieldKey]: e.target.value }))
-            }
-          />
-          <MindmapPreview value={parseMindmapListText(mindmapDrafts[field.fieldKey] ?? "")} />
-        </div>
-      );
-    }
-
-    if (field.valueKind === "list") {
-      const listVal = Array.isArray(value) ? (value as string[]).join(", ") : "";
-      return (
-        <div key={field.id} className="space-y-2">
-          <Label>{field.label}</Label>
-          <Input
-            value={listVal}
-            placeholder="comma separated"
-            onChange={(e) =>
-              setMetaField(
-                field.fieldKey,
-                e.target.value
-                  .split(",")
-                  .map((s) => s.trim())
-                  .filter(Boolean)
-              )
-            }
-          />
-          {field.allowPreset && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                const list = Array.isArray(draft.metadata?.[field.fieldKey])
-                  ? (draft.metadata![field.fieldKey] as string[])
-                  : [];
-                void savePreset(typeId, field.fieldKey, list);
-              }}
-            >
-              Save as preset for new {typeLabelById.get(typeId)} entries
-            </Button>
-          )}
-        </div>
-      );
-    }
-
-    if (field.valueKind === "number") {
-      return (
-        <div key={field.id} className="space-y-2">
-          <Label>{field.label}</Label>
-          <Input
-            type="number"
-            value={value === null || value === undefined ? "" : String(value)}
-            onChange={(e) =>
-              setMetaField(field.fieldKey, e.target.value === "" ? null : Number(e.target.value))
-            }
-          />
-          {field.allowPreset && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => savePreset(typeId, field.fieldKey, value ?? null)}
-            >
-              Save as preset
-            </Button>
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <div key={field.id} className="space-y-2">
-        <Label>
-          {field.label}
-          {!field.allowPreset && field.fieldKey === "dislike_by" ? " (this entry only)" : ""}
-        </Label>
-        <Input
-          value={typeof value === "string" ? value : ""}
-          onChange={(e) => setMetaField(field.fieldKey, e.target.value)}
-        />
-      </div>
-    );
-  }
+  const draftTypeId = String(draft.typeId ?? "");
+  const suggestions = draftTypeId ? keySuggestions(draftTypeId) : [];
+  const datalistId = `entry-key-suggestions-${draftTypeId}`;
 
   return (
     <div className="px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 md:p-8 md:pb-8 space-y-6 w-full min-w-0 max-w-4xl mx-auto">
@@ -350,7 +236,7 @@ export function Entries() {
           <BookMarked className="size-8 text-violet-600 shrink-0" />
           <div>
             <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900">Entries</h1>
-            <p className="text-sm text-gray-600">Recipes, book notes, learning — searchable knowledge base</p>
+            <p className="text-sm text-gray-600">Add your own fields — ingredients, steps, notes…</p>
           </div>
         </div>
         <div className="flex gap-2 shrink-0">
@@ -360,62 +246,6 @@ export function Entries() {
               Dashboard
             </Link>
           </Button>
-          <Dialog open={presetOpen} onOpenChange={setPresetOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Settings2 className="size-4 mr-1" />
-                Presets
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Type presets</DialogTitle>
-              </DialogHeader>
-              <p className="text-sm text-gray-600">
-                Presets apply when you create a new entry. You can still override per entry (e.g. dislike_by).
-              </p>
-              {catalog.types.map((t) => (
-                <div key={t.id} className="border rounded-lg p-3 space-y-2">
-                  <p className="font-medium">{t.label}</p>
-                  {fieldsForType(t.id)
-                    .filter((f) => f.allowPreset)
-                    .map((f) => {
-                      const preset = catalog.presets.find(
-                        (p) => p.typeId === t.id && p.fieldKey === f.fieldKey
-                      );
-                      return (
-                        <div key={f.id} className="text-sm space-y-1">
-                          <Label>{f.label}</Label>
-                          <Input
-                            defaultValue={
-                              Array.isArray(preset?.value)
-                                ? (preset!.value as string[]).join(", ")
-                                : preset?.value != null
-                                  ? String(preset.value)
-                                  : ""
-                            }
-                            onBlur={(e) => {
-                              const v =
-                                f.valueKind === "list"
-                                  ? e.target.value.split(",").map((s) => s.trim()).filter(Boolean)
-                                  : f.valueKind === "number"
-                                    ? e.target.value === ""
-                                      ? null
-                                      : Number(e.target.value)
-                                    : e.target.value;
-                              void savePreset(t.id, f.fieldKey, v);
-                            }}
-                          />
-                        </div>
-                      );
-                    })}
-                  {fieldsForType(t.id).filter((f) => f.allowPreset).length === 0 && (
-                    <p className="text-xs text-gray-500">No preset fields for this type.</p>
-                  )}
-                </div>
-              ))}
-            </DialogContent>
-          </Dialog>
           <Button size="sm" className="bg-violet-600 hover:bg-violet-700" onClick={() => openCreate()}>
             <Plus className="size-4 mr-1" />
             New
@@ -464,7 +294,10 @@ export function Entries() {
         <ul className="space-y-3">
           {filtered.map((e) => (
             <li key={e.id}>
-              <Card className="hover:border-violet-200 transition-colors cursor-pointer" onClick={() => openEdit(e)}>
+              <Card
+                className="hover:border-violet-200 transition-colors cursor-pointer"
+                onClick={() => openEdit(e)}
+              >
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -481,6 +314,12 @@ export function Entries() {
                 </CardHeader>
                 <CardContent className="pt-0">
                   {e.note && <p className="text-sm text-gray-700 line-clamp-2">{e.note}</p>}
+                  {Object.keys(e.metadata ?? {}).length > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {Object.keys(e.metadata).slice(0, 4).join(" · ")}
+                      {Object.keys(e.metadata).length > 4 ? " …" : ""}
+                    </p>
+                  )}
                   <div className="flex flex-wrap gap-1 mt-2">
                     {e.tags.map((tag) => (
                       <Badge key={tag} variant="secondary" className="text-xs">
@@ -507,15 +346,7 @@ export function Entries() {
                 className="w-full border rounded-md h-10 px-3 text-sm"
                 value={draft.typeId ?? ""}
                 onChange={(e) => {
-                  const typeId = e.target.value;
-                  const meta = applyPresetsToMetadata(
-                    emptyMetadataForFields(catalog.fields, typeId),
-                    typeId,
-                    catalog.fields,
-                    catalog.presets
-                  );
-                  setDraft((d) => ({ ...d, typeId, metadata: meta }));
-                  setMindmapDrafts({});
+                  setDraft((d) => ({ ...d, typeId: e.target.value }));
                 }}
               >
                 {catalog.types.map((t) => (
@@ -535,29 +366,27 @@ export function Entries() {
             <div className="space-y-2">
               <Label>Note</Label>
               <Textarea
-                rows={4}
+                rows={3}
                 value={draft.note ?? ""}
                 onChange={(e) => setDraft((d) => ({ ...d, note: e.target.value }))}
               />
             </div>
             <div className="space-y-2">
               <Label>Tags</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={tagInput}
-                  placeholder="Add tag"
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      const t = tagInput.trim();
-                      if (!t) return;
-                      setDraft((d) => ({ ...d, tags: [...(d.tags ?? []), t] }));
-                      setTagInput("");
-                    }
-                  }}
-                />
-              </div>
+              <Input
+                value={tagInput}
+                placeholder="Add tag, press Enter"
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const t = tagInput.trim();
+                    if (!t) return;
+                    setDraft((d) => ({ ...d, tags: [...(d.tags ?? []), t] }));
+                    setTagInput("");
+                  }
+                }}
+              />
               <div className="flex flex-wrap gap-1">
                 {(draft.tags ?? []).map((tag) => (
                   <Badge
@@ -574,12 +403,68 @@ export function Entries() {
               </div>
             </div>
 
-            {draft.typeId && (
-              <div className="border-t pt-4 space-y-4">
-                <p className="text-sm font-medium text-gray-800">Metadata</p>
-                {fieldsForType(String(draft.typeId)).map((f) => renderMetadataField(f))}
+            <div className="border-t pt-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Metadata</p>
+                  <p className="text-xs text-gray-500">
+                    Add fields yourself. Pick a saved name or type a new one (e.g. ingredients, steps).
+                  </p>
+                </div>
+                <Button type="button" size="sm" variant="outline" onClick={addMetadataRow}>
+                  <Plus className="size-4 mr-1" />
+                  Add field
+                </Button>
               </div>
-            )}
+
+              {metadataRows.length === 0 ? (
+                <p className="text-sm text-gray-500 italic py-2">No metadata yet — tap Add field.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {metadataRows.map((row) => (
+                    <li
+                      key={row.id}
+                      className="grid grid-cols-1 sm:grid-cols-[minmax(0,9rem)_1fr_auto] gap-2 items-start rounded-lg border border-gray-200 p-2 bg-gray-50/80"
+                    >
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-500">Field</Label>
+                        <Input
+                          list={datalistId}
+                          placeholder="e.g. ingredients"
+                          value={row.key}
+                          onChange={(e) => updateMetadataRow(row.id, { key: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-500">Content</Label>
+                        <Textarea
+                          rows={3}
+                          placeholder="Value for this field"
+                          value={row.value}
+                          onChange={(e) => updateMetadataRow(row.id, { value: e.target.value })}
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 text-gray-500 hover:text-red-600 sm:mt-6"
+                        aria-label="Remove field"
+                        onClick={() => removeMetadataRow(row.id)}
+                      >
+                        <X className="size-4" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <datalist id={datalistId}>
+                {suggestions.map((k) => (
+                  <option key={k} value={k} />
+                ))}
+              </datalist>
+            </div>
 
             <div className="flex flex-wrap gap-2 pt-2">
               <Button className="flex-1 bg-violet-600 hover:bg-violet-700" onClick={() => void saveEntry()}>
