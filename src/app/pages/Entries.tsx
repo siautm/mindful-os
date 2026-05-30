@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import {
   buildAllKeySuggestions,
   DEFAULT_ENTRY_TYPE,
-  entrySearchBlob,
   pairsToMetadata,
   readEntriesCache,
   saveEntriesCache,
@@ -116,7 +115,7 @@ export function Entries() {
         selectedTags.length === 0 || selectedTags.some((tag) => e.tags.includes(tag));
       if (!matchesTags) return false;
       if (!q) return true;
-      return entrySearchBlob(e).includes(q);
+      return e.title.toLowerCase().includes(q);
     });
   }, [entries, query, selectedTags]);
 

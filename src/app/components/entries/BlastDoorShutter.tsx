@@ -43,7 +43,7 @@ function DoorPanel({ side }: { side: "left" | "right" }) {
 
 export function BlastDoorShutter({ isOpen, onOpenComplete, onCloseComplete }: BlastDoorShutterProps) {
   const prevOpen = useRef(isOpen);
-  const [seam, setSeam] = useState<"standby" | "unlock" | "open" | "lock">("standby");
+  const [seam, setSeam] = useState<"hidden" | "unlock" | "lock">("hidden");
   const [shake, setShake] = useState(false);
   /** Doors visually open (off-screen); overlay must stay mounted for close animation */
   const [doorsParted, setDoorsParted] = useState(false);
@@ -55,11 +55,12 @@ export function BlastDoorShutter({ isOpen, onOpenComplete, onCloseComplete }: Bl
     if (isOpen && !wasOpen) {
       setSeam("unlock");
       setDoorsParted(false);
-      const tUnlock = window.setTimeout(() => setSeam("open"), 100);
-      const tPart = window.setTimeout(() => setDoorsParted(true), BLAST_OPEN_MS);
+      const tPart = window.setTimeout(() => {
+        setDoorsParted(true);
+        setSeam("hidden");
+      }, BLAST_OPEN_MS);
       const tDone = window.setTimeout(() => onOpenComplete?.(), BLAST_OPEN_MS + 80);
       return () => {
-        window.clearTimeout(tUnlock);
         window.clearTimeout(tPart);
         window.clearTimeout(tDone);
       };
@@ -94,15 +95,12 @@ export function BlastDoorShutter({ isOpen, onOpenComplete, onCloseComplete }: Bl
       animate={shake ? { x: [0, -5, 5, -4, 4, -2, 0] } : { x: 0 }}
       transition={{ duration: 0.35 }}
     >
-      <div
-        className={`absolute left-1/2 top-0 bottom-0 w-[3px] -translate-x-1/2 z-30 transition-colors duration-200 ${
-          seam === "unlock"
-            ? "bg-cyan-400 shadow-[0_0_24px_rgba(34,211,238,1)]"
-            : seam === "lock"
-              ? "bg-orange-500 shadow-[0_0_16px_rgba(249,115,22,0.9)]"
-              : "bg-orange-600/90 shadow-[0_0_10px_rgba(234,88,12,0.6)]"
-        }`}
-      />
+      {seam === "unlock" && !doorsParted && (
+        <div className="absolute left-1/2 top-0 bottom-0 w-[3px] -translate-x-1/2 z-30 bg-cyan-400 shadow-[0_0_24px_rgba(34,211,238,1)] transition-opacity duration-150" />
+      )}
+      {seam === "lock" && !doorsParted && (
+        <div className="absolute left-1/2 top-0 bottom-0 w-[3px] -translate-x-1/2 z-30 bg-orange-500 shadow-[0_0_16px_rgba(249,115,22,0.9)] transition-opacity duration-150" />
+      )}
 
       <div className="absolute inset-0 flex overflow-hidden">
         <div

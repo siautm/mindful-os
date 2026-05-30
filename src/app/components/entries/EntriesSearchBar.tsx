@@ -70,7 +70,7 @@ export function EntriesSearchBar({
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="SEARCH RECORDS..."
+          placeholder="SEARCH BY TITLE..."
           className={`w-full pl-14 pr-24 py-3.5 border bg-slate-900/60 backdrop-blur-sm focus:outline-none font-mono text-sm text-slate-100 placeholder:text-slate-500 transition-shadow duration-300 ${
             noResults
               ? "border-orange-500/80 shadow-[0_0_20px_rgba(249,115,22,0.25)]"
