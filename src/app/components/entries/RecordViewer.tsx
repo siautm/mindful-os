@@ -1,11 +1,12 @@
 import { motion } from "motion/react";
-import { X, Plus, Trash2, Tag, Lock, LockOpen, ImagePlus, Loader2 } from "lucide-react";
+import { X, Plus, Trash2, Tag, Lock, LockOpen, ImagePlus, Loader2, ZoomIn } from "lucide-react";
 import { useRef, useState } from "react";
 import type { KnowledgeEntry } from "../../lib/entryTypes";
 import { entryToMetadataPairs } from "../../lib/entryTypes";
-import { clipSm, clipXl } from "./styles";
+import { active, clipSm, clipXl, locked } from "./styles";
 
 const MAX_PHOTO_BYTES = 800_000;
+const photoClip = "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)";
 
 interface RecordViewerProps {
   entry: KnowledgeEntry;
@@ -15,6 +16,7 @@ interface RecordViewerProps {
   onSave: (draft: KnowledgeEntry, metadataPairs: { key: string; value: string }[]) => void;
   onDelete?: () => void;
   onToggleLock: () => void;
+  onViewPhoto: (url: string, title: string) => void;
 }
 
 export function RecordViewer({
@@ -25,8 +27,10 @@ export function RecordViewer({
   onSave,
   onDelete,
   onToggleLock,
+  onViewPhoto,
 }: RecordViewerProps) {
   const isLocked = entry.isPinned;
+  const theme = isLocked ? locked : active;
   const [title, setTitle] = useState(entry.title);
   const [tags, setTags] = useState<string[]>(entry.tags);
   const [photoUrl, setPhotoUrl] = useState(entry.photoUrl ?? "");
@@ -94,6 +98,8 @@ export function RecordViewer({
     );
   };
 
+  const displayTitle = title.trim() || "Untitled";
+
   return (
     <motion.div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md p-4"
@@ -103,9 +109,7 @@ export function RecordViewer({
       onClick={onClose}
     >
       <motion.div
-        className={`relative backdrop-blur-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col ${
-          isLocked ? "bg-red-950/90" : "bg-white/90"
-        }`}
+        className={`relative backdrop-blur-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col border ${isLocked ? "border-amber-400/50 bg-white/95" : "border-cyan-400/30 bg-white/90"}`}
         style={{ clipPath: clipXl }}
         onClick={(e) => e.stopPropagation()}
         initial={{ scaleX: 0, scaleY: 0 }}
@@ -114,36 +118,26 @@ export function RecordViewer({
         transition={{ duration: 0.5, times: [0, 0.3, 1], ease: "easeInOut" }}
       >
         <div className="absolute inset-0 pointer-events-none">
-          <div
-            className={`absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r ${isLocked ? "from-red-500 via-red-400" : "from-cyan-400 via-cyan-300"} to-transparent`}
-          />
-          <div
-            className={`absolute top-0 right-0 w-0.5 h-full bg-gradient-to-b ${isLocked ? "from-red-500 via-red-400" : "from-cyan-400 via-cyan-300"} to-transparent`}
-          />
-          <div
-            className={`absolute bottom-0 right-0 w-full h-0.5 bg-gradient-to-l ${isLocked ? "from-red-500 via-red-400" : "from-cyan-400 via-cyan-300"} to-transparent`}
-          />
-          <div
-            className={`absolute bottom-0 left-0 w-0.5 h-full bg-gradient-to-t ${isLocked ? "from-red-500 via-red-400" : "from-cyan-400 via-cyan-300"} to-transparent`}
-          />
+          <div className={`absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r ${theme.tracer} via-transparent to-transparent`} />
+          <div className={`absolute top-0 right-0 w-0.5 h-full bg-gradient-to-b ${theme.tracer} via-transparent to-transparent`} />
+          <div className={`absolute bottom-0 right-0 w-full h-0.5 bg-gradient-to-l ${theme.tracer} via-transparent to-transparent`} />
+          <div className={`absolute bottom-0 left-0 w-0.5 h-full bg-gradient-to-t ${theme.tracer} via-transparent to-transparent`} />
         </div>
 
         <div
           className={`relative border-b p-6 flex items-start justify-between bg-gradient-to-r shrink-0 ${
-            isLocked
-              ? "border-red-500/20 from-red-500/10 to-transparent"
-              : "border-cyan-400/20 from-cyan-400/5 to-transparent"
+            isLocked ? "border-amber-400/25 from-amber-50/80 to-transparent" : "border-cyan-400/20 from-cyan-400/5 to-transparent"
           }`}
         >
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 mb-3">
-              <div className={`w-1 h-6 shrink-0 ${isLocked ? "bg-red-500" : "bg-cyan-400"}`} />
-              <div className={`text-[10px] font-mono tracking-widest ${isLocked ? "text-red-500" : "text-cyan-600"}`}>
+              <div className={`w-1 h-6 shrink-0 ${isLocked ? "bg-amber-400" : "bg-cyan-400"}`} />
+              <div className={`text-[10px] font-mono tracking-widest ${isLocked ? "text-amber-600" : "text-cyan-600"}`}>
                 RECORD {entry.id.slice(0, 12)}
               </div>
               {isLocked && (
                 <div
-                  className="flex items-center gap-1 px-2 py-0.5 bg-red-500/20 text-red-500 text-[9px] font-mono tracking-wider"
+                  className={`flex items-center gap-1 px-2 py-0.5 text-[9px] font-mono tracking-wider ${locked.badge}`}
                   style={{ clipPath: clipSm }}
                 >
                   <Lock className="w-3 h-3" />
@@ -152,21 +146,28 @@ export function RecordViewer({
               )}
             </div>
 
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-4">
               <div className="shrink-0 space-y-2">
                 {photoUrl ? (
-                  <div
-                    className="w-16 h-16 overflow-hidden"
-                    style={{ clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)" }}
+                  <button
+                    type="button"
+                    onClick={() => onViewPhoto(photoUrl, displayTitle)}
+                    className="relative w-20 h-20 overflow-hidden group/photo block"
+                    style={{ clipPath: photoClip }}
+                    title="View photo"
                   >
                     <img src={photoUrl} alt="" className="w-full h-full object-cover" />
-                  </div>
+                    <div className="absolute inset-0 bg-black/45 opacity-0 group-hover/photo:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                      <ZoomIn className="w-6 h-6 text-white" />
+                      <span className="text-[8px] font-mono text-white/90 tracking-wider">VIEW</span>
+                    </div>
+                  </button>
                 ) : (
                   <div
-                    className={`w-16 h-16 border border-dashed flex items-center justify-center ${isLocked ? "border-red-400/40" : "border-cyan-400/40"}`}
-                    style={{ clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)" }}
+                    className={`w-20 h-20 border border-dashed flex items-center justify-center ${isLocked ? "border-amber-400/40" : "border-cyan-400/40"}`}
+                    style={{ clipPath: photoClip }}
                   >
-                    <ImagePlus className={`w-6 h-6 ${isLocked ? "text-red-400/50" : "text-cyan-400/50"}`} />
+                    <ImagePlus className={`w-7 h-7 ${isLocked ? "text-amber-400/50" : "text-cyan-400/50"}`} />
                   </div>
                 )}
                 {!isLocked && (
@@ -194,7 +195,7 @@ export function RecordViewer({
                 onChange={(e) => setTitle(e.target.value)}
                 disabled={isLocked}
                 className={`flex-1 text-2xl font-semibold bg-transparent border-none outline-none min-w-0 ${
-                  isLocked ? "text-red-200 cursor-not-allowed" : "text-gray-900 focus:text-cyan-600"
+                  isLocked ? "text-gray-500 cursor-not-allowed" : "text-gray-900 focus:text-cyan-600"
                 }`}
                 placeholder="Record Title"
               />
@@ -215,7 +216,7 @@ export function RecordViewer({
             <button
               type="button"
               onClick={onToggleLock}
-              className={`p-2 transition-colors ${isLocked ? "hover:bg-red-500/20 text-red-500" : "hover:bg-cyan-400/10 text-cyan-600"}`}
+              className={`p-2 transition-colors ${isLocked ? "hover:bg-amber-100 text-amber-600" : "hover:bg-cyan-400/10 text-cyan-600"}`}
               style={{ clipPath: clipSm }}
             >
               {isLocked ? <Lock className="w-5 h-5" /> : <LockOpen className="w-5 h-5" />}
@@ -223,10 +224,10 @@ export function RecordViewer({
             <button
               type="button"
               onClick={onClose}
-              className={`p-2 transition-colors ${isLocked ? "hover:bg-red-500/20" : "hover:bg-cyan-400/10"}`}
+              className="p-2 hover:bg-cyan-400/10 transition-colors"
               style={{ clipPath: clipSm }}
             >
-              <X className={`w-5 h-5 ${isLocked ? "text-red-400" : "text-gray-500"}`} />
+              <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>
         </div>
@@ -234,9 +235,9 @@ export function RecordViewer({
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <div className={`w-1 h-4 ${isLocked ? "bg-red-500" : "bg-cyan-400"}`} />
-              <Tag className={`w-3.5 h-3.5 ${isLocked ? "text-red-500" : "text-cyan-500"}`} />
-              <span className={`text-[11px] font-mono tracking-widest ${isLocked ? "text-red-300" : "text-gray-700"}`}>
+              <div className={`w-1 h-4 ${isLocked ? "bg-amber-400" : "bg-cyan-400"}`} />
+              <Tag className={`w-3.5 h-3.5 ${isLocked ? "text-amber-500" : "text-cyan-500"}`} />
+              <span className={`text-[11px] font-mono tracking-widest ${isLocked ? "text-amber-800/80" : "text-gray-700"}`}>
                 CLASSIFICATION TAGS
               </span>
             </div>
@@ -244,11 +245,7 @@ export function RecordViewer({
               {tags.map((tag, idx) => (
                 <div
                   key={`${tag}-${idx}`}
-                  className={`px-3 py-1.5 text-xs font-mono uppercase border flex items-center gap-2 group ${
-                    isLocked
-                      ? "bg-red-500/10 text-red-700 border-red-400/30"
-                      : "bg-cyan-500/10 text-cyan-700 border-cyan-400/30"
-                  }`}
+                  className={`px-3 py-1.5 text-xs font-mono uppercase border flex items-center gap-2 group ${theme.tag}`}
                   style={{ clipPath: "polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px)" }}
                 >
                   {tag}
@@ -289,8 +286,8 @@ export function RecordViewer({
 
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <div className={`w-1 h-4 ${isLocked ? "bg-red-500" : "bg-cyan-400"}`} />
-              <span className={`text-[11px] font-mono tracking-widest ${isLocked ? "text-red-300" : "text-gray-700"}`}>
+              <div className={`w-1 h-4 ${isLocked ? "bg-amber-400" : "bg-cyan-400"}`} />
+              <span className={`text-[11px] font-mono tracking-widest ${isLocked ? "text-amber-800/80" : "text-gray-700"}`}>
                 DATA PARAMETERS
               </span>
             </div>
@@ -298,7 +295,7 @@ export function RecordViewer({
               {metadata.map((item, idx) => (
                 <div key={idx} className="flex gap-2 items-center group">
                   <div
-                    className={`w-1.5 h-1.5 shrink-0 ${isLocked ? "bg-red-500" : "bg-cyan-400"}`}
+                    className={`w-1.5 h-1.5 shrink-0 ${isLocked ? "bg-amber-400" : "bg-cyan-400"}`}
                     style={{ clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" }}
                   />
                   <input
@@ -310,12 +307,12 @@ export function RecordViewer({
                     placeholder="PARAMETER"
                     className={`w-1/3 min-w-0 px-3 py-2 text-xs border font-mono uppercase tracking-wide ${
                       isLocked
-                        ? "border-red-500/20 bg-red-500/5 text-red-300 cursor-not-allowed"
+                        ? "border-amber-300/40 bg-amber-50/50 text-gray-500 cursor-not-allowed"
                         : "border-cyan-400/20 bg-cyan-400/5 focus:outline-none focus:border-cyan-400"
                     }`}
                     style={{ clipPath: clipSm }}
                   />
-                  <span className={`font-mono shrink-0 ${isLocked ? "text-red-400" : "text-cyan-400"}`}>:</span>
+                  <span className={`font-mono shrink-0 ${isLocked ? "text-amber-500" : "text-cyan-400"}`}>:</span>
                   <input
                     type="text"
                     value={item.value}
@@ -324,7 +321,7 @@ export function RecordViewer({
                     placeholder="Value"
                     className={`flex-1 min-w-0 px-3 py-2 text-sm border ${
                       isLocked
-                        ? "border-red-500/20 bg-red-950/20 text-red-200 cursor-not-allowed"
+                        ? "border-amber-300/30 bg-gray-50 text-gray-600 cursor-not-allowed"
                         : "border-gray-200/50 bg-white/50 focus:outline-none focus:border-cyan-400"
                     }`}
                     style={{ clipPath: clipSm }}

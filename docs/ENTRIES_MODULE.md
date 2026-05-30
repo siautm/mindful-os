@@ -4,6 +4,12 @@
 **主文件**：`src/app/pages/Entries.tsx`  
 **UI 组件**：`src/app/components/entries/*`（来自 `reference/` 设计）
 
+## 沉浸模式
+
+- `/entries` **不在** MainLayout 里，无侧边栏
+- 左上角 **QUIT** 返回 Dashboard（`/`）
+- 全屏 `100dvh` 滚动
+
 ## 每条记录只有
 
 | 字段 | 说明 |

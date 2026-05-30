@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
-import { Link } from "react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { Activity, ArrowLeft, Database, Search } from "lucide-react";
+import { Activity, Database, Search } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useStorageHydration } from "../lib/useStorageHydration";
 import { toast } from "sonner";
@@ -21,6 +20,7 @@ import { ScanAnimation } from "../components/entries/ScanAnimation";
 import { CreateRecordButton } from "../components/entries/CreateRecordButton";
 import { HolographicGrid } from "../components/entries/HolographicGrid";
 import { ImageZoomModal } from "../components/entries/ImageZoomModal";
+import { QuitEntriesButton } from "../components/entries/QuitEntriesButton";
 import { clipSm } from "../components/entries/styles";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.trim() || "";
@@ -261,20 +261,14 @@ export function Entries() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-gray-50 to-cyan-50/30 relative">
+    <div className="fixed inset-0 z-[30] h-[100dvh] overflow-y-auto overflow-x-hidden bg-gradient-to-br from-white via-gray-50 to-cyan-50/30">
       <HolographicGrid />
+      <QuitEntriesButton />
 
       <div className="relative bg-white/80 backdrop-blur-md border-b border-cyan-400/20 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-6 pl-[5.5rem] sm:pl-6">
           <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
             <div className="flex items-center gap-3 min-w-0">
-              <Link
-                to="/"
-                className="p-2 text-gray-500 hover:text-cyan-600 shrink-0"
-                aria-label="Back to dashboard"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </Link>
               <div className="relative shrink-0">
                 <Database className="w-9 h-9 sm:w-10 sm:h-10 text-cyan-500" />
                 <div
@@ -309,9 +303,9 @@ export function Entries() {
             </div>
           </div>
 
-          <div className="relative mb-4">
+          <div className="relative mb-4 group/search">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
-              <Search className="w-4 h-4 text-cyan-500" />
+              <Search className="w-4 h-4 text-cyan-500 transition-transform duration-300 group-focus-within/search:scale-110" />
               <div className="w-px h-4 bg-cyan-400/30" />
             </div>
             <input
@@ -319,10 +313,15 @@ export function Entries() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="SEARCH RECORDS..."
-              className="w-full pl-14 pr-4 py-3 border border-cyan-400/20 bg-white/50 backdrop-blur-sm focus:outline-none focus:border-cyan-400 focus:bg-white transition-all font-mono text-sm placeholder:text-gray-400"
+              className="w-full pl-14 pr-4 py-3 border border-cyan-400/20 bg-white/50 backdrop-blur-sm focus:outline-none focus:border-cyan-400 focus:bg-white focus:shadow-[0_0_24px_rgba(34,211,238,0.12)] transition-all duration-300 font-mono text-sm placeholder:text-gray-400"
               style={{ clipPath: "polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%)" }}
             />
-            <div className="absolute bottom-0 left-0 w-24 h-0.5 bg-gradient-to-r from-cyan-400 to-transparent" />
+            <motion.div
+              className="absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-cyan-400 via-cyan-300 to-transparent pointer-events-none"
+              initial={false}
+              animate={{ width: query ? "100%" : "6rem" }}
+              transition={{ duration: 0.35, ease: "easeOut" }}
+            />
           </div>
 
           {allTags.length > 0 && (
@@ -364,7 +363,7 @@ export function Entries() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-28 relative">
         {filtered.length === 0 ? (
           <div className="text-center py-16 sm:py-20">
             <div className="text-cyan-600 text-xs font-mono tracking-widest mb-2">NO RECORDS FOUND</div>
@@ -386,21 +385,7 @@ export function Entries() {
           <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             <AnimatePresence mode="popLayout">
               {filtered.map((entry) => (
-                <RecordCard
-                  key={entry.id}
-                  entry={entry}
-                  onClick={() => handleOpen(entry)}
-                  onToggleLock={(e) => {
-                    e.stopPropagation();
-                    void toggleLock(entry.id);
-                  }}
-                  onImageClick={(e) => {
-                    e.stopPropagation();
-                    if (entry.photoUrl) {
-                      setZoomedImage({ url: entry.photoUrl, title: entry.title });
-                    }
-                  }}
-                />
+                <RecordCard key={entry.id} entry={entry} onClick={() => handleOpen(entry)} />
               ))}
             </AnimatePresence>
           </motion.div>
@@ -432,6 +417,7 @@ export function Entries() {
                 : () => void deleteEntry(viewerEntry.id)
             }
             onToggleLock={() => void toggleLock(viewerEntry.id)}
+            onViewPhoto={(url, t) => setZoomedImage({ url, title: t })}
           />
         )}
       </AnimatePresence>
