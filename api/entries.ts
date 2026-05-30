@@ -2,11 +2,11 @@ import { requireUserId } from "./_lib/auth.js";
 import { handleOptions, sendJson } from "./_lib/http.js";
 import { getSupabaseAdmin } from "./_lib/supabase.js";
 
-/** Types only — metadata fields are added by the user per entry. */
+/** Hidden default type — UI only uses title, photo, tags, metadata. */
+export const DEFAULT_ENTRY_TYPE = "record";
+
 const DEFAULT_TYPES = [
-  { id: "recipe", type_key: "recipe", label: "Recipe", sort_order: 0 },
-  { id: "book_note", type_key: "book_note", label: "Book notes", sort_order: 1 },
-  { id: "learning", type_key: "learning", label: "Learning", sort_order: 2 },
+  { id: DEFAULT_ENTRY_TYPE, type_key: "record", label: "Record", sort_order: 0 },
 ] as const;
 
 async function ensureDefaultCatalog(db: ReturnType<typeof getSupabaseAdmin>, userId: string) {
@@ -50,11 +50,13 @@ function collectKeyCatalog(
 }
 
 function mapEntry(row: Record<string, unknown>) {
+  const photoRaw = row.photo_url;
   return {
     id: String(row.id),
     typeId: String(row.type_id),
     title: String(row.title ?? ""),
     note: String(row.note ?? ""),
+    photoUrl: photoRaw != null && String(photoRaw).trim() ? String(photoRaw) : undefined,
     tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
     metadata: (row.metadata as Record<string, unknown>) ?? {},
     isPinned: Boolean(row.is_pinned),
@@ -126,7 +128,7 @@ export default async function handler(req: any, res: any) {
       const action = String(body.action ?? "create_entry");
 
       if (action === "remember_key") {
-        const typeId = String(body.typeId ?? "");
+        const typeId = String(body.typeId ?? DEFAULT_ENTRY_TYPE);
         const fieldKey = String(body.fieldKey ?? "").trim().toLowerCase().replace(/\s+/g, "_");
         const label = String(body.label ?? body.fieldKey ?? fieldKey).trim();
         if (!typeId || !fieldKey) {
@@ -183,10 +185,10 @@ export default async function handler(req: any, res: any) {
         return;
       }
 
-      const typeId = String(body.typeId ?? "");
+      const typeId = String(body.typeId ?? DEFAULT_ENTRY_TYPE);
       const title = String(body.title ?? "").trim();
-      if (!typeId || !title) {
-        sendJson(res, 400, { error: "typeId and title required" });
+      if (!title) {
+        sendJson(res, 400, { error: "title required" });
         return;
       }
 
@@ -195,18 +197,22 @@ export default async function handler(req: any, res: any) {
           ? (body.metadata as Record<string, unknown>)
           : {};
 
-      const payload = {
+      const payload: Record<string, unknown> = {
         id: String(body.id ?? "").trim() || `${Date.now()}`,
         user_id: userId,
         type_id: typeId,
         title,
-        note: String(body.note ?? ""),
+        note: "",
         tags: Array.isArray(body.tags) ? body.tags.map((t: unknown) => String(t).trim()).filter(Boolean) : [],
         metadata,
         is_pinned: Boolean(body.isPinned),
         entry_at: body.entryAt ? String(body.entryAt) : new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
+      if (body.photoUrl !== undefined) {
+        const url = String(body.photoUrl ?? "").trim();
+        payload.photo_url = url || null;
+      }
 
       const { data, error } = await db.from("entries").upsert(payload).select("*").single();
       if (error) throw error;
@@ -223,14 +229,16 @@ export default async function handler(req: any, res: any) {
       }
       const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
       if (body.title !== undefined) patch.title = String(body.title).trim();
-      if (body.note !== undefined) patch.note = String(body.note ?? "");
       if (body.tags !== undefined) {
         patch.tags = Array.isArray(body.tags) ? body.tags.map((t: unknown) => String(t).trim()).filter(Boolean) : [];
       }
       if (body.metadata !== undefined) patch.metadata = body.metadata;
       if (body.isPinned !== undefined) patch.is_pinned = Boolean(body.isPinned);
       if (body.entryAt !== undefined) patch.entry_at = String(body.entryAt);
-      if (body.typeId !== undefined) patch.type_id = String(body.typeId);
+      if (body.photoUrl !== undefined) {
+        const url = String(body.photoUrl ?? "").trim();
+        patch.photo_url = url || null;
+      }
 
       const { data, error } = await db
         .from("entries")

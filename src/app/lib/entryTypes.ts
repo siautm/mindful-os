@@ -35,11 +35,14 @@ export interface EntryTypePreset {
   value: unknown;
 }
 
+export const DEFAULT_ENTRY_TYPE = "record";
+
 export interface KnowledgeEntry {
   id: string;
   typeId: string;
   title: string;
   note: string;
+  photoUrl?: string;
   tags: string[];
   metadata: Record<string, unknown>;
   isPinned: boolean;
@@ -146,6 +149,27 @@ export function buildKeySuggestions(
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
 
+/** All suggested metadata keys across types and entries. */
+export function buildAllKeySuggestions(
+  keyCatalog: Record<string, string[]>,
+  fields: EntryTypeField[],
+  entries: KnowledgeEntry[]
+): string[] {
+  const set = new Set<string>();
+  for (const keys of Object.values(keyCatalog)) {
+    for (const k of keys) if (k.trim()) set.add(k.trim());
+  }
+  for (const f of fields) {
+    if (f.fieldKey.trim()) set.add(f.fieldKey.trim());
+  }
+  for (const e of entries) {
+    for (const k of Object.keys(e.metadata ?? {})) {
+      if (k.trim()) set.add(k.trim());
+    }
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
 export function parseMindmapListText(raw: string): MindmapListValue {
   const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const items: MindmapListItem[] = [];
@@ -179,8 +203,20 @@ export function mindmapListToText(value: unknown): string {
     .join("\n");
 }
 
-export function entrySearchBlob(entry: KnowledgeEntry, typeLabel: string): string {
+export function entrySearchBlob(entry: KnowledgeEntry): string {
   const tagStr = entry.tags.join(" ");
   const metaStr = JSON.stringify(entry.metadata ?? {});
-  return [entry.title, entry.note, typeLabel, tagStr, metaStr].join(" ").toLowerCase();
+  return [entry.title, entry.photoUrl ?? "", tagStr, metaStr].join(" ").toLowerCase();
+}
+
+export function entryToMetadataPairs(
+  metadata: Record<string, unknown> | undefined
+): { key: string; value: string }[] {
+  return metadataToRows(metadata).map((r) => ({ key: r.key, value: r.value }));
+}
+
+export function pairsToMetadata(pairs: { key: string; value: string }[]): Record<string, string> {
+  return rowsToMetadata(
+    pairs.map((p, i) => ({ id: `row-${i}`, key: p.key, value: p.value }))
+  );
 }

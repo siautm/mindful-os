@@ -1,0 +1,411 @@
+import { motion } from "motion/react";
+import { X, Plus, Trash2, Tag, Lock, LockOpen, ImagePlus, Loader2 } from "lucide-react";
+import { useRef, useState } from "react";
+import type { KnowledgeEntry } from "../../lib/entryTypes";
+import { entryToMetadataPairs } from "../../lib/entryTypes";
+import { clipSm, clipXl } from "./styles";
+
+const MAX_PHOTO_BYTES = 800_000;
+
+interface RecordViewerProps {
+  entry: KnowledgeEntry;
+  keySuggestions: string[];
+  saving: boolean;
+  onClose: () => void;
+  onSave: (draft: KnowledgeEntry, metadataPairs: { key: string; value: string }[]) => void;
+  onDelete?: () => void;
+  onToggleLock: () => void;
+}
+
+export function RecordViewer({
+  entry,
+  keySuggestions,
+  saving,
+  onClose,
+  onSave,
+  onDelete,
+  onToggleLock,
+}: RecordViewerProps) {
+  const isLocked = entry.isPinned;
+  const [title, setTitle] = useState(entry.title);
+  const [tags, setTags] = useState<string[]>(entry.tags);
+  const [photoUrl, setPhotoUrl] = useState(entry.photoUrl ?? "");
+  const [metadata, setMetadata] = useState(() => entryToMetadataPairs(entry.metadata));
+  const [newTag, setNewTag] = useState("");
+  const [newMetaKey, setNewMetaKey] = useState("");
+  const [newMetaValue, setNewMetaValue] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+  const datalistId = "entry-metadata-keys";
+
+  const handleMetaChange = (index: number, field: "key" | "value", value: string) => {
+    if (isLocked) return;
+    setMetadata((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  };
+
+  const handleDeleteMeta = (index: number) => {
+    if (isLocked) return;
+    setMetadata((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddMeta = () => {
+    if (isLocked || !newMetaKey.trim()) return;
+    setMetadata((prev) => [...prev, { key: newMetaKey.trim(), value: newMetaValue }]);
+    setNewMetaKey("");
+    setNewMetaValue("");
+  };
+
+  const handleAddTag = () => {
+    if (isLocked || !newTag.trim() || tags.includes(newTag.trim())) return;
+    setTags((prev) => [...prev, newTag.trim()]);
+    setNewTag("");
+  };
+
+  const handlePhotoFile = (file: File | undefined) => {
+    if (isLocked || !file) return;
+    if (!file.type.startsWith("image/")) return;
+    if (file.size > MAX_PHOTO_BYTES) {
+      alert("Image too large — use a file under 800KB or paste an image URL.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") setPhotoUrl(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSave = () => {
+    if (isLocked) return;
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) return;
+    onSave(
+      {
+        ...entry,
+        title: trimmedTitle,
+        tags,
+        photoUrl: photoUrl.trim() || undefined,
+        isPinned: entry.isPinned,
+      },
+      metadata
+    );
+  };
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        className={`relative backdrop-blur-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col ${
+          isLocked ? "bg-red-950/90" : "bg-white/90"
+        }`}
+        style={{ clipPath: clipXl }}
+        onClick={(e) => e.stopPropagation()}
+        initial={{ scaleX: 0, scaleY: 0 }}
+        animate={{ scaleX: [0, 1, 1], scaleY: [0, 0, 1] }}
+        exit={{ scaleY: [1, 0, 0], scaleX: [1, 1, 0] }}
+        transition={{ duration: 0.5, times: [0, 0.3, 1], ease: "easeInOut" }}
+      >
+        <div className="absolute inset-0 pointer-events-none">
+          <div
+            className={`absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r ${isLocked ? "from-red-500 via-red-400" : "from-cyan-400 via-cyan-300"} to-transparent`}
+          />
+          <div
+            className={`absolute top-0 right-0 w-0.5 h-full bg-gradient-to-b ${isLocked ? "from-red-500 via-red-400" : "from-cyan-400 via-cyan-300"} to-transparent`}
+          />
+          <div
+            className={`absolute bottom-0 right-0 w-full h-0.5 bg-gradient-to-l ${isLocked ? "from-red-500 via-red-400" : "from-cyan-400 via-cyan-300"} to-transparent`}
+          />
+          <div
+            className={`absolute bottom-0 left-0 w-0.5 h-full bg-gradient-to-t ${isLocked ? "from-red-500 via-red-400" : "from-cyan-400 via-cyan-300"} to-transparent`}
+          />
+        </div>
+
+        <div
+          className={`relative border-b p-6 flex items-start justify-between bg-gradient-to-r shrink-0 ${
+            isLocked
+              ? "border-red-500/20 from-red-500/10 to-transparent"
+              : "border-cyan-400/20 from-cyan-400/5 to-transparent"
+          }`}
+        >
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 mb-3">
+              <div className={`w-1 h-6 shrink-0 ${isLocked ? "bg-red-500" : "bg-cyan-400"}`} />
+              <div className={`text-[10px] font-mono tracking-widest ${isLocked ? "text-red-500" : "text-cyan-600"}`}>
+                RECORD {entry.id.slice(0, 12)}
+              </div>
+              {isLocked && (
+                <div
+                  className="flex items-center gap-1 px-2 py-0.5 bg-red-500/20 text-red-500 text-[9px] font-mono tracking-wider"
+                  style={{ clipPath: clipSm }}
+                >
+                  <Lock className="w-3 h-3" />
+                  LOCKED
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="shrink-0 space-y-2">
+                {photoUrl ? (
+                  <div
+                    className="w-16 h-16 overflow-hidden"
+                    style={{ clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)" }}
+                  >
+                    <img src={photoUrl} alt="" className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div
+                    className={`w-16 h-16 border border-dashed flex items-center justify-center ${isLocked ? "border-red-400/40" : "border-cyan-400/40"}`}
+                    style={{ clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)" }}
+                  >
+                    <ImagePlus className={`w-6 h-6 ${isLocked ? "text-red-400/50" : "text-cyan-400/50"}`} />
+                  </div>
+                )}
+                {!isLocked && (
+                  <>
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handlePhotoFile(e.target.files?.[0])}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileRef.current?.click()}
+                      className="text-[9px] font-mono text-cyan-600 hover:text-cyan-500 w-full text-center"
+                    >
+                      UPLOAD
+                    </button>
+                  </>
+                )}
+              </div>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                disabled={isLocked}
+                className={`flex-1 text-2xl font-semibold bg-transparent border-none outline-none min-w-0 ${
+                  isLocked ? "text-red-200 cursor-not-allowed" : "text-gray-900 focus:text-cyan-600"
+                }`}
+                placeholder="Record Title"
+              />
+            </div>
+            {!isLocked && (
+              <input
+                type="url"
+                value={photoUrl.startsWith("data:") ? "" : photoUrl}
+                onChange={(e) => setPhotoUrl(e.target.value)}
+                placeholder="Or paste image URL…"
+                className="mt-2 w-full text-xs font-mono px-2 py-1.5 border border-cyan-400/20 bg-cyan-400/5 focus:outline-none focus:border-cyan-400"
+                style={{ clipPath: clipSm }}
+              />
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 ml-2">
+            <button
+              type="button"
+              onClick={onToggleLock}
+              className={`p-2 transition-colors ${isLocked ? "hover:bg-red-500/20 text-red-500" : "hover:bg-cyan-400/10 text-cyan-600"}`}
+              style={{ clipPath: clipSm }}
+            >
+              {isLocked ? <Lock className="w-5 h-5" /> : <LockOpen className="w-5 h-5" />}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className={`p-2 transition-colors ${isLocked ? "hover:bg-red-500/20" : "hover:bg-cyan-400/10"}`}
+              style={{ clipPath: clipSm }}
+            >
+              <X className={`w-5 h-5 ${isLocked ? "text-red-400" : "text-gray-500"}`} />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className={`w-1 h-4 ${isLocked ? "bg-red-500" : "bg-cyan-400"}`} />
+              <Tag className={`w-3.5 h-3.5 ${isLocked ? "text-red-500" : "text-cyan-500"}`} />
+              <span className={`text-[11px] font-mono tracking-widest ${isLocked ? "text-red-300" : "text-gray-700"}`}>
+                CLASSIFICATION TAGS
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {tags.map((tag, idx) => (
+                <div
+                  key={`${tag}-${idx}`}
+                  className={`px-3 py-1.5 text-xs font-mono uppercase border flex items-center gap-2 group ${
+                    isLocked
+                      ? "bg-red-500/10 text-red-700 border-red-400/30"
+                      : "bg-cyan-500/10 text-cyan-700 border-cyan-400/30"
+                  }`}
+                  style={{ clipPath: "polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px)" }}
+                >
+                  {tag}
+                  {!isLocked && (
+                    <button
+                      type="button"
+                      onClick={() => setTags((t) => t.filter((_, i) => i !== idx))}
+                      className="opacity-0 group-hover:opacity-100 hover:text-red-500"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {!isLocked && (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddTag()}
+                  placeholder="Add classification tag..."
+                  className="flex-1 px-3 py-2 text-sm border border-cyan-400/20 bg-cyan-400/5 focus:outline-none focus:border-cyan-400 font-mono"
+                  style={{ clipPath: clipSm }}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddTag}
+                  className="px-4 py-2 bg-cyan-500 text-white hover:bg-cyan-600"
+                  style={{ clipPath: clipSm }}
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className={`w-1 h-4 ${isLocked ? "bg-red-500" : "bg-cyan-400"}`} />
+              <span className={`text-[11px] font-mono tracking-widest ${isLocked ? "text-red-300" : "text-gray-700"}`}>
+                DATA PARAMETERS
+              </span>
+            </div>
+            <div className="space-y-2.5 mb-3">
+              {metadata.map((item, idx) => (
+                <div key={idx} className="flex gap-2 items-center group">
+                  <div
+                    className={`w-1.5 h-1.5 shrink-0 ${isLocked ? "bg-red-500" : "bg-cyan-400"}`}
+                    style={{ clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" }}
+                  />
+                  <input
+                    type="text"
+                    list={datalistId}
+                    value={item.key}
+                    onChange={(e) => handleMetaChange(idx, "key", e.target.value)}
+                    disabled={isLocked}
+                    placeholder="PARAMETER"
+                    className={`w-1/3 min-w-0 px-3 py-2 text-xs border font-mono uppercase tracking-wide ${
+                      isLocked
+                        ? "border-red-500/20 bg-red-500/5 text-red-300 cursor-not-allowed"
+                        : "border-cyan-400/20 bg-cyan-400/5 focus:outline-none focus:border-cyan-400"
+                    }`}
+                    style={{ clipPath: clipSm }}
+                  />
+                  <span className={`font-mono shrink-0 ${isLocked ? "text-red-400" : "text-cyan-400"}`}>:</span>
+                  <input
+                    type="text"
+                    value={item.value}
+                    onChange={(e) => handleMetaChange(idx, "value", e.target.value)}
+                    disabled={isLocked}
+                    placeholder="Value"
+                    className={`flex-1 min-w-0 px-3 py-2 text-sm border ${
+                      isLocked
+                        ? "border-red-500/20 bg-red-950/20 text-red-200 cursor-not-allowed"
+                        : "border-gray-200/50 bg-white/50 focus:outline-none focus:border-cyan-400"
+                    }`}
+                    style={{ clipPath: clipSm }}
+                  />
+                  {!isLocked && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteMeta(idx)}
+                      className="p-2 text-red-500 opacity-0 group-hover:opacity-100 hover:bg-red-500/10 shrink-0"
+                      style={{ clipPath: clipSm }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {!isLocked && (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  list={datalistId}
+                  value={newMetaKey}
+                  onChange={(e) => setNewMetaKey(e.target.value)}
+                  placeholder="NEW PARAMETER..."
+                  className="w-1/3 min-w-0 px-3 py-2 text-xs border border-cyan-400/20 bg-cyan-400/5 focus:outline-none focus:border-cyan-400 font-mono uppercase"
+                  style={{ clipPath: clipSm }}
+                />
+                <input
+                  type="text"
+                  value={newMetaValue}
+                  onChange={(e) => setNewMetaValue(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddMeta()}
+                  placeholder="New value..."
+                  className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-200/50 bg-white/50 focus:outline-none focus:border-cyan-400"
+                  style={{ clipPath: clipSm }}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddMeta}
+                  className="px-4 py-2 bg-cyan-500 text-white hover:bg-cyan-600 shrink-0"
+                  style={{ clipPath: clipSm }}
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+            <datalist id={datalistId}>
+              {keySuggestions.map((k) => (
+                <option key={k} value={k} />
+              ))}
+            </datalist>
+          </div>
+        </div>
+
+        {!isLocked && (
+          <div className="shrink-0 border-t border-cyan-400/20 p-4 flex gap-2 bg-white/50">
+            <button
+              type="button"
+              disabled={saving || !title.trim()}
+              onClick={handleSave}
+              className="flex-1 py-3 bg-cyan-500 text-white font-mono text-sm tracking-wider hover:bg-cyan-600 disabled:opacity-50 flex items-center justify-center gap-2"
+              style={{ clipPath: clipSm }}
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              SAVE RECORD
+            </button>
+            {onDelete && (
+              <button
+                type="button"
+                disabled={saving}
+                onClick={onDelete}
+                className="px-4 py-3 border border-red-400/40 text-red-600 hover:bg-red-50 font-mono text-sm"
+                style={{ clipPath: clipSm }}
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}

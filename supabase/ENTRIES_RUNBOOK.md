@@ -7,4 +7,6 @@ Run in Supabase SQL Editor (in order):
 
 Then redeploy the app.
 
-**Frontend design brief (for UI AI):** [`docs/ENTRIES_MODULE.md`](../docs/ENTRIES_MODULE.md)
+If the `entries` table already exists, also run: `entries_add_photo_url.sql`
+
+**Frontend brief:** [`docs/ENTRIES_MODULE.md`](../docs/ENTRIES_MODULE.md)

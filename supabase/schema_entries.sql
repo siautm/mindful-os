@@ -44,6 +44,7 @@ create table if not exists public.entries (
   type_id text not null references public.entry_types (id),
   title text not null,
   note text not null default '',
+  photo_url text,
   tags text[] not null default '{}',
   metadata jsonb not null default '{}'::jsonb,
   is_pinned boolean not null default false,

@@ -1,30 +1,31 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router";
-import { Card, CardContent } from "../components/ui/card";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
-import { Textarea } from "../components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
-import { Badge } from "../components/ui/badge";
-import { ArrowLeft, BookMarked, Pin, PinOff, Plus, Search, Trash2, X } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { Activity, ArrowLeft, Database, Search } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useStorageHydration } from "../lib/useStorageHydration";
 import { toast } from "sonner";
 import {
-  buildKeySuggestions,
+  buildAllKeySuggestions,
+  DEFAULT_ENTRY_TYPE,
   entrySearchBlob,
-  metadataToRows,
+  pairsToMetadata,
   readEntriesCache,
-  rowsToMetadata,
   saveEntriesCache,
   type EntryCatalog,
   type KnowledgeEntry,
-  type MetadataRow,
 } from "../lib/entryTypes";
+import { RecordCard } from "../components/entries/RecordCard";
+import { RecordViewer } from "../components/entries/RecordViewer";
+import { ScanAnimation } from "../components/entries/ScanAnimation";
+import { CreateRecordButton } from "../components/entries/CreateRecordButton";
+import { HolographicGrid } from "../components/entries/HolographicGrid";
+import { ImageZoomModal } from "../components/entries/ImageZoomModal";
+import { clipSm } from "../components/entries/styles";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.trim() || "";
 const ENTRIES_ENDPOINT = `${API_BASE}/api/entries`;
+const SCAN_MS = 800;
 
 const emptyCatalog = (): EntryCatalog => ({
   types: [],
@@ -33,17 +34,21 @@ const emptyCatalog = (): EntryCatalog => ({
   keyCatalog: {},
 });
 
+function newEntryId(): string {
+  return `${Date.now()}`;
+}
+
 export function Entries() {
   const { session } = useAuth();
   const [catalog, setCatalog] = useState<EntryCatalog>(emptyCatalog);
   const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
   const [query, setQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editing, setEditing] = useState<KnowledgeEntry | null>(null);
-  const [draft, setDraft] = useState<Partial<KnowledgeEntry>>({});
-  const [metadataRows, setMetadataRows] = useState<MetadataRow[]>([]);
-  const [tagInput, setTagInput] = useState("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [viewerEntry, setViewerEntry] = useState<KnowledgeEntry | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
+  const [isNewDraft, setIsNewDraft] = useState(false);
 
   const loadAll = useCallback(async () => {
     const token = session?.access_token;
@@ -59,7 +64,6 @@ export function Entries() {
       const json = (await res.json()) as {
         types?: EntryCatalog["types"];
         fields?: EntryCatalog["fields"];
-        presets?: EntryCatalog["presets"];
         keyCatalog?: Record<string, string[]>;
         entries?: KnowledgeEntry[];
       };
@@ -83,28 +87,30 @@ export function Entries() {
 
   useStorageHydration(loadAll);
 
-  const typeLabelById = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const t of catalog.types) m.set(t.id, t.label);
-    return m;
-  }, [catalog.types]);
+  const allTags = useMemo(
+    () => Array.from(new Set(entries.flatMap((e) => e.tags))).sort((a, b) => a.localeCompare(b)),
+    [entries]
+  );
+
+  const keySuggestions = useMemo(
+    () => buildAllKeySuggestions(catalog.keyCatalog, catalog.fields, entries),
+    [catalog.keyCatalog, catalog.fields, entries]
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return entries.filter((e) => {
-      if (typeFilter !== "all" && e.typeId !== typeFilter) return false;
+      const matchesTags =
+        selectedTags.length === 0 || selectedTags.some((tag) => e.tags.includes(tag));
+      if (!matchesTags) return false;
       if (!q) return true;
-      return entrySearchBlob(e, typeLabelById.get(e.typeId) ?? "").includes(q);
+      return entrySearchBlob(e).includes(q);
     });
-  }, [entries, query, typeFilter, typeLabelById]);
+  }, [entries, query, selectedTags]);
 
-  const keySuggestions = useCallback(
-    (typeId: string) => {
-      const fromApi = catalog.keyCatalog[typeId] ?? [];
-      const merged = buildKeySuggestions(typeId, catalog.fields, entries);
-      return Array.from(new Set([...fromApi, ...merged])).sort((a, b) => a.localeCompare(b));
-    },
-    [catalog.keyCatalog, catalog.fields, entries]
+  const dataPointCount = useMemo(
+    () => entries.reduce((acc, e) => acc + Object.keys(e.metadata ?? {}).length, 0),
+    [entries]
   );
 
   async function apiJson(method: string, body?: Record<string, unknown>) {
@@ -122,90 +128,111 @@ export function Entries() {
     return res.json();
   }
 
-  async function rememberKeys(typeId: string, keys: string[]) {
+  async function rememberKeys(keys: string[]) {
     const unique = Array.from(new Set(keys.map((k) => k.trim()).filter(Boolean)));
     for (const fieldKey of unique) {
       try {
-        await apiJson("POST", { action: "remember_key", typeId, fieldKey, label: fieldKey });
+        await apiJson("POST", {
+          action: "remember_key",
+          typeId: DEFAULT_ENTRY_TYPE,
+          fieldKey,
+          label: fieldKey,
+        });
       } catch {
         /* non-blocking */
       }
     }
   }
 
-  function openCreate(typeId?: string) {
-    const tid = typeId ?? catalog.types[0]?.id ?? "recipe";
-    setEditing(null);
-    setDraft({
-      typeId: tid,
-      title: "",
+  function openWithScan(entry: KnowledgeEntry, isNew: boolean) {
+    setIsScanning(true);
+    setIsNewDraft(isNew);
+    window.setTimeout(() => {
+      setIsScanning(false);
+      setViewerEntry(entry);
+    }, SCAN_MS);
+  }
+
+  function handleCreate() {
+    const entry: KnowledgeEntry = {
+      id: newEntryId(),
+      typeId: DEFAULT_ENTRY_TYPE,
+      title: "New Record",
       note: "",
       tags: [],
       metadata: {},
       isPinned: false,
       entryAt: new Date().toISOString(),
-    });
-    setMetadataRows([]);
-    setEditorOpen(true);
+    };
+    openWithScan(entry, true);
   }
 
-  function openEdit(entry: KnowledgeEntry) {
-    setEditing(entry);
-    setDraft({ ...entry });
-    setMetadataRows(metadataToRows(entry.metadata));
-    setEditorOpen(true);
+  function handleOpen(entry: KnowledgeEntry) {
+    openWithScan({ ...entry }, false);
   }
 
-  function addMetadataRow() {
-    setMetadataRows((rows) => [
-      ...rows,
-      { id: `row-${Date.now()}`, key: "", value: "" },
-    ]);
-  }
-
-  function updateMetadataRow(id: string, patch: Partial<MetadataRow>) {
-    setMetadataRows((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-  }
-
-  function removeMetadataRow(id: string) {
-    setMetadataRows((rows) => rows.filter((r) => r.id !== id));
-  }
-
-  async function saveEntry() {
-    const title = String(draft.title ?? "").trim();
-    const typeId = String(draft.typeId ?? "");
-    if (!title || !typeId) {
-      toast.error("Type and title are required");
+  async function persistEntry(
+    draft: KnowledgeEntry,
+    metadataPairs: { key: string; value: string }[]
+  ) {
+    const title = draft.title.trim();
+    if (!title) {
+      toast.error("Title is required");
       return;
     }
 
-    const metadata = rowsToMetadata(metadataRows);
-    const keys = Object.keys(metadata);
-
+    const metadata = pairsToMetadata(metadataPairs);
+    const typeId = draft.typeId || DEFAULT_ENTRY_TYPE;
     const payload = {
-      id: editing?.id,
+      id: draft.id,
       typeId,
       title,
-      note: String(draft.note ?? ""),
-      tags: draft.tags ?? [],
+      tags: draft.tags,
       metadata,
-      isPinned: Boolean(draft.isPinned),
-      entryAt: draft.entryAt ?? new Date().toISOString(),
+      photoUrl: draft.photoUrl ?? "",
+      isPinned: draft.isPinned,
+      entryAt: draft.entryAt,
     };
 
+    setSaving(true);
     try {
-      if (editing) {
-        await apiJson("PATCH", { id: editing.id, ...payload });
-        toast.success("Entry updated");
-      } else {
+      if (isNewDraft) {
         await apiJson("POST", payload);
-        toast.success("Entry created");
+        toast.success("Record created");
+      } else {
+        await apiJson("PATCH", { ...payload, id: draft.id });
+        toast.success("Record saved");
       }
-      await rememberKeys(typeId, keys);
-      setEditorOpen(false);
+      await rememberKeys(Object.keys(metadata));
+      setViewerEntry(null);
+      setIsNewDraft(false);
       await loadAll();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleLock(entryId: string) {
+    const fromList = entries.find((e) => e.id === entryId);
+    const current = viewerEntry?.id === entryId ? viewerEntry : fromList;
+    if (!current) return;
+    const next = !current.isPinned;
+
+    if (viewerEntry?.id === entryId) {
+      setViewerEntry({ ...viewerEntry, isPinned: next });
+    }
+
+    if (!fromList) return;
+
+    setEntries((prev) => prev.map((e) => (e.id === entryId ? { ...e, isPinned: next } : e)));
+
+    try {
+      await apiJson("PATCH", { id: entryId, isPinned: next });
+    } catch {
+      toast.error("Could not update lock");
+      await loadAll();
     }
   }
 
@@ -218,296 +245,205 @@ export function Entries() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Delete failed");
-      toast.success("Entry deleted");
+      toast.success("Record deleted");
+      setViewerEntry(null);
+      setIsNewDraft(false);
       await loadAll();
     } catch {
       toast.error("Delete failed");
     }
   }
 
-  const draftTypeId = String(draft.typeId ?? "");
-  const suggestions = draftTypeId ? keySuggestions(draftTypeId) : [];
-  const datalistId = `entry-key-suggestions-${draftTypeId}`;
+  const toggleTagFilter = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
 
   return (
-    <div className="px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 md:p-8 md:pb-8 space-y-6 w-full min-w-0 max-w-4xl mx-auto">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3 min-w-0">
-          <BookMarked className="size-8 text-violet-600 shrink-0" />
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900">Entries</h1>
-            <p className="text-sm text-gray-600">Add your own fields — ingredients, steps, notes…</p>
+    <div className="min-h-screen bg-gradient-to-br from-white via-gray-50 to-cyan-50/30 relative">
+      <HolographicGrid />
+
+      <div className="relative bg-white/80 backdrop-blur-md border-b border-cyan-400/20 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-6">
+          <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
+            <div className="flex items-center gap-3 min-w-0">
+              <Link
+                to="/"
+                className="p-2 text-gray-500 hover:text-cyan-600 shrink-0"
+                aria-label="Back to dashboard"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </Link>
+              <div className="relative shrink-0">
+                <Database className="w-9 h-9 sm:w-10 sm:h-10 text-cyan-500" />
+                <div
+                  className="absolute -bottom-1 -right-1 w-3 h-3 bg-cyan-400 animate-pulse"
+                  style={{ clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" }}
+                />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-3xl font-bold text-gray-900 tracking-tight truncate">
+                  Knowledge Records
+                </h1>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <p className="text-[10px] text-cyan-600 font-mono tracking-widest">MINDOS ENTRIES</p>
+                  <div className="w-px h-3 bg-cyan-400/40 hidden sm:block" />
+                  <div className="flex items-center gap-1.5">
+                    <Activity className="w-3 h-3 text-green-500 animate-pulse" />
+                    <span className="text-[10px] text-gray-500 font-mono">ONLINE</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-4 sm:gap-6">
+              <div className="text-right">
+                <div className="text-xl sm:text-2xl font-bold text-cyan-600 font-mono">{entries.length}</div>
+                <div className="text-[9px] text-gray-500 font-mono tracking-widest">RECORDS</div>
+              </div>
+              <div className="text-right">
+                <div className="text-xl sm:text-2xl font-bold text-cyan-600 font-mono">{dataPointCount}</div>
+                <div className="text-[9px] text-gray-500 font-mono tracking-widest">DATA POINTS</div>
+              </div>
+            </div>
           </div>
-        </div>
-        <div className="flex gap-2 shrink-0">
-          <Button variant="outline" size="sm" asChild>
-            <Link to="/">
-              <ArrowLeft className="size-4 mr-1" />
-              Dashboard
-            </Link>
-          </Button>
-          <Button size="sm" className="bg-violet-600 hover:bg-violet-700" onClick={() => openCreate()}>
-            <Plus className="size-4 mr-1" />
-            New
-          </Button>
+
+          <div className="relative mb-4">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
+              <Search className="w-4 h-4 text-cyan-500" />
+              <div className="w-px h-4 bg-cyan-400/30" />
+            </div>
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="SEARCH RECORDS..."
+              className="w-full pl-14 pr-4 py-3 border border-cyan-400/20 bg-white/50 backdrop-blur-sm focus:outline-none focus:border-cyan-400 focus:bg-white transition-all font-mono text-sm placeholder:text-gray-400"
+              style={{ clipPath: "polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%)" }}
+            />
+            <div className="absolute bottom-0 left-0 w-24 h-0.5 bg-gradient-to-r from-cyan-400 to-transparent" />
+          </div>
+
+          {allTags.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="text-[10px] font-mono text-cyan-600 tracking-widest">FILTER BY TAGS</div>
+                {selectedTags.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTags([])}
+                    className="text-[9px] font-mono text-gray-500 hover:text-cyan-600 underline"
+                  >
+                    CLEAR ALL
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {allTags.map((tag) => {
+                  const isSelected = selectedTags.includes(tag);
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => toggleTagFilter(tag)}
+                      className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider border transition-all ${
+                        isSelected
+                          ? "bg-cyan-500 text-white border-cyan-500"
+                          : "bg-cyan-500/10 text-cyan-700 border-cyan-400/30 hover:bg-cyan-500/20"
+                      }`}
+                      style={{ clipPath: clipSm }}
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      <Card>
-        <CardContent className="pt-6 space-y-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-            <Input
-              className="pl-9"
-              placeholder="Search title, note, tags, metadata…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative">
+        {filtered.length === 0 ? (
+          <div className="text-center py-16 sm:py-20">
+            <div className="text-cyan-600 text-xs font-mono tracking-widest mb-2">NO RECORDS FOUND</div>
+            <p className="text-gray-500 text-sm font-mono mb-6">
+              {query || selectedTags.length > 0 ? "ADJUST SEARCH PARAMETERS" : "CREATE YOUR FIRST RECORD"}
+            </p>
+            <div className="flex justify-center gap-1">
+              {[...Array(5)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  className="w-1 h-8 bg-cyan-400/30"
+                  animate={{ scaleY: [0.3, 1, 0.3] }}
+                  transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.1 }}
+                />
+              ))}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant={typeFilter === "all" ? "default" : "outline"}
-              onClick={() => setTypeFilter("all")}
-            >
-              All
-            </Button>
-            {catalog.types.map((t) => (
-              <Button
-                key={t.id}
-                size="sm"
-                variant={typeFilter === t.id ? "default" : "outline"}
-                onClick={() => setTypeFilter(t.id)}
-              >
-                {t.label}
-              </Button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {filtered.length === 0 ? (
-        <button
-          type="button"
-          onClick={() => openCreate()}
-          className="w-full rounded-2xl border border-dashed border-violet-200/80 bg-white/60 py-14 text-center text-sm text-gray-500 transition-all duration-200 hover:border-violet-300 hover:bg-violet-50/40 hover:text-violet-700 active:scale-[0.99]"
-        >
-          <Plus className="size-5 mx-auto mb-2 text-violet-400" />
-          No entries yet — tap to create one
-        </button>
-      ) : (
-        <ul className="space-y-3">
-          {filtered.map((e) => {
-            const metaKeys = Object.keys(e.metadata ?? {});
-            return (
-              <li key={e.id}>
-                <button
-                  type="button"
-                  onClick={() => openEdit(e)}
-                  className="w-full text-left rounded-2xl border border-white/80 bg-white shadow-sm ring-1 ring-black/[0.03] transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-200/90 hover:shadow-md hover:ring-violet-100 active:translate-y-0 active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60"
-                >
-                  <div className="px-4 pt-4 pb-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                          {e.isPinned && <Pin className="size-4 text-amber-500 shrink-0" />}
-                          <span className="truncate">{e.title}</span>
-                        </h3>
-                        <span className="inline-block mt-1 rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-medium text-violet-700">
-                          {typeLabelById.get(e.typeId)}
-                        </span>
-                      </div>
-                      <time className="text-xs text-gray-400 shrink-0 tabular-nums">
-                        {new Date(e.entryAt).toLocaleDateString()}
-                      </time>
-                    </div>
-                    {e.note && (
-                      <p className="text-sm text-gray-600 line-clamp-2 mt-3 leading-relaxed">{e.note}</p>
-                    )}
-                    {metaKeys.length > 0 && (
-                      <p className="text-xs text-gray-400 mt-2 tracking-wide">
-                        {metaKeys.slice(0, 4).join(" · ")}
-                        {metaKeys.length > 4 ? " …" : ""}
-                      </p>
-                    )}
-                    {e.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-3">
-                        {e.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-800"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
-        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border-violet-100/80 shadow-xl">
-          <DialogHeader className="pb-0">
-            <DialogTitle className="text-xl">{editing ? "Edit entry" : "New entry"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-5">
-            <div className="space-y-2">
-              <Label>Type</Label>
-              <select
-                className="w-full border rounded-md h-10 px-3 text-sm"
-                value={draft.typeId ?? ""}
-                onChange={(e) => {
-                  setDraft((d) => ({ ...d, typeId: e.target.value }));
-                }}
-              >
-                {catalog.types.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label>Title</Label>
-              <Input
-                value={draft.title ?? ""}
-                onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Note</Label>
-              <Textarea
-                rows={3}
-                value={draft.note ?? ""}
-                onChange={(e) => setDraft((d) => ({ ...d, note: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Tags</Label>
-              <Input
-                value={tagInput}
-                placeholder="Add tag, press Enter"
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    const t = tagInput.trim();
-                    if (!t) return;
-                    setDraft((d) => ({ ...d, tags: [...(d.tags ?? []), t] }));
-                    setTagInput("");
-                  }
-                }}
-              />
-              <div className="flex flex-wrap gap-1">
-                {(draft.tags ?? []).map((tag) => (
-                  <Badge
-                    key={tag}
-                    variant="secondary"
-                    className="cursor-pointer"
-                    onClick={() =>
-                      setDraft((d) => ({ ...d, tags: (d.tags ?? []).filter((x) => x !== tag) }))
-                    }
-                  >
-                    {tag} ×
-                  </Badge>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-3 pt-1">
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="rounded-full border-violet-200/90 text-violet-700 shadow-sm transition-all hover:border-violet-300 hover:bg-violet-50 active:scale-95"
-                  onClick={addMetadataRow}
-                >
-                  <Plus className="size-4 mr-1" />
-                  Add field
-                </Button>
-              </div>
-
-              {metadataRows.length > 0 && (
-                <ul className="space-y-3">
-                  {metadataRows.map((row, index) => (
-                    <li
-                      key={row.id}
-                      className="group relative rounded-2xl border border-violet-100/70 bg-gradient-to-b from-white to-violet-50/20 p-4 shadow-sm ring-1 ring-black/[0.02] transition-all duration-200 hover:border-violet-200 hover:shadow-md focus-within:border-violet-300 focus-within:shadow-md focus-within:ring-violet-100/80"
-                      style={{ animationDelay: `${index * 40}ms` }}
-                    >
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-2 top-2 size-8 rounded-full text-gray-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 focus-visible:opacity-100"
-                        aria-label="Remove field"
-                        onClick={() => removeMetadataRow(row.id)}
-                      >
-                        <X className="size-4" />
-                      </Button>
-                      <Input
-                        list={datalistId}
-                        placeholder="Field name"
-                        value={row.key}
-                        onChange={(e) => updateMetadataRow(row.id, { key: e.target.value })}
-                        className="border-0 bg-transparent px-0 pr-10 text-sm font-semibold text-gray-900 shadow-none placeholder:font-normal placeholder:text-gray-400 focus-visible:ring-0"
-                      />
-                      <Textarea
-                        rows={3}
-                        placeholder="Content…"
-                        value={row.value}
-                        onChange={(e) => updateMetadataRow(row.id, { value: e.target.value })}
-                        className="mt-2 min-h-[4.5rem] resize-y rounded-xl border-violet-100/60 bg-white/80 text-sm leading-relaxed shadow-none transition-colors focus-visible:border-violet-200 focus-visible:ring-violet-200/50"
-                      />
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <datalist id={datalistId}>
-                {suggestions.map((k) => (
-                  <option key={k} value={k} />
-                ))}
-              </datalist>
-            </div>
-
-            <div className="flex flex-wrap gap-2 pt-1 border-t border-violet-100/60">
-              <Button
-                className="flex-1 rounded-xl bg-violet-600 shadow-sm transition-all hover:bg-violet-700 active:scale-[0.98]"
-                onClick={() => void saveEntry()}
-              >
-                Save
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setDraft((d) => ({ ...d, isPinned: !d.isPinned }))}
-              >
-                {draft.isPinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
-              </Button>
-              {editing && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="text-red-600"
-                  onClick={() => {
-                    void deleteEntry(editing.id);
-                    setEditorOpen(false);
+        ) : (
+          <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <AnimatePresence mode="popLayout">
+              {filtered.map((entry) => (
+                <RecordCard
+                  key={entry.id}
+                  entry={entry}
+                  onClick={() => handleOpen(entry)}
+                  onToggleLock={(e) => {
+                    e.stopPropagation();
+                    void toggleLock(entry.id);
                   }}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+                  onImageClick={(e) => {
+                    e.stopPropagation();
+                    if (entry.photoUrl) {
+                      setZoomedImage({ url: entry.photoUrl, title: entry.title });
+                    }
+                  }}
+                />
+              ))}
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </div>
+
+      <CreateRecordButton onClick={handleCreate} />
+
+      <AnimatePresence>{isScanning && <ScanAnimation />}</AnimatePresence>
+
+      <AnimatePresence>
+        {viewerEntry && (
+          <RecordViewer
+            key={viewerEntry.id}
+            entry={viewerEntry}
+            keySuggestions={keySuggestions}
+            saving={saving}
+            onClose={() => {
+              setViewerEntry(null);
+              setIsNewDraft(false);
+            }}
+            onSave={(draft, pairs) => void persistEntry(draft, pairs)}
+            onDelete={
+              isNewDraft
+                ? () => {
+                    setViewerEntry(null);
+                    setIsNewDraft(false);
+                  }
+                : () => void deleteEntry(viewerEntry.id)
+            }
+            onToggleLock={() => void toggleLock(viewerEntry.id)}
+          />
+        )}
+      </AnimatePresence>
+
+      {zoomedImage && (
+        <ImageZoomModal
+          imageUrl={zoomedImage.url}
+          title={zoomedImage.title}
+          isOpen={!!zoomedImage}
+          onClose={() => setZoomedImage(null)}
+        />
+      )}
     </div>
   );
 }
