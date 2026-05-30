@@ -4,15 +4,17 @@ import { clipMd } from "./styles";
 
 interface CreateRecordButtonProps {
   onClick: () => void;
+  disabled?: boolean;
 }
 
-export function CreateRecordButton({ onClick }: CreateRecordButtonProps) {
+export function CreateRecordButton({ onClick, disabled }: CreateRecordButtonProps) {
   return (
     <div className="fixed bottom-8 right-8 z-40 pb-[env(safe-area-inset-bottom)]">
       <motion.button
         type="button"
         onClick={onClick}
-        className="relative w-16 h-16 bg-cyan-600 text-white shadow-lg shadow-cyan-900/40 hover:bg-cyan-500 flex items-center justify-center group overflow-hidden"
+        disabled={disabled}
+        className="relative w-16 h-16 bg-cyan-600 text-white shadow-lg shadow-cyan-900/40 hover:bg-cyan-500 flex items-center justify-center group overflow-hidden disabled:opacity-40 disabled:pointer-events-none"
         style={{ clipPath: clipMd }}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}

@@ -8,7 +8,7 @@
 ## 沉浸模式
 
 - 左上角 **QUIT** → 舱门关闭动画 → Dashboard（`/`）
-- 侧边栏进入：**HUD 过渡**（`ArchiveDepartOverlay`）→ `/entries` → 舱门打开
+- 侧边栏进入 `/entries` 后直接舱门动画（无 HUD 过渡）
 - 全屏 `100dvh`；`BlastDoorShutter` 开门后保持挂载（勿 unmount），否则 QUIT 无关门动画
 
 ## 每条记录
@@ -34,10 +34,15 @@
 - **BULK SELECT**：多选 → 批量锁定/解锁、加 tag、导出 JSON
 - 工具栏喇叭图标：舱门开关音效（默认关，`localStorage`）
 
+## 云端存储
+
+- **已登录**：全部读写走 `/api/entries` → Supabase（与 Finance 相同模式）
+- **未登录**：列表为空，顶部提示登录；不读不写 `localStorage` 记录缓存
+- 关闭详情时若有未保存修改会确认（仅内存，不落盘）
+
 ## 草稿
 
-- 详情未保存编辑会写入 `localStorage` 草稿；关闭/离开前确认
-- 保存成功后清除草稿
+- 不再使用 `localStorage` 自动草稿
 
 ## 部署
 

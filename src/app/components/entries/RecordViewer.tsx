@@ -5,17 +5,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KnowledgeEntry } from "../../lib/entryTypes";
 import { entryToMetadataPairs } from "../../lib/entryTypes";
 import { compressImageFile } from "../../lib/compressImage";
-import {
-  clearEntryDraft,
-  draftsEqual,
-  readEntryDraft,
-  saveEntryDraft,
-  snapshotFromEntry,
-  type EntryDraftSnapshot,
-} from "../../lib/entriesDraft";
+import { draftsEqual, snapshotFromEntry, type EntryDraftSnapshot } from "../../lib/entriesDraft";
 import { active, clipSm, clipXl, locked } from "./styles";
 
 const photoClip = "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)";
+const fieldText = "text-slate-200 placeholder:text-slate-500";
 
 interface RecordViewerProps {
   entry: KnowledgeEntry;
@@ -44,13 +38,10 @@ export function RecordViewer({
 }: RecordViewerProps) {
   const isLocked = entry.isPinned;
   const theme = isLocked ? locked : active;
-  const restored = useMemo(() => readEntryDraft(entry.id), [entry.id]);
-  const [title, setTitle] = useState(restored?.title ?? entry.title);
-  const [tags, setTags] = useState<string[]>(restored?.tags ?? entry.tags);
-  const [photoUrl, setPhotoUrl] = useState(restored?.photoUrl ?? entry.photoUrl ?? "");
-  const [metadata, setMetadata] = useState(() =>
-    restored?.metadata ?? entryToMetadataPairs(entry.metadata)
-  );
+  const [title, setTitle] = useState(entry.title);
+  const [tags, setTags] = useState<string[]>(entry.tags);
+  const [photoUrl, setPhotoUrl] = useState(entry.photoUrl ?? "");
+  const [metadata, setMetadata] = useState(() => entryToMetadataPairs(entry.metadata));
   const [newTag, setNewTag] = useState("");
   const [newMetaKey, setNewMetaKey] = useState("");
   const [newMetaValue, setNewMetaValue] = useState("");
@@ -83,14 +74,6 @@ export function RecordViewer({
   }, [isDirty, onDirtyChange]);
 
   useEffect(() => {
-    if (isLocked || !isDirty) return;
-    const t = window.setTimeout(() => {
-      saveEntryDraft(entry.id, { ...currentSnapshot, savedAt: new Date().toISOString() });
-    }, 600);
-    return () => window.clearTimeout(t);
-  }, [isLocked, isDirty, currentSnapshot, entry.id]);
-
-  useEffect(() => {
     if (!isDirty) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
@@ -104,9 +87,8 @@ export function RecordViewer({
       const ok = window.confirm("Discard unsaved changes to this record?");
       if (!ok) return;
     }
-    clearEntryDraft(entry.id);
     onClose();
-  }, [isDirty, isLocked, entry.id, onClose]);
+  }, [isDirty, isLocked, onClose]);
 
   const handleMetaChange = (index: number, field: "key" | "value", value: string) => {
     if (isLocked) return;
@@ -150,7 +132,6 @@ export function RecordViewer({
     if (isLocked) return;
     const trimmedTitle = title.trim();
     if (!trimmedTitle) return;
-    clearEntryDraft(entry.id);
     onSave(
       {
         ...entry,
@@ -292,8 +273,8 @@ export function RecordViewer({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 disabled={isLocked}
-                className={`flex-1 text-2xl font-semibold bg-transparent border-none outline-none min-w-0 ${
-                  isLocked ? "text-slate-500 cursor-not-allowed" : "text-slate-100 focus:text-cyan-400"
+                className={`flex-1 text-2xl font-semibold bg-transparent border-none outline-none min-w-0 ${fieldText} ${
+                  isLocked ? "cursor-not-allowed opacity-60" : "focus:text-cyan-300"
                 }`}
                 placeholder="Record Title"
               />
@@ -304,7 +285,7 @@ export function RecordViewer({
                 value={photoUrl.startsWith("data:") ? "" : photoUrl}
                 onChange={(e) => setPhotoUrl(e.target.value)}
                 placeholder="Or paste image URL…"
-                className="mt-2 w-full text-xs font-mono px-2 py-1.5 border border-cyan-400/20 bg-cyan-400/5 focus:outline-none focus:border-cyan-400"
+                className={`mt-2 w-full text-xs font-mono px-2 py-1.5 border border-cyan-400/20 bg-cyan-400/5 focus:outline-none focus:border-cyan-400 ${fieldText}`}
                 style={{ clipPath: clipSm }}
               />
             )}
@@ -368,7 +349,7 @@ export function RecordViewer({
                   onChange={(e) => setNewTag(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleAddTag()}
                   placeholder="Add classification tag..."
-                  className="flex-1 px-3 py-2 text-sm border border-cyan-400/20 bg-cyan-400/5 focus:outline-none focus:border-cyan-400 font-mono"
+                  className={`flex-1 px-3 py-2 text-sm border border-cyan-400/20 bg-cyan-400/5 focus:outline-none focus:border-cyan-400 font-mono ${fieldText}`}
                   style={{ clipPath: clipSm }}
                 />
                 <button
@@ -406,9 +387,9 @@ export function RecordViewer({
                     onChange={(e) => handleMetaChange(idx, "key", e.target.value)}
                     disabled={isLocked}
                     placeholder="PARAMETER"
-                    className={`w-1/3 min-w-0 px-3 py-2 text-xs border font-mono uppercase tracking-wide ${
+                    className={`w-1/3 min-w-0 px-3 py-2 text-xs border font-mono uppercase tracking-wide ${fieldText} ${
                       isLocked
-                        ? `${locked.inputDisabled} text-slate-500 cursor-not-allowed`
+                        ? `${locked.inputDisabled} cursor-not-allowed opacity-70`
                         : "border-cyan-500/30 bg-slate-950/50 focus:outline-none focus:border-cyan-400"
                     }`}
                     style={{ clipPath: clipSm }}
@@ -420,10 +401,10 @@ export function RecordViewer({
                     onChange={(e) => handleMetaChange(idx, "value", e.target.value)}
                     disabled={isLocked}
                     placeholder="Value"
-                    className={`flex-1 min-w-0 px-3 py-2 text-sm border ${
+                    className={`flex-1 min-w-0 px-3 py-2 text-sm border ${fieldText} ${
                       isLocked
-                        ? `${locked.inputDisabledValue} text-slate-400 cursor-not-allowed`
-                        : "border-slate-700/50 bg-slate-950/30 text-slate-200 focus:outline-none focus:border-cyan-400"
+                        ? `${locked.inputDisabledValue} cursor-not-allowed opacity-70`
+                        : "border-slate-700/50 bg-slate-950/30 focus:outline-none focus:border-cyan-400"
                     }`}
                     style={{ clipPath: clipSm }}
                   />
@@ -458,7 +439,7 @@ export function RecordViewer({
                   value={newMetaKey}
                   onChange={(e) => setNewMetaKey(e.target.value)}
                   placeholder="NEW PARAMETER..."
-                  className="w-1/3 min-w-0 px-3 py-2 text-xs border border-cyan-400/20 bg-cyan-400/5 focus:outline-none focus:border-cyan-400 font-mono uppercase"
+                  className={`w-1/3 min-w-0 px-3 py-2 text-xs border border-cyan-400/20 bg-cyan-400/5 focus:outline-none focus:border-cyan-400 font-mono uppercase ${fieldText}`}
                   style={{ clipPath: clipSm }}
                 />
                 <input
@@ -467,7 +448,7 @@ export function RecordViewer({
                   onChange={(e) => setNewMetaValue(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleAddMeta()}
                   placeholder="New value..."
-                  className="flex-1 min-w-0 px-3 py-2 text-sm border border-slate-700/50 bg-slate-950/30 text-slate-200 focus:outline-none focus:border-cyan-400"
+                  className={`flex-1 min-w-0 px-3 py-2 text-sm border border-slate-700/50 bg-slate-950/30 focus:outline-none focus:border-cyan-400 ${fieldText}`}
                   style={{ clipPath: clipSm }}
                 />
                 <button

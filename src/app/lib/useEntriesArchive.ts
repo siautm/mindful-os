@@ -6,14 +6,12 @@ import {
   buildAllKeySuggestions,
   DEFAULT_ENTRY_TYPE,
   pairsToMetadata,
-  readEntriesCache,
-  saveEntriesCache,
   type EntryCatalog,
   type KnowledgeEntry,
 } from "./entryTypes";
 import { parseEntriesQuery, entryMatchesSearch } from "./entriesSearch";
 import { sortEntries, type EntriesSortMode } from "./entriesSort";
-import { mergeMetaKeySuggestions, pushRecentMetaKey, readRecentMetaKeys } from "./recentMetaKeys";
+import { pushRecentMetaKey } from "./recentMetaKeys";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.trim() || "";
 const ENTRIES_ENDPOINT = `${API_BASE}/api/entries`;
@@ -41,12 +39,13 @@ export function useEntriesArchive() {
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
+  const isSignedIn = Boolean(session?.access_token);
+
   const loadAll = useCallback(async () => {
     const token = session?.access_token;
     if (!token) {
-      const cached = readEntriesCache();
-      if (cached.catalog) setCatalog(cached.catalog);
-      setEntries(cached.entries);
+      setCatalog(emptyCatalog());
+      setEntries([]);
       return;
     }
     try {
@@ -67,12 +66,10 @@ export function useEntriesArchive() {
       const nextEntries = json.entries ?? [];
       setCatalog(nextCatalog);
       setEntries(nextEntries);
-      saveEntriesCache(nextCatalog, nextEntries);
     } catch {
-      const cached = readEntriesCache();
-      if (cached.catalog) setCatalog(cached.catalog);
-      setEntries(cached.entries);
-      toast.error("Could not load entries from cloud.");
+      setCatalog(emptyCatalog());
+      setEntries([]);
+      toast.error("Could not load records from cloud. Check connection and sign-in.");
     }
   }, [session?.access_token]);
 
@@ -88,10 +85,7 @@ export function useEntriesArchive() {
     [catalog.keyCatalog, catalog.fields, entries]
   );
 
-  const keySuggestions = useMemo(
-    () => mergeMetaKeySuggestions(catalogKeySuggestions, readRecentMetaKeys()),
-    [catalogKeySuggestions]
-  );
+  const keySuggestions = catalogKeySuggestions;
 
   const parsedQuery = useMemo(() => parseEntriesQuery(query), [query]);
 
@@ -192,19 +186,20 @@ export function useEntriesArchive() {
   );
 
   const toggleLock = useCallback(
-    async (entryId: string) => {
+    (entryId: string): boolean | null => {
       const fromList = entries.find((e) => e.id === entryId);
       if (!fromList) return null;
-      const next = !fromList.isPinned;
-      setEntries((prev) => prev.map((e) => (e.id === entryId ? { ...e, isPinned: next } : e)));
-      try {
-        await apiJson("PATCH", { id: entryId, isPinned: next });
-        return next;
-      } catch {
-        toast.error("Could not update lock");
-        await loadAll();
+      if (!session?.access_token) {
+        toast.error("Sign in to lock records");
         return null;
       }
+      const next = !fromList.isPinned;
+      setEntries((prev) => prev.map((e) => (e.id === entryId ? { ...e, isPinned: next } : e)));
+      void apiJson("PATCH", { id: entryId, isPinned: next }).catch(async () => {
+        toast.error("Could not update lock");
+        await loadAll();
+      });
+      return next;
     },
     [entries, loadAll, session?.access_token]
   );
@@ -307,6 +302,7 @@ export function useEntriesArchive() {
   }, []);
 
   return {
+    isSignedIn,
     catalog,
     entries,
     query,

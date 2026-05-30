@@ -20,9 +20,7 @@ import { EntriesToolbar } from "../components/entries/EntriesToolbar";
 import { EntriesBulkBar } from "../components/entries/EntriesBulkBar";
 import { clipSm } from "../components/entries/styles";
 import { ENTRIES_UI_BUILD, SHOW_ENTRIES_BUILD } from "../components/entries/buildStamp";
-import { consumeArchiveEnterFlag } from "../lib/entriesNav";
-
-const SCAN_MS = 800;
+const SCAN_NEW_MS = 220;
 
 export function Entries() {
   const navigate = useNavigate();
@@ -40,10 +38,6 @@ export function Entries() {
   const [viewerDirty, setViewerDirty] = useState(false);
 
   useEffect(() => {
-    if (consumeArchiveEnterFlag()) {
-      const t = window.setTimeout(() => setDoorsOpen(true), 120);
-      return () => window.clearTimeout(t);
-    }
     const id = requestAnimationFrame(() => setDoorsOpen(true));
     return () => cancelAnimationFrame(id);
   }, []);
@@ -65,14 +59,20 @@ export function Entries() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [viewerEntry]);
 
-  const openWithScan = useCallback((entry: KnowledgeEntry, isNew: boolean) => {
-    setIsScanning(true);
-    setIsNewDraft(isNew);
-    window.setTimeout(() => {
-      setIsScanning(false);
-      setViewerEntry(entry);
-      setViewerDirty(false);
-    }, SCAN_MS);
+  const openRecord = useCallback((entry: KnowledgeEntry, isNew: boolean) => {
+    if (isNew) {
+      setIsScanning(true);
+      setIsNewDraft(true);
+      window.setTimeout(() => {
+        setIsScanning(false);
+        setViewerEntry(entry);
+        setViewerDirty(false);
+      }, SCAN_NEW_MS);
+      return;
+    }
+    setIsNewDraft(false);
+    setViewerEntry(entry);
+    setViewerDirty(false);
   }, []);
 
   const handleCreate = () => {
@@ -86,12 +86,12 @@ export function Entries() {
       isPinned: false,
       entryAt: new Date().toISOString(),
     };
-    openWithScan(entry, true);
+    openRecord(entry, true);
   };
 
   const handleOpen = (entry: KnowledgeEntry) => {
     if (archive.bulkMode) return;
-    openWithScan({ ...entry }, false);
+    openRecord({ ...entry }, false);
   };
 
   const closeViewer = useCallback(() => {
@@ -179,14 +179,23 @@ export function Entries() {
               </div>
             </div>
 
-            <EntriesSearchBar
-              ref={searchRef}
-              value={archive.query}
-              onChange={archive.setQuery}
-              matchCount={archive.filtered.length}
-              totalCount={archive.entries.length}
-              noResults={archive.searchNoResults}
-            />
+          {!archive.isSignedIn && (
+            <div
+              className="mb-4 px-4 py-3 border border-amber-500/40 bg-amber-950/30 text-amber-200/90 text-xs font-mono tracking-wide"
+              style={{ clipPath: clipSm }}
+            >
+              Sign in to load and save records from cloud (Supabase). Data is not stored in this browser.
+            </div>
+          )}
+
+          <EntriesSearchBar
+            ref={searchRef}
+            value={archive.query}
+            onChange={archive.setQuery}
+            matchCount={archive.filtered.length}
+            totalCount={archive.entries.length}
+            noResults={archive.searchNoResults}
+          />
 
             <EntriesToolbar
               sortMode={archive.sortMode}
@@ -293,7 +302,7 @@ export function Entries() {
           )}
         </div>
 
-        <CreateRecordButton onClick={handleCreate} />
+        <CreateRecordButton onClick={handleCreate} disabled={!archive.isSignedIn} />
 
         {archive.bulkMode && (
           <EntriesBulkBar
@@ -334,11 +343,10 @@ export function Entries() {
                       if (await archive.deleteEntry(viewerEntry.id)) closeViewer();
                     }
               }
-              onToggleLock={async () => {
-                const next = await archive.toggleLock(viewerEntry.id);
-                if (next !== null && viewerEntry) {
-                  setViewerEntry({ ...viewerEntry, isPinned: next });
-                }
+              onToggleLock={() => {
+                if (!viewerEntry) return;
+                const next = archive.toggleLock(viewerEntry.id);
+                if (next !== null) setViewerEntry({ ...viewerEntry, isPinned: next });
               }}
               onViewPhoto={(url, t) => setZoomedImage({ url, title: t })}
             />

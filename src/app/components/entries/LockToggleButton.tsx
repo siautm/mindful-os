@@ -9,7 +9,7 @@ interface LockToggleButtonProps {
   onClick: (e: React.MouseEvent) => void;
 }
 
-/** Animated lock / unlock control for cards and viewer. */
+/** Fast lock / unlock control */
 export function LockToggleButton({
   isLocked,
   className,
@@ -22,32 +22,21 @@ export function LockToggleButton({
       onClick={onClick}
       className={`relative overflow-hidden ${className}`}
       style={{ clipPath: clipSm }}
-      whileTap={{ scale: 0.88 }}
+      whileTap={{ scale: 0.92 }}
       aria-label={isLocked ? "Unlock record" : "Lock record"}
     >
       <AnimatePresence mode="wait" initial={false}>
         <motion.span
           key={isLocked ? "locked" : "unlocked"}
           className="relative z-10 inline-flex items-center justify-center"
-          initial={{ opacity: 0, rotate: -48, scale: 0.45 }}
-          animate={{ opacity: 1, rotate: 0, scale: 1 }}
-          exit={{ opacity: 0, rotate: 48, scale: 0.45 }}
-          transition={{ type: "spring", stiffness: 520, damping: 26 }}
+          initial={{ opacity: 0, scale: 0.75 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.75 }}
+          transition={{ duration: 0.1 }}
         >
           {isLocked ? <Lock className={iconClassName} /> : <LockOpen className={iconClassName} />}
         </motion.span>
       </AnimatePresence>
-      <motion.span
-        className="absolute inset-0 border border-slate-300/50 pointer-events-none"
-        initial={false}
-        animate={
-          isLocked
-            ? { opacity: [0.7, 0], scale: [0.85, 1.35] }
-            : { opacity: [0.5, 0], scale: [1, 1.25] }
-        }
-        transition={{ duration: 0.45, ease: "easeOut" }}
-        style={{ clipPath: clipSm }}
-      />
     </motion.button>
   );
 }
