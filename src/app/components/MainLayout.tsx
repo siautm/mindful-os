@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
-import { Outlet, Link, useLocation } from "react-router";
+import { Outlet, Link, useLocation, useNavigate } from "react-router";
+import { ArchiveDepartOverlay } from "./entries/ArchiveDepartOverlay";
+import { ARCHIVE_ENTER_KEY } from "../lib/entriesNav";
 import {
   LayoutDashboard,
   Calendar,
@@ -103,11 +105,13 @@ function SidebarNavBlocks({
   expandedSections,
   toggleSection,
   onNavLinkClick,
+  onEntriesNavigate,
 }: {
   locationPathname: string;
   expandedSections: { [key: string]: boolean };
   toggleSection: (name: string) => void;
   onNavLinkClick?: NavLinkClick;
+  onEntriesNavigate?: (e: React.MouseEvent) => void;
 }) {
   return (
     <>
@@ -146,7 +150,7 @@ function SidebarNavBlocks({
                             <Link
                               key={item.path}
                               to={item.path}
-                              onClick={onNavLinkClick}
+                              onClick={item.path === "/entries" ? onEntriesNavigate : onNavLinkClick}
                               onMouseEnter={() => prefetchRoute(item.path)}
                               onFocus={() => prefetchRoute(item.path)}
                               onTouchStart={() => prefetchRoute(item.path)}
@@ -185,7 +189,7 @@ function SidebarNavBlocks({
                       <Link
                         key={item.path}
                         to={item.path}
-                        onClick={onNavLinkClick}
+                        onClick={item.path === "/entries" ? onEntriesNavigate : onNavLinkClick}
                         onMouseEnter={() => prefetchRoute(item.path)}
                         onFocus={() => prefetchRoute(item.path)}
                         onTouchStart={() => prefetchRoute(item.path)}
@@ -250,9 +254,11 @@ function SidebarFooter({
 
 export function MainLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const isMobile = useIsMobile();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [archiveDeparting, setArchiveDeparting] = useState(false);
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({
     More: false,
   });
@@ -270,6 +276,21 @@ export function MainLayout() {
 
   const closeMobileNav = () => setMobileNavOpen(false);
 
+  const handleEntriesNavigate = (e: React.MouseEvent) => {
+    e.preventDefault();
+    closeMobileNav();
+    setArchiveDeparting(true);
+    try {
+      sessionStorage.setItem(ARCHIVE_ENTER_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+    window.setTimeout(() => {
+      setArchiveDeparting(false);
+      navigate("/entries");
+    }, 450);
+  };
+
   const brandBlock = (
     <div className="flex items-center gap-3 mb-6 md:mb-8 shrink-0">
       <div className="size-10 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shrink-0">
@@ -286,6 +307,7 @@ export function MainLayout() {
 
   return (
     <div className="flex h-[100dvh] min-h-0 bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
+      {archiveDeparting && <ArchiveDepartOverlay />}
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-64 shrink-0 flex-col bg-white/80 backdrop-blur-lg border-r border-emerald-200 shadow-xl overflow-hidden">
         <div className="p-6 flex-1 overflow-y-auto min-h-0">
@@ -294,6 +316,7 @@ export function MainLayout() {
             locationPathname={location.pathname}
             expandedSections={expandedSections}
             toggleSection={toggleSection}
+            onEntriesNavigate={handleEntriesNavigate}
           />
         </div>
         <SidebarFooter userEmail={user?.email} onSignOut={() => signOut()} />
@@ -355,6 +378,7 @@ export function MainLayout() {
               expandedSections={expandedSections}
               toggleSection={toggleSection}
               onNavLinkClick={closeMobileNav}
+              onEntriesNavigate={handleEntriesNavigate}
             />
           </div>
           <SidebarFooter

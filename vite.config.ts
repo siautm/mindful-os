@@ -61,7 +61,15 @@ function rootMusicAssets(): Plugin {
   }
 }
 
+const entriesBuildId =
+  process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ||
+  process.env.VITE_ENTRIES_BUILD?.slice(0, 7) ||
+  'dev'
+
 export default defineConfig({
+  define: {
+    __ENTRIES_UI_BUILD__: JSON.stringify(entriesBuildId),
+  },
   plugins: [
     // The React and Tailwind plugins are both required for Make, even if
     // Tailwind is not being actively used – do not remove them

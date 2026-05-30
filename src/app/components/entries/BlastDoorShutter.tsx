@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { BLAST_CLOSE_MS, BLAST_OPEN_MS } from "./styles";
+import { playDoorCloseSound, playDoorOpenSound } from "./archiveSounds";
 
 interface BlastDoorShutterProps {
   isOpen: boolean;
@@ -53,6 +54,7 @@ export function BlastDoorShutter({ isOpen, onOpenComplete, onCloseComplete }: Bl
     prevOpen.current = isOpen;
 
     if (isOpen && !wasOpen) {
+      playDoorOpenSound();
       setSeam("hidden");
       setDoorsParted(false);
       const tPart = window.setTimeout(() => {
@@ -67,6 +69,7 @@ export function BlastDoorShutter({ isOpen, onOpenComplete, onCloseComplete }: Bl
     }
 
     if (!isOpen && wasOpen) {
+      playDoorCloseSound();
       setSeam("lock");
       setShake(true);
       setDoorsParted(false);

@@ -1,16 +1,25 @@
 import { motion } from "motion/react";
-import { X, Plus, Trash2, Tag, Lock, ImagePlus, Loader2, ZoomIn } from "lucide-react";
+import { X, Plus, Trash2, Tag, Lock, ImagePlus, Loader2, ZoomIn, Copy } from "lucide-react";
 import { LockToggleButton } from "./LockToggleButton";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KnowledgeEntry } from "../../lib/entryTypes";
 import { entryToMetadataPairs } from "../../lib/entryTypes";
+import { compressImageFile } from "../../lib/compressImage";
+import {
+  clearEntryDraft,
+  draftsEqual,
+  readEntryDraft,
+  saveEntryDraft,
+  snapshotFromEntry,
+  type EntryDraftSnapshot,
+} from "../../lib/entriesDraft";
 import { active, clipSm, clipXl, locked } from "./styles";
 
-const MAX_PHOTO_BYTES = 800_000;
 const photoClip = "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)";
 
 interface RecordViewerProps {
   entry: KnowledgeEntry;
+  isNewDraft: boolean;
   keySuggestions: string[];
   saving: boolean;
   onClose: () => void;
@@ -18,10 +27,12 @@ interface RecordViewerProps {
   onDelete?: () => void;
   onToggleLock: () => void;
   onViewPhoto: (url: string, title: string) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 export function RecordViewer({
   entry,
+  isNewDraft,
   keySuggestions,
   saving,
   onClose,
@@ -29,18 +40,73 @@ export function RecordViewer({
   onDelete,
   onToggleLock,
   onViewPhoto,
+  onDirtyChange,
 }: RecordViewerProps) {
   const isLocked = entry.isPinned;
   const theme = isLocked ? locked : active;
-  const [title, setTitle] = useState(entry.title);
-  const [tags, setTags] = useState<string[]>(entry.tags);
-  const [photoUrl, setPhotoUrl] = useState(entry.photoUrl ?? "");
-  const [metadata, setMetadata] = useState(() => entryToMetadataPairs(entry.metadata));
+  const restored = useMemo(() => readEntryDraft(entry.id), [entry.id]);
+  const [title, setTitle] = useState(restored?.title ?? entry.title);
+  const [tags, setTags] = useState<string[]>(restored?.tags ?? entry.tags);
+  const [photoUrl, setPhotoUrl] = useState(restored?.photoUrl ?? entry.photoUrl ?? "");
+  const [metadata, setMetadata] = useState(() =>
+    restored?.metadata ?? entryToMetadataPairs(entry.metadata)
+  );
   const [newTag, setNewTag] = useState("");
   const [newMetaKey, setNewMetaKey] = useState("");
   const [newMetaValue, setNewMetaValue] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const datalistId = "entry-metadata-keys";
+
+  const baseline = useMemo(
+    (): EntryDraftSnapshot =>
+      snapshotFromEntry(entry, {
+        metadata: entryToMetadataPairs(entry.metadata),
+      }),
+    [entry]
+  );
+
+  const currentSnapshot = useMemo(
+    (): EntryDraftSnapshot => ({
+      title: title.trim(),
+      tags,
+      photoUrl: photoUrl.trim(),
+      metadata,
+      savedAt: "",
+    }),
+    [title, tags, photoUrl, metadata]
+  );
+
+  const isDirty = useMemo(() => !draftsEqual(baseline, currentSnapshot), [baseline, currentSnapshot]);
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
+  useEffect(() => {
+    if (isLocked || !isDirty) return;
+    const t = window.setTimeout(() => {
+      saveEntryDraft(entry.id, { ...currentSnapshot, savedAt: new Date().toISOString() });
+    }, 600);
+    return () => window.clearTimeout(t);
+  }, [isLocked, isDirty, currentSnapshot, entry.id]);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty]);
+
+  const requestClose = useCallback(() => {
+    if (isDirty && !isLocked) {
+      const ok = window.confirm("Discard unsaved changes to this record?");
+      if (!ok) return;
+    }
+    clearEntryDraft(entry.id);
+    onClose();
+  }, [isDirty, isLocked, entry.id, onClose]);
 
   const handleMetaChange = (index: number, field: "key" | "value", value: string) => {
     if (isLocked) return;
@@ -69,24 +135,22 @@ export function RecordViewer({
     setNewTag("");
   };
 
-  const handlePhotoFile = (file: File | undefined) => {
+  const handlePhotoFile = async (file: File | undefined) => {
     if (isLocked || !file) return;
     if (!file.type.startsWith("image/")) return;
-    if (file.size > MAX_PHOTO_BYTES) {
-      alert("Image too large — use a file under 800KB or paste an image URL.");
-      return;
+    try {
+      const dataUrl = await compressImageFile(file);
+      setPhotoUrl(dataUrl);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Could not process image");
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") setPhotoUrl(reader.result);
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleSave = () => {
     if (isLocked) return;
     const trimmedTitle = title.trim();
     if (!trimmedTitle) return;
+    clearEntryDraft(entry.id);
     onSave(
       {
         ...entry,
@@ -99,6 +163,15 @@ export function RecordViewer({
     );
   };
 
+  const copyMetaRow = async (key: string, value: string) => {
+    const text = `${key}: ${value}`;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      /* ignore */
+    }
+  };
+
   const displayTitle = title.trim() || "Untitled";
 
   return (
@@ -107,7 +180,7 @@ export function RecordViewer({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      onClick={onClose}
+      onClick={requestClose}
     >
       <motion.div
         className={`relative backdrop-blur-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col border ${
@@ -119,7 +192,21 @@ export function RecordViewer({
         animate={{ scaleX: [0, 1, 1], scaleY: [0, 0, 1] }}
         exit={{ scaleY: [1, 0, 0], scaleX: [1, 1, 0] }}
         transition={{ duration: 0.5, times: [0, 0.3, 1], ease: "easeInOut" }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="record-viewer-title"
       >
+        {isLocked && (
+          <div
+            className="absolute inset-0 pointer-events-none opacity-[0.1] mix-blend-overlay z-0"
+            style={{
+              backgroundImage:
+                "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+              backgroundSize: "100px",
+            }}
+          />
+        )}
+
         <div className="absolute inset-0 pointer-events-none">
           <div className={`absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r ${theme.tracer} via-transparent to-transparent`} />
           <div className={`absolute top-0 right-0 w-0.5 h-full bg-gradient-to-b ${theme.tracer} via-transparent to-transparent`} />
@@ -140,6 +227,9 @@ export function RecordViewer({
               >
                 RECORD {entry.id.slice(0, 12)}
               </div>
+              {isDirty && !isLocked && (
+                <span className="text-[9px] font-mono text-amber-400/90 tracking-wider">UNSAVED</span>
+              )}
               {isLocked && (
                 <div
                   className={`flex items-center gap-1 px-2 py-0.5 text-[9px] font-mono tracking-wider ${locked.badge}`}
@@ -184,7 +274,7 @@ export function RecordViewer({
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={(e) => handlePhotoFile(e.target.files?.[0])}
+                      onChange={(e) => void handlePhotoFile(e.target.files?.[0])}
                     />
                     <button
                       type="button"
@@ -197,6 +287,7 @@ export function RecordViewer({
                 )}
               </div>
               <input
+                id="record-viewer-title"
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -228,16 +319,17 @@ export function RecordViewer({
             />
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               className="p-2 hover:bg-cyan-400/10 transition-colors"
               style={{ clipPath: clipSm }}
+              aria-label="Close record"
             >
               <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 relative z-10">
           <div>
             <div className="flex items-center gap-2 mb-3">
               <div className={`w-1 h-4 ${isLocked ? locked.accentBar : "bg-cyan-400"}`} />
@@ -335,7 +427,17 @@ export function RecordViewer({
                     }`}
                     style={{ clipPath: clipSm }}
                   />
-                  {!isLocked && (
+                  {isLocked ? (
+                    <button
+                      type="button"
+                      onClick={() => void copyMetaRow(item.key, item.value)}
+                      className="p-2 text-slate-500 hover:text-cyan-400 shrink-0"
+                      style={{ clipPath: clipSm }}
+                      title="Copy"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  ) : (
                     <button
                       type="button"
                       onClick={() => handleDeleteMeta(idx)}
@@ -387,7 +489,7 @@ export function RecordViewer({
         </div>
 
         {!isLocked && (
-          <div className="shrink-0 border-t border-cyan-500/20 p-4 flex gap-2 bg-slate-950/60">
+          <div className="shrink-0 border-t border-cyan-500/20 p-4 flex gap-2 bg-slate-950/60 relative z-10">
             <button
               type="button"
               disabled={saving || !title.trim()}
@@ -396,14 +498,14 @@ export function RecordViewer({
               style={{ clipPath: clipSm }}
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              SAVE RECORD
+              {isNewDraft ? "CREATE RECORD" : "SAVE RECORD"}
             </button>
             {onDelete && (
               <button
                 type="button"
                 disabled={saving}
                 onClick={onDelete}
-                className="px-4 py-3 border border-red-400/40 text-red-600 hover:bg-red-50 font-mono text-sm"
+                className="px-4 py-3 border border-red-400/40 text-red-400 hover:bg-red-950/40 font-mono text-sm"
                 style={{ clipPath: clipSm }}
               >
                 <Trash2 className="w-4 h-4" />
