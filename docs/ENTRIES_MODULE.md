@@ -28,7 +28,8 @@
 详情底部 **翻页**：第 1 页为 RECORD（标题/标签/metadata），后续为可视化页。
 
 - **ADD VISUAL** → 选类型：**FLOW MAP**（步骤流）、**BUBBLE MAP**（围绕主题）、**BRACE MAP**（`#` 章节 + 编号要点）、**TREE MAP**（`#` 分类 + 编号条目）
-- 左侧按格式输入编号列表，右侧实时预览
+- 翻页后**仅显示导图**；点 **EDIT** 进入编辑（输入 + 预览）；**BACK TO VIEW** 返回浏览
+- 新建可视化页会直接进入编辑模式
 - 保存时写入 `metadata.__visualPages`（不在 DATA PARAMETERS 表格中显示）
 - 锁定后可视化页只读
 

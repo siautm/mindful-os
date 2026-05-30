@@ -14,6 +14,7 @@ import {
 } from "../../lib/visualPages";
 import { RecordViewerPager } from "./RecordViewerPager";
 import { VisualPageEditor } from "./visual/VisualPageEditor";
+import { VisualPageView } from "./visual/VisualPageView";
 import { VisualTypePicker } from "./visual/VisualTypePicker";
 import { active, clipSm, clipXl, locked } from "./styles";
 
@@ -60,6 +61,7 @@ export function RecordViewer({
   );
   const [pageIndex, setPageIndex] = useState(0);
   const [showTypePicker, setShowTypePicker] = useState(false);
+  const [editingVisualId, setEditingVisualId] = useState<string | null>(null);
   const [newTag, setNewTag] = useState("");
   const [newMetaKey, setNewMetaKey] = useState("");
   const [newMetaValue, setNewMetaValue] = useState("");
@@ -87,6 +89,7 @@ export function RecordViewer({
     setVisualPages(parseVisualPagesFromMetadata(entry.metadata));
     setPageIndex(0);
     setShowTypePicker(false);
+    setEditingVisualId(null);
   }, [entry.id]);
 
   const currentSnapshot = useMemo(
@@ -123,13 +126,21 @@ export function RecordViewer({
     setVisualPages((prev) => [...prev, page]);
     setShowTypePicker(false);
     setPageIndex(visualPages.length + 1);
+    setEditingVisualId(page.id);
   };
 
   const handleRemoveVisual = () => {
     if (isLocked || activeVisualIndex < 0) return;
+    const removedId = visualPages[activeVisualIndex]?.id;
     setVisualPages((prev) => prev.filter((_, i) => i !== activeVisualIndex));
     setPageIndex(Math.max(0, pageIndex - 1));
+    if (removedId && editingVisualId === removedId) setEditingVisualId(null);
   };
+
+  const activeVisualPage =
+    activeVisualIndex >= 0 ? visualPages[activeVisualIndex] : undefined;
+  const isEditingActiveVisual =
+    Boolean(activeVisualPage && editingVisualId === activeVisualPage.id);
 
   useEffect(() => {
     onDirtyChange?.(isDirty);
@@ -376,32 +387,43 @@ export function RecordViewer({
         <div className="flex-1 overflow-y-auto p-6 space-y-6 relative z-10 min-h-0">
           {showTypePicker ? (
             <VisualTypePicker onPick={handlePickVisualType} onCancel={() => setShowTypePicker(false)} />
-          ) : pageIndex > 0 && activeVisualIndex >= 0 && visualPages[activeVisualIndex] ? (
+          ) : activeVisualPage ? (
             <div className="flex flex-col min-h-[320px]">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-mono text-cyan-500 tracking-widest">
-                  VISUAL PAGE · {visualPages[activeVisualIndex].title}
-                </span>
-                {!isLocked && (
-                  <button
-                    type="button"
-                    onClick={handleRemoveVisual}
-                    className="flex items-center gap-1 px-2 py-1 text-[9px] font-mono text-red-400 border border-red-500/30 hover:bg-red-950/40"
-                    style={{ clipPath: clipSm }}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    REMOVE PAGE
-                  </button>
-                )}
-              </div>
-              <VisualPageEditor
-                page={visualPages[activeVisualIndex]}
-                centerTitle={displayTitle}
-                isLocked={isLocked}
-                onChange={(next) =>
-                  setVisualPages((prev) => prev.map((p, i) => (i === activeVisualIndex ? next : p)))
-                }
-              />
+              {isEditingActiveVisual ? (
+                <>
+                  {!isLocked && (
+                    <div className="flex justify-end mb-2">
+                      <button
+                        type="button"
+                        onClick={handleRemoveVisual}
+                        className="flex items-center gap-1 px-2 py-1 text-[9px] font-mono text-red-400 border border-red-500/30 hover:bg-red-950/40"
+                        style={{ clipPath: clipSm }}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        REMOVE PAGE
+                      </button>
+                    </div>
+                  )}
+                  <VisualPageEditor
+                    page={activeVisualPage}
+                    centerTitle={displayTitle}
+                    isLocked={isLocked}
+                    onChange={(next) =>
+                      setVisualPages((prev) =>
+                        prev.map((p, i) => (i === activeVisualIndex ? next : p))
+                      )
+                    }
+                    onDone={() => setEditingVisualId(null)}
+                  />
+                </>
+              ) : (
+                <VisualPageView
+                  page={activeVisualPage}
+                  centerTitle={displayTitle}
+                  isLocked={isLocked}
+                  onEdit={() => setEditingVisualId(activeVisualPage.id)}
+                />
+              )}
             </div>
           ) : (
           <>
@@ -571,6 +593,7 @@ export function RecordViewer({
           pageLabels={pageLabels}
           onPageChange={(i) => {
             setShowTypePicker(false);
+            setEditingVisualId(null);
             setPageIndex(i);
           }}
           onAddVisual={handleAddVisual}

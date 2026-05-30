@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { ArrowLeft } from "lucide-react";
 import {
   parseVisualInput,
   VISUAL_FORMAT_HINTS,
@@ -16,9 +17,10 @@ interface VisualPageEditorProps {
   centerTitle: string;
   isLocked: boolean;
   onChange: (page: VisualPage) => void;
+  onDone?: () => void;
 }
 
-export function VisualPageEditor({ page, centerTitle, isLocked, onChange }: VisualPageEditorProps) {
+export function VisualPageEditor({ page, centerTitle, isLocked, onChange, onDone }: VisualPageEditorProps) {
   const parsed = useMemo(
     () => parseVisualInput(page.type, page.sourceText, centerTitle),
     [page.type, page.sourceText, centerTitle]
@@ -27,6 +29,17 @@ export function VisualPageEditor({ page, centerTitle, isLocked, onChange }: Visu
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="flex flex-wrap items-center gap-2 mb-3">
+        {onDone && (
+          <button
+            type="button"
+            onClick={onDone}
+            className="flex items-center gap-1 px-2 py-1 text-[9px] font-mono text-slate-400 border border-slate-700 hover:text-cyan-300 hover:border-cyan-500/40"
+            style={{ clipPath: clipSm }}
+          >
+            <ArrowLeft className="w-3 h-3" />
+            BACK TO VIEW
+          </button>
+        )}
         <span className="text-[10px] font-mono text-cyan-500 tracking-widest">DIAGRAM TYPE</span>
         {TYPES.map((t) => (
           <button

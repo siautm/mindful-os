@@ -51,64 +51,125 @@ export function VisualDiagram({ parsed, className = "" }: { parsed: ParsedVisual
   }
 
   if (parsed.type === "bracemap") {
-    const { topic, sections } = parsed.data;
-    return (
-      <div className={`flex flex-col sm:flex-row gap-4 p-4 items-stretch min-h-[200px] ${className}`}>
-        <div className="flex items-center justify-center sm:w-1/4">
-          <div className="px-3 py-2 border border-cyan-400/50 bg-cyan-950/50 text-cyan-100 font-semibold text-sm text-center">
-            {topic}
-          </div>
-        </div>
-        <div className="hidden sm:block w-px bg-cyan-500/30 self-stretch" />
-        <div className="flex-1 space-y-3">
-          {sections.map((sec) => (
-            <div key={sec.id} className="border-l-2 border-cyan-500/40 pl-3">
-              <div className="text-[11px] font-mono text-cyan-400 mb-1.5 tracking-wider">{sec.title}</div>
-              <ul className="space-y-1">
-                {sec.items.map((it) => (
-                  <li key={it.id} className="text-[10px] font-mono text-slate-300">
-                    · {it.label}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    return <BraceMapDiagram data={parsed.data} className={className} />;
   }
 
-  const { root, groups } = parsed.data;
-  const total = groups.reduce((a, g) => a + Math.max(g.items.length, 1), 0);
-  let offset = 0;
+  return <TreeMapDiagram data={parsed.data} className={className} />;
+}
+
+function BraceMapDiagram({
+  data,
+  className,
+}: {
+  data: import("../../../lib/visualPages").BraceData;
+  className?: string;
+}) {
+  const { topic, sections } = data;
+  if (!sections.some((s) => s.items.length > 0)) {
+    return <EmptyDiagram className={className} message="Add # chapters and numbered points" />;
+  }
+
+  const blockH = 56;
+  const totalH = Math.max(sections.length * blockH, 80);
+  const midY = totalH / 2;
+
   return (
-    <div className={`p-4 ${className}`}>
-      <div className="text-center text-xs font-mono text-cyan-400 mb-3 tracking-widest">{root}</div>
-      <div className="flex h-36 sm:h-44 border border-cyan-500/30 overflow-hidden" style={{ clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)" }}>
-        {groups.map((g) => {
-          const weight = Math.max(g.items.length, 1);
-          const pct = (weight / total) * 100;
-          const hue = 180 + offset * 25;
-          offset += weight;
-          return (
-            <div
-              key={g.id}
-              className="flex flex-col border-r border-slate-800/80 last:border-r-0 min-w-0"
-              style={{ width: `${pct}%`, backgroundColor: `hsla(${hue}, 45%, 22%, 0.95)` }}
-            >
-              <div className="text-[9px] font-mono text-cyan-200/90 p-1.5 truncate border-b border-black/20">
-                {g.title}
-              </div>
-              <div className="flex-1 p-1 overflow-hidden">
-                {g.items.map((it) => (
-                  <div key={it.id} className="text-[8px] font-mono text-slate-300 truncate py-0.5">
-                    {it.label}
-                  </div>
-                ))}
-              </div>
+    <div className={`flex items-stretch gap-0 p-6 min-h-[220px] w-full max-w-3xl mx-auto ${className}`}>
+      <div className="flex items-center justify-end pr-2 shrink-0 w-[28%] max-w-[140px]">
+        <div className={box + " font-semibold text-sm"}>{topic}</div>
+      </div>
+
+      <div className="relative shrink-0 w-10 sm:w-14" style={{ minHeight: totalH }}>
+        <svg
+          className="absolute inset-0 w-full h-full text-cyan-400/70"
+          viewBox={`0 0 40 ${totalH}`}
+          preserveAspectRatio="none"
+          aria-hidden
+        >
+          <path
+            d={`M 8 ${midY} C 8 8, 28 8, 32 ${midY} C 28 ${totalH - 8}, 8 ${totalH - 8}, 8 ${midY}`}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+          />
+        </svg>
+      </div>
+
+      <div className="flex-1 flex flex-col justify-center gap-3 min-w-0">
+        {sections.map((sec) => (
+          <div key={sec.id} className="flex flex-col sm:flex-row sm:items-start gap-2">
+            <div className="shrink-0 px-2 py-1 text-[10px] font-mono text-cyan-300 border border-cyan-500/35 bg-cyan-950/40 tracking-wider">
+              {sec.title}
             </div>
-          );
-        })}
+            <div className="flex flex-wrap gap-1.5 min-w-0">
+              {sec.items.length === 0 ? (
+                <span className="text-[9px] font-mono text-slate-600">—</span>
+              ) : (
+                sec.items.map((it) => (
+                  <span
+                    key={it.id}
+                    className="text-[10px] font-mono text-slate-300 px-2 py-0.5 border border-slate-700/60 bg-slate-900/60"
+                  >
+                    {it.label}
+                  </span>
+                ))
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TreeMapDiagram({
+  data,
+  className,
+}: {
+  data: import("../../../lib/visualPages").TreeData;
+  className?: string;
+}) {
+  const { root, groups } = data;
+  const hasContent = groups.some((g) => g.items.length > 0);
+  if (!hasContent && groups.length <= 1) {
+    return <EmptyDiagram className={className} message="Add # categories and numbered items" />;
+  }
+
+  return (
+    <div className={`p-6 w-full max-w-4xl mx-auto ${className}`}>
+      <div className="flex flex-col items-center">
+        <div className={`${box} font-semibold text-sm mb-0`}>{root}</div>
+        <div className="w-px h-5 bg-cyan-500/50" />
+        <div className="relative w-full flex justify-center">
+          <div className="absolute top-0 left-[12%] right-[12%] h-px bg-cyan-500/40" />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap justify-center gap-6 mt-1">
+        {groups.map((g) => (
+          <div key={g.id} className="flex flex-col items-center min-w-[100px] max-w-[200px] flex-1">
+            <div className="w-px h-4 bg-cyan-500/40 shrink-0" />
+            <div className="px-2 py-1 text-[10px] font-mono text-teal-200 border border-teal-500/40 bg-teal-950/40 text-center tracking-wider w-full">
+              {g.title}
+            </div>
+            <div className="w-px h-3 bg-cyan-500/30" />
+            <ul className="w-full space-y-1 pt-1">
+              {g.items.length === 0 ? (
+                <li className="text-[9px] font-mono text-slate-600 text-center">—</li>
+              ) : (
+                g.items.map((it) => (
+                  <li
+                    key={it.id}
+                    className="text-[10px] font-mono text-slate-300 text-center px-2 py-1 border border-slate-700/50 bg-slate-900/50"
+                  >
+                    {it.label}
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+        ))}
       </div>
     </div>
   );
