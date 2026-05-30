@@ -5,10 +5,10 @@ import { useStorageHydration } from "./useStorageHydration";
 import {
   buildAllKeySuggestions,
   DEFAULT_ENTRY_TYPE,
-  pairsToMetadata,
   type EntryCatalog,
   type KnowledgeEntry,
 } from "./entryTypes";
+import { buildEntryMetadata, VISUAL_PAGES_KEY, type VisualPage } from "./visualPages";
 import { parseEntriesQuery, entryMatchesSearch } from "./entriesSearch";
 import { sortEntries, type EntriesSortMode } from "./entriesSort";
 import { pushRecentMetaKey } from "./recentMetaKeys";
@@ -149,13 +149,18 @@ export function useEntriesArchive() {
   }, [session?.access_token]);
 
   const persistEntry = useCallback(
-    async (draft: KnowledgeEntry, metadataPairs: { key: string; value: string }[], isNew: boolean) => {
+    async (
+      draft: KnowledgeEntry,
+      metadataPairs: { key: string; value: string }[],
+      visualPages: VisualPage[],
+      isNew: boolean
+    ) => {
       const title = draft.title.trim();
       if (!title) {
         toast.error("Title is required");
         return false;
       }
-      const metadata = pairsToMetadata(metadataPairs);
+      const metadata = buildEntryMetadata(metadataPairs, visualPages);
       const payload = {
         id: draft.id,
         typeId: draft.typeId || DEFAULT_ENTRY_TYPE,
@@ -174,7 +179,7 @@ export function useEntriesArchive() {
           await apiJson("PATCH", { ...payload, id: draft.id });
           toast.success("Record saved");
         }
-        await rememberKeys(Object.keys(metadata));
+        await rememberKeys(Object.keys(metadata).filter((k) => k !== VISUAL_PAGES_KEY));
         await loadAll();
         return true;
       } catch (e) {

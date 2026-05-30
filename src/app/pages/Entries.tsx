@@ -330,9 +330,9 @@ export function Entries() {
               saving={saving}
               onDirtyChange={setViewerDirty}
               onClose={closeViewer}
-              onSave={async (draft, pairs) => {
+              onSave={async (draft, pairs, visualPages) => {
                 setSaving(true);
-                const ok = await archive.persistEntry(draft, pairs, isNewDraft);
+                const ok = await archive.persistEntry(draft, pairs, visualPages, isNewDraft);
                 setSaving(false);
                 if (ok) closeViewer();
               }}

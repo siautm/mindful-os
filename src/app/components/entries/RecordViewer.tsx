@@ -3,9 +3,18 @@ import { X, Plus, Trash2, Tag, Lock, ImagePlus, Loader2, ZoomIn, Copy } from "lu
 import { LockToggleButton } from "./LockToggleButton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KnowledgeEntry } from "../../lib/entryTypes";
-import { entryToMetadataPairs } from "../../lib/entryTypes";
 import { compressImageFile } from "../../lib/compressImage";
 import { draftsEqual, snapshotFromEntry, type EntryDraftSnapshot } from "../../lib/entriesDraft";
+import {
+  metadataPairsForEditor,
+  newVisualPage,
+  parseVisualPagesFromMetadata,
+  type VisualPage,
+  type VisualType,
+} from "../../lib/visualPages";
+import { RecordViewerPager } from "./RecordViewerPager";
+import { VisualPageEditor } from "./visual/VisualPageEditor";
+import { VisualTypePicker } from "./visual/VisualTypePicker";
 import { active, clipSm, clipXl, locked } from "./styles";
 
 const photoClip = "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)";
@@ -17,7 +26,11 @@ interface RecordViewerProps {
   keySuggestions: string[];
   saving: boolean;
   onClose: () => void;
-  onSave: (draft: KnowledgeEntry, metadataPairs: { key: string; value: string }[]) => void;
+  onSave: (
+    draft: KnowledgeEntry,
+    metadataPairs: { key: string; value: string }[],
+    visualPages: VisualPage[]
+  ) => void;
   onDelete?: () => void;
   onToggleLock: () => void;
   onViewPhoto: (url: string, title: string) => void;
@@ -41,20 +54,40 @@ export function RecordViewer({
   const [title, setTitle] = useState(entry.title);
   const [tags, setTags] = useState<string[]>(entry.tags);
   const [photoUrl, setPhotoUrl] = useState(entry.photoUrl ?? "");
-  const [metadata, setMetadata] = useState(() => entryToMetadataPairs(entry.metadata));
+  const [metadata, setMetadata] = useState(() => metadataPairsForEditor(entry.metadata));
+  const [visualPages, setVisualPages] = useState<VisualPage[]>(() =>
+    parseVisualPagesFromMetadata(entry.metadata)
+  );
+  const [pageIndex, setPageIndex] = useState(0);
+  const [showTypePicker, setShowTypePicker] = useState(false);
   const [newTag, setNewTag] = useState("");
   const [newMetaKey, setNewMetaKey] = useState("");
   const [newMetaValue, setNewMetaValue] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const datalistId = "entry-metadata-keys";
 
+  const baselineVisual = useMemo(
+    () => parseVisualPagesFromMetadata(entry.metadata),
+    [entry.id, entry.metadata]
+  );
+
   const baseline = useMemo(
     (): EntryDraftSnapshot =>
       snapshotFromEntry(entry, {
-        metadata: entryToMetadataPairs(entry.metadata),
+        metadata: metadataPairsForEditor(entry.metadata),
       }),
     [entry]
   );
+
+  useEffect(() => {
+    setTitle(entry.title);
+    setTags(entry.tags);
+    setPhotoUrl(entry.photoUrl ?? "");
+    setMetadata(metadataPairsForEditor(entry.metadata));
+    setVisualPages(parseVisualPagesFromMetadata(entry.metadata));
+    setPageIndex(0);
+    setShowTypePicker(false);
+  }, [entry.id]);
 
   const currentSnapshot = useMemo(
     (): EntryDraftSnapshot => ({
@@ -67,7 +100,36 @@ export function RecordViewer({
     [title, tags, photoUrl, metadata]
   );
 
-  const isDirty = useMemo(() => !draftsEqual(baseline, currentSnapshot), [baseline, currentSnapshot]);
+  const isDirty = useMemo(() => {
+    if (!draftsEqual(baseline, currentSnapshot)) return true;
+    return JSON.stringify(visualPages) !== JSON.stringify(baselineVisual);
+  }, [baseline, currentSnapshot, visualPages, baselineVisual]);
+
+  const totalPages = 1 + visualPages.length;
+  const pageLabels = useMemo(
+    () => ["RECORD", ...visualPages.map((p, i) => p.title || `VISUAL ${i + 1}`)],
+    [visualPages]
+  );
+  const activeVisualIndex = pageIndex - 1;
+
+  const handleAddVisual = () => {
+    if (isLocked) return;
+    setShowTypePicker(true);
+    if (pageIndex === 0) setPageIndex(0);
+  };
+
+  const handlePickVisualType = (type: VisualType) => {
+    const page = newVisualPage(type, visualPages.length);
+    setVisualPages((prev) => [...prev, page]);
+    setShowTypePicker(false);
+    setPageIndex(visualPages.length + 1);
+  };
+
+  const handleRemoveVisual = () => {
+    if (isLocked || activeVisualIndex < 0) return;
+    setVisualPages((prev) => prev.filter((_, i) => i !== activeVisualIndex));
+    setPageIndex(Math.max(0, pageIndex - 1));
+  };
 
   useEffect(() => {
     onDirtyChange?.(isDirty);
@@ -140,7 +202,8 @@ export function RecordViewer({
         photoUrl: photoUrl.trim() || undefined,
         isPinned: entry.isPinned,
       },
-      metadata
+      metadata,
+      visualPages
     );
   };
 
@@ -310,7 +373,38 @@ export function RecordViewer({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 relative z-10">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 relative z-10 min-h-0">
+          {showTypePicker ? (
+            <VisualTypePicker onPick={handlePickVisualType} onCancel={() => setShowTypePicker(false)} />
+          ) : pageIndex > 0 && activeVisualIndex >= 0 && visualPages[activeVisualIndex] ? (
+            <div className="flex flex-col min-h-[320px]">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[10px] font-mono text-cyan-500 tracking-widest">
+                  VISUAL PAGE · {visualPages[activeVisualIndex].title}
+                </span>
+                {!isLocked && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveVisual}
+                    className="flex items-center gap-1 px-2 py-1 text-[9px] font-mono text-red-400 border border-red-500/30 hover:bg-red-950/40"
+                    style={{ clipPath: clipSm }}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    REMOVE PAGE
+                  </button>
+                )}
+              </div>
+              <VisualPageEditor
+                page={visualPages[activeVisualIndex]}
+                centerTitle={displayTitle}
+                isLocked={isLocked}
+                onChange={(next) =>
+                  setVisualPages((prev) => prev.map((p, i) => (i === activeVisualIndex ? next : p)))
+                }
+              />
+            </div>
+          ) : (
+          <>
           <div>
             <div className="flex items-center gap-2 mb-3">
               <div className={`w-1 h-4 ${isLocked ? locked.accentBar : "bg-cyan-400"}`} />
@@ -467,7 +561,21 @@ export function RecordViewer({
               ))}
             </datalist>
           </div>
+          </>
+          )}
         </div>
+
+        <RecordViewerPager
+          pageIndex={showTypePicker ? 0 : pageIndex}
+          totalPages={showTypePicker ? totalPages : totalPages}
+          pageLabels={pageLabels}
+          onPageChange={(i) => {
+            setShowTypePicker(false);
+            setPageIndex(i);
+          }}
+          onAddVisual={handleAddVisual}
+          canAddVisual={!isLocked && !showTypePicker}
+        />
 
         {!isLocked && (
           <div className="shrink-0 border-t border-cyan-500/20 p-4 flex gap-2 bg-slate-950/60 relative z-10">

@@ -19,8 +19,18 @@
 | **Photo** | 可选；上传自动压缩（≤800px 边长）；或 URL |
 | **Tags** | 多标签；列表可按 tag 筛选 |
 | **Metadata** | 动态 key:value；卡片不显示，仅在详情编辑 |
+| **Visual pages** | 详情底部分页；`metadata.__visualPages` 存 flow/bubble/brace/tree 图 |
 
 **Lock**（`is_pinned`）→ 只读 + slate 冷金属 `RESTRICTED` 样式。
+
+## 可视化页（Mind map）
+
+详情底部 **翻页**：第 1 页为 RECORD（标题/标签/metadata），后续为可视化页。
+
+- **ADD VISUAL** → 选类型：**FLOW MAP**（步骤流）、**BUBBLE MAP**（围绕主题）、**BRACE MAP**（`#` 章节 + 编号要点）、**TREE MAP**（`#` 分类 + 编号条目）
+- 左侧按格式输入编号列表，右侧实时预览
+- 保存时写入 `metadata.__visualPages`（不在 DATA PARAMETERS 表格中显示）
+- 锁定后可视化页只读
 
 ## 搜索与筛选
 
