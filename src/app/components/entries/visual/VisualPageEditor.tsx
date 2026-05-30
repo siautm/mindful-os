@@ -18,9 +18,10 @@ interface VisualPageEditorProps {
   isLocked: boolean;
   onChange: (page: VisualPage) => void;
   onDone?: () => void;
+  embedded?: boolean;
 }
 
-export function VisualPageEditor({ page, diagramTitle, isLocked, onChange, onDone }: VisualPageEditorProps) {
+export function VisualPageEditor({ page, diagramTitle, isLocked, onChange, onDone, embedded }: VisualPageEditorProps) {
   const center = diagramTitle.trim() || "Untitled";
   const parsed = useMemo(
     () => parseVisualInput(page.type, page.sourceText, center),
@@ -76,11 +77,13 @@ export function VisualPageEditor({ page, diagramTitle, isLocked, onChange, onDon
           />
         </div>
 
-        <div className="flex flex-col min-h-[200px] border border-cyan-500/20 bg-slate-950/40" style={{ clipPath: clipSm }}>
-          <div className="text-[10px] font-mono text-cyan-500/80 tracking-widest p-2 border-b border-cyan-500/15">
-            PREVIEW · {VISUAL_TYPE_LABELS[page.type]}
-          </div>
-          <div className="flex-1 overflow-auto">
+        <div className="flex flex-col min-h-[200px] border border-cyan-500/20 bg-slate-950/40">
+          {!embedded && (
+            <div className="text-[10px] font-mono text-cyan-500/80 tracking-widest px-3 py-2 border-b border-cyan-500/15 bg-slate-950/60">
+              PREVIEW · {VISUAL_TYPE_LABELS[page.type]}
+            </div>
+          )}
+          <div className="flex-1 overflow-auto p-2">
             <VisualDiagram parsed={parsed} />
           </div>
         </div>

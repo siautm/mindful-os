@@ -417,7 +417,6 @@ export function RecordViewer({
                   transition={{ duration: 0.2 }}
                 >
                   <RecordBackPanel
-                    recordTitle={displayTitle}
                     visual={visual}
                     isLocked={isLocked}
                     isEditing={editingVisual}
