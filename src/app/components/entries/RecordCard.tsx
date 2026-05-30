@@ -1,7 +1,6 @@
 import { motion } from "motion/react";
 import { ChevronRight, Lock, LockOpen, ZoomIn } from "lucide-react";
 import type { KnowledgeEntry } from "../../lib/entryTypes";
-import { entryToMetadataPairs } from "../../lib/entryTypes";
 import { active, clipLg, clipSm, locked } from "./styles";
 
 interface RecordCardProps {
@@ -12,7 +11,7 @@ interface RecordCardProps {
   onImageClick: (e: React.MouseEvent) => void;
 }
 
-/** Reference-original card layout (thumbnail + title + tags + metadata preview). */
+/** Reference card: thumbnail + title + tags (no metadata on card). */
 export function RecordCard({
   entry,
   index = 0,
@@ -22,7 +21,6 @@ export function RecordCard({
 }: RecordCardProps) {
   const isLocked = entry.isPinned;
   const theme = isLocked ? locked : active;
-  const metadata = entryToMetadataPairs(entry.metadata);
 
   return (
     <motion.div
@@ -56,13 +54,13 @@ export function RecordCard({
             style={{ clipPath: "polygon(3px 0, 100% 0, calc(100% - 3px) 100%, 0 100%)" }}
           >
             <Lock className="w-3 h-3" />
-            LOCKED
+            SEALED
           </div>
         </div>
       )}
 
       <div
-        className={`relative border border-transparent group-hover:border-cyan-400/30 transition-all p-5`}
+        className={`relative border border-transparent group-hover:border-cyan-400/25 transition-all p-5`}
         style={{ clipPath: clipLg }}
       >
         <div className={`text-[10px] font-mono ${theme.id} mb-3 tracking-wider truncate`}>
@@ -92,8 +90,8 @@ export function RecordCard({
           </h3>
         </div>
 
-        {entry.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-3">
+        {entry.tags.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5 mb-1">
             {entry.tags.slice(0, 3).map((tag) => (
               <span
                 key={tag}
@@ -109,34 +107,15 @@ export function RecordCard({
               </span>
             )}
           </div>
-        )}
-
-        {metadata.length > 0 && (
-          <div className="text-xs space-y-1.5 font-mono mb-4">
-            {metadata.slice(0, 3).map((item, idx) => (
-              <div key={idx} className="flex gap-2 items-center min-w-0">
-                <div
-                  className={`w-1 h-1 shrink-0 ${isLocked ? "bg-amber-400" : "bg-cyan-400"}`}
-                  style={{ clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" }}
-                />
-                <span className={`uppercase tracking-wide text-[9px] min-w-[4rem] shrink-0 ${theme.metaKey}`}>
-                  {item.key}
-                </span>
-                <span className={`truncate text-[11px] ${theme.metaVal}`}>{item.value}</span>
-              </div>
-            ))}
-          </div>
+        ) : (
+          <p className="text-[10px] font-mono text-slate-600 tracking-wider mb-1">NO TAGS</p>
         )}
 
         <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-700/80">
           <button
             type="button"
             onClick={onToggleLock}
-            className={`p-1.5 transition-all ${
-              isLocked
-                ? "bg-amber-500/15 hover:bg-amber-500/25 text-amber-400"
-                : "bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-400"
-            }`}
+            className={`p-1.5 transition-all ${theme.lockBtn}`}
             style={{ clipPath: clipSm }}
           >
             {isLocked ? <Lock className="w-3.5 h-3.5" /> : <LockOpen className="w-3.5 h-3.5" />}
@@ -146,18 +125,12 @@ export function RecordCard({
               {[...Array(4)].map((_, i) => (
                 <div
                   key={i}
-                  className={`w-0.5 transition-all ${
-                    isLocked ? "bg-amber-400/30 group-hover:bg-amber-400/60" : "bg-cyan-400/30 group-hover:bg-cyan-400/60"
-                  }`}
+                  className={`w-0.5 transition-all ${theme.bars}`}
                   style={{ height: `${8 + i * 2}px` }}
                 />
               ))}
             </div>
-            <ChevronRight
-              className={`w-4 h-4 transition-transform group-hover:translate-x-1 ${
-                isLocked ? "text-amber-500" : "text-cyan-500"
-              }`}
-            />
+            <ChevronRight className={`w-4 h-4 transition-transform group-hover:translate-x-1 ${theme.chevron}`} />
           </div>
         </div>
       </div>

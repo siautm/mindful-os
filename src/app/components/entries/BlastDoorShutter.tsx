@@ -45,53 +45,54 @@ export function BlastDoorShutter({ isOpen, onOpenComplete, onCloseComplete }: Bl
   const prevOpen = useRef(isOpen);
   const [seam, setSeam] = useState<"standby" | "unlock" | "open" | "lock">("standby");
   const [shake, setShake] = useState(false);
-  const [hidden, setHidden] = useState(false);
+  /** Doors visually open (off-screen); overlay must stay mounted for close animation */
+  const [doorsParted, setDoorsParted] = useState(false);
 
   useEffect(() => {
     const wasOpen = prevOpen.current;
     prevOpen.current = isOpen;
 
     if (isOpen && !wasOpen) {
-      setHidden(false);
       setSeam("unlock");
+      setDoorsParted(false);
       const tUnlock = window.setTimeout(() => setSeam("open"), 100);
-      const tDone = window.setTimeout(() => {
-        setHidden(true);
-        onOpenComplete?.();
-      }, BLAST_OPEN_MS + 50);
+      const tPart = window.setTimeout(() => setDoorsParted(true), BLAST_OPEN_MS);
+      const tDone = window.setTimeout(() => onOpenComplete?.(), BLAST_OPEN_MS + 80);
       return () => {
         window.clearTimeout(tUnlock);
+        window.clearTimeout(tPart);
         window.clearTimeout(tDone);
       };
     }
 
     if (!isOpen && wasOpen) {
-      setHidden(false);
       setSeam("lock");
       setShake(true);
+      setDoorsParted(false);
       const tDone = window.setTimeout(() => {
         setShake(false);
         onCloseComplete?.();
-      }, BLAST_CLOSE_MS);
+      }, BLAST_CLOSE_MS + 80);
       return () => window.clearTimeout(tDone);
     }
 
     return undefined;
   }, [isOpen, onOpenComplete, onCloseComplete]);
 
-  if (hidden) return null;
-
-  const leftX = isOpen ? "-100%" : "0%";
-  const rightX = isOpen ? "100%" : "0%";
-  const doorTransition = isOpen
+  const leftX = doorsParted ? "-100%" : "0%";
+  const rightX = doorsParted ? "100%" : "0%";
+  const doorTransition = doorsParted
     ? `transform ${BLAST_OPEN_MS}ms cubic-bezier(0.77, 0, 0.175, 1)`
     : `transform ${BLAST_CLOSE_MS}ms cubic-bezier(0.6, -0.28, 0.735, 0.045)`;
+
+  const blocksPointer = !doorsParted;
 
   return (
     <motion.div
       className="fixed inset-0 z-[100]"
-      animate={shake ? { x: [0, -4, 4, -3, 3, -1, 0] } : { x: 0 }}
-      transition={{ duration: 0.32 }}
+      style={{ pointerEvents: blocksPointer ? "auto" : "none" }}
+      animate={shake ? { x: [0, -5, 5, -4, 4, -2, 0] } : { x: 0 }}
+      transition={{ duration: 0.35 }}
     >
       <div
         className={`absolute left-1/2 top-0 bottom-0 w-[3px] -translate-x-1/2 z-30 transition-colors duration-200 ${
@@ -104,10 +105,16 @@ export function BlastDoorShutter({ isOpen, onOpenComplete, onCloseComplete }: Bl
       />
 
       <div className="absolute inset-0 flex overflow-hidden">
-        <div className="h-full w-1/2" style={{ transform: `translateX(${leftX})`, transition: doorTransition }}>
+        <div
+          className="h-full w-1/2 will-change-transform"
+          style={{ transform: `translateX(${leftX})`, transition: doorTransition }}
+        >
           <DoorPanel side="left" />
         </div>
-        <div className="h-full w-1/2" style={{ transform: `translateX(${rightX})`, transition: doorTransition }}>
+        <div
+          className="h-full w-1/2 will-change-transform"
+          style={{ transform: `translateX(${rightX})`, transition: doorTransition }}
+        >
           <DoorPanel side="right" />
         </div>
       </div>
