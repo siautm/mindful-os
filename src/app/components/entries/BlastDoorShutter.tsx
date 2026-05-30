@@ -53,7 +53,7 @@ export function BlastDoorShutter({ isOpen, onOpenComplete, onCloseComplete }: Bl
     prevOpen.current = isOpen;
 
     if (isOpen && !wasOpen) {
-      setSeam("unlock");
+      setSeam("hidden");
       setDoorsParted(false);
       const tPart = window.setTimeout(() => {
         setDoorsParted(true);
@@ -95,9 +95,6 @@ export function BlastDoorShutter({ isOpen, onOpenComplete, onCloseComplete }: Bl
       animate={shake ? { x: [0, -5, 5, -4, 4, -2, 0] } : { x: 0 }}
       transition={{ duration: 0.35 }}
     >
-      {seam === "unlock" && !doorsParted && (
-        <div className="absolute left-1/2 top-0 bottom-0 w-[3px] -translate-x-1/2 z-30 bg-cyan-400 shadow-[0_0_24px_rgba(34,211,238,1)] transition-opacity duration-150" />
-      )}
       {seam === "lock" && !doorsParted && (
         <div className="absolute left-1/2 top-0 bottom-0 w-[3px] -translate-x-1/2 z-30 bg-orange-500 shadow-[0_0_16px_rgba(249,115,22,0.9)] transition-opacity duration-150" />
       )}

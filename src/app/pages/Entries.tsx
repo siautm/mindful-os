@@ -24,6 +24,7 @@ import { QuitEntriesButton } from "../components/entries/QuitEntriesButton";
 import { EntriesSearchBar } from "../components/entries/EntriesSearchBar";
 import { BlastDoorShutter } from "../components/entries/BlastDoorShutter";
 import { clipSm } from "../components/entries/styles";
+import { ENTRIES_UI_BUILD } from "../components/entries/buildStamp";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.trim() || "";
 const ENTRIES_ENDPOINT = `${API_BASE}/api/entries`;
@@ -323,6 +324,13 @@ export function Entries() {
                     <Activity className="w-3 h-3 text-teal-400 animate-pulse" />
                     <span className="text-[10px] text-slate-500 font-mono">ONLINE</span>
                   </div>
+                  <div className="w-px h-3 bg-cyan-500/30 hidden sm:block" />
+                  <span
+                    className="text-[10px] text-teal-400/90 font-mono tracking-wider"
+                    title="If this does not match the latest deploy, your browser or Vercel is serving an old build."
+                  >
+                    UI {ENTRIES_UI_BUILD}
+                  </span>
                 </div>
               </div>
             </div>
