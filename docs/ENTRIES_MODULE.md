@@ -23,15 +23,14 @@
 
 **Lock**（`is_pinned`）→ 只读 + slate 冷金属 `RESTRICTED` 样式。
 
-## 可视化页（Mind map）
+## 可视化导图（每卡最多 1 个）
 
-详情底部 **翻页**：第 1 页为 RECORD（标题/标签/metadata），后续为可视化页。
-
-- **ADD VISUAL** → 选类型：**FLOW MAP**、**BUBBLE MAP**、**BRACE MAP**（左→右树形曲线连接；`#` 章节 + 编号要点）、**TREE MAP**
-- 翻页后**仅显示导图**；点 **EDIT** 进入编辑（输入 + 预览）；**BACK TO VIEW** 返回浏览
-- 新建可视化页会直接进入编辑模式
-- 保存时写入 `metadata.__visualPages`（不在 DATA PARAMETERS 表格中显示）
-- 锁定后可视化页只读
+- 详情右上角 **方框翻转按钮**：正面 = 标题/照片/标签/metadata；背面 = 导图
+- 背面仅显示 **记录标题** + **导图中心标题**（用户输入，不用卡片标题作 bubble/tree/brace 中心）
+- 无导图时背面选类型；未编辑就翻回正面会丢弃空导图
+- 有导图时可 **ZOOM** 全屏查看；**EDIT** 编辑内容与中心标题
+- 保存于 `metadata.__visualPages`（数组仅保留 1 项）
+- 未保存离开、退出档案用 HUD 对话框（非浏览器 `alert`/`confirm`）
 
 ## 搜索与筛选
 

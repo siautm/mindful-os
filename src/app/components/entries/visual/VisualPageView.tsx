@@ -6,15 +6,16 @@ import { clipSm } from "../styles";
 
 interface VisualPageViewProps {
   page: VisualPage;
-  centerTitle: string;
+  diagramTitle: string;
   isLocked: boolean;
   onEdit: () => void;
 }
 
-export function VisualPageView({ page, centerTitle, isLocked, onEdit }: VisualPageViewProps) {
+export function VisualPageView({ page, diagramTitle, isLocked, onEdit }: VisualPageViewProps) {
+  const center = diagramTitle.trim() || "Untitled";
   const parsed = useMemo(
-    () => parseVisualInput(page.type, page.sourceText, centerTitle),
-    [page.type, page.sourceText, centerTitle]
+    () => parseVisualInput(page.type, page.sourceText, center),
+    [page.type, page.sourceText, center]
   );
 
   const isEmpty = !page.sourceText.trim();

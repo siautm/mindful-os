@@ -14,16 +14,17 @@ const TYPES: VisualType[] = ["flowmap", "bubblemap", "bracemap", "treemap"];
 
 interface VisualPageEditorProps {
   page: VisualPage;
-  centerTitle: string;
+  diagramTitle: string;
   isLocked: boolean;
   onChange: (page: VisualPage) => void;
   onDone?: () => void;
 }
 
-export function VisualPageEditor({ page, centerTitle, isLocked, onChange, onDone }: VisualPageEditorProps) {
+export function VisualPageEditor({ page, diagramTitle, isLocked, onChange, onDone }: VisualPageEditorProps) {
+  const center = diagramTitle.trim() || "Untitled";
   const parsed = useMemo(
-    () => parseVisualInput(page.type, page.sourceText, centerTitle),
-    [page.type, page.sourceText, centerTitle]
+    () => parseVisualInput(page.type, page.sourceText, center),
+    [page.type, page.sourceText, center]
   );
 
   return (
@@ -46,7 +47,7 @@ export function VisualPageEditor({ page, centerTitle, isLocked, onChange, onDone
             key={t}
             type="button"
             disabled={isLocked}
-            onClick={() => onChange({ ...page, type: t, title: VISUAL_TYPE_LABELS[t] })}
+            onClick={() => onChange({ ...page, type: t })}
             className={`px-2 py-1 text-[9px] font-mono tracking-wider border transition-colors ${
               page.type === t
                 ? "bg-cyan-600/30 border-cyan-400/60 text-cyan-100"

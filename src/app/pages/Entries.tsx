@@ -20,6 +20,7 @@ import { EntriesToolbar } from "../components/entries/EntriesToolbar";
 import { EntriesBulkBar } from "../components/entries/EntriesBulkBar";
 import { clipSm } from "../components/entries/styles";
 import { ENTRIES_UI_BUILD, SHOW_ENTRIES_BUILD } from "../components/entries/buildStamp";
+import { EntriesHudDialog, type EntriesHudDialogState } from "../components/entries/EntriesHudDialog";
 const SCAN_NEW_MS = 220;
 
 export function Entries() {
@@ -36,6 +37,7 @@ export function Entries() {
   const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
   const [isNewDraft, setIsNewDraft] = useState(false);
   const [viewerDirty, setViewerDirty] = useState(false);
+  const [hudDialog, setHudDialog] = useState<EntriesHudDialogState | null>(null);
 
   useEffect(() => {
     const id = requestAnimationFrame(() => setDoorsOpen(true));
@@ -103,8 +105,22 @@ export function Entries() {
   const handleQuit = () => {
     if (isQuitting) return;
     if (viewerDirty) {
-      const ok = window.confirm("You have unsaved changes. Leave archive anyway?");
-      if (!ok) return;
+      setHudDialog({
+        kind: "confirm",
+        title: "LEAVE ARCHIVE?",
+        message: "You have unsaved changes. Leave anyway?",
+        confirmLabel: "LEAVE",
+        cancelLabel: "STAY",
+        onConfirm: () => {
+          setViewerEntry(null);
+          setIsNewDraft(false);
+          setViewerDirty(false);
+          setIsQuitting(true);
+          setContentVisible(false);
+          setDoorsOpen(false);
+        },
+      });
+      return;
     }
     setIsQuitting(true);
     setContentVisible(false);
@@ -361,6 +377,8 @@ export function Entries() {
             onClose={() => setZoomedImage(null)}
           />
         )}
+
+        <EntriesHudDialog state={hudDialog} onDismiss={() => setHudDialog(null)} />
       </motion.div>
     </div>
   );

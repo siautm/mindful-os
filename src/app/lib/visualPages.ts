@@ -7,8 +7,44 @@ export type VisualType = "flowmap" | "bubblemap" | "bracemap" | "treemap";
 export interface VisualPage {
   id: string;
   type: VisualType;
-  title: string;
+  /** Center/root label for the diagram (not the record card title). */
+  diagramTitle: string;
   sourceText: string;
+  /** @deprecated Legacy field; ignored when diagramTitle is set. */
+  title?: string;
+}
+
+export function normalizeVisualPage(raw: Partial<VisualPage> & { id: string; type: VisualType }): VisualPage {
+  return {
+    id: raw.id,
+    type: raw.type,
+    diagramTitle: typeof raw.diagramTitle === "string" ? raw.diagramTitle : "",
+    sourceText: typeof raw.sourceText === "string" ? raw.sourceText : "",
+  };
+}
+
+/** At most one diagram per record. */
+export function parseVisualPagesFromMetadata(metadata: Record<string, unknown> | undefined): VisualPage[] {
+  const raw = metadata?.[VISUAL_PAGES_KEY];
+  if (!raw) return [];
+  let arr: Partial<VisualPage>[] = [];
+  if (Array.isArray(raw)) {
+    arr = raw as Partial<VisualPage>[];
+  } else if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw) as Partial<VisualPage>[];
+      arr = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  const first = arr.find((p) => p?.id && p?.type);
+  if (!first?.id || !first?.type) return [];
+  return [normalizeVisualPage(first as VisualPage)];
+}
+
+export function getVisualPage(pages: VisualPage[]): VisualPage | null {
+  return pages[0] ?? null;
 }
 
 export interface FlowData {
@@ -162,23 +198,6 @@ export function parseVisualInput(type: VisualType, sourceText: string, centerTit
   };
 }
 
-export function parseVisualPagesFromMetadata(metadata: Record<string, unknown> | undefined): VisualPage[] {
-  const raw = metadata?.[VISUAL_PAGES_KEY];
-  if (!raw) return [];
-  if (Array.isArray(raw)) {
-    return (raw as VisualPage[]).filter((p) => p?.id && p?.type);
-  }
-  if (typeof raw === "string") {
-    try {
-      const arr = JSON.parse(raw) as VisualPage[];
-      return Array.isArray(arr) ? arr : [];
-    } catch {
-      return [];
-    }
-  }
-  return [];
-}
-
 export function metadataPairsForEditor(metadata: Record<string, unknown> | undefined): { key: string; value: string }[] {
   return entryToMetadataPairs(metadata).filter((p) => p.key !== VISUAL_PAGES_KEY);
 }
@@ -193,8 +212,9 @@ export function buildEntryMetadata(
     value: p.value,
   }));
   const meta: Record<string, unknown> = { ...rowsToMetadata(rows) };
-  if (visualPages.length > 0) {
-    meta[VISUAL_PAGES_KEY] = visualPages;
+  const one = visualPages.slice(0, 1);
+  if (one.length > 0) {
+    meta[VISUAL_PAGES_KEY] = one;
   }
   return meta;
 }
@@ -296,7 +316,7 @@ export function newVisualPage(type: VisualType, index: number): VisualPage {
   return {
     id: `vis-${Date.now()}-${index}`,
     type,
-    title: VISUAL_TYPE_LABELS[type],
+    diagramTitle: "",
     sourceText: "",
   };
 }

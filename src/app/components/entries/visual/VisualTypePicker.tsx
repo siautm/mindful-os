@@ -5,10 +5,11 @@ const TYPES: VisualType[] = ["flowmap", "bubblemap", "bracemap", "treemap"];
 
 interface VisualTypePickerProps {
   onPick: (type: VisualType) => void;
-  onCancel: () => void;
+  onCancel?: () => void;
+  hideCancel?: boolean;
 }
 
-export function VisualTypePicker({ onPick, onCancel }: VisualTypePickerProps) {
+export function VisualTypePicker({ onPick, onCancel, hideCancel }: VisualTypePickerProps) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[280px] p-6 gap-4">
       <p className="text-[11px] font-mono text-cyan-500 tracking-widest">SELECT DIAGRAM TYPE</p>
@@ -31,9 +32,11 @@ export function VisualTypePicker({ onPick, onCancel }: VisualTypePickerProps) {
           </button>
         ))}
       </div>
-      <button type="button" onClick={onCancel} className="text-[10px] font-mono text-slate-500 hover:text-slate-300">
-        CANCEL
-      </button>
+      {!hideCancel && onCancel && (
+        <button type="button" onClick={onCancel} className="text-[10px] font-mono text-slate-500 hover:text-slate-300">
+          CANCEL
+        </button>
+      )}
     </div>
   );
 }
