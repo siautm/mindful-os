@@ -20,10 +20,16 @@ export interface BubbleData {
   items: { id: string; label: string }[];
 }
 
+export interface BraceNode {
+  id: string;
+  label: string;
+  children: BraceNode[];
+}
+
 export interface BraceSection {
   id: string;
   title: string;
-  items: { id: string; label: string }[];
+  items: BraceNode[];
 }
 
 export interface BraceData {
@@ -64,12 +70,14 @@ export const VISUAL_FORMAT_HINTS: Record<VisualType, string> = {
 1. salty
 2. creamy
 3. fast`,
-  bracemap: `Chapters / parts (use # headers) + notes:
-# Chapter 1
-1. main idea
-2. detail
-# Chapter 2
-1. another point`,
+  bracemap: `Chapters (#) + points (numbered). Indent for sub-parts:
+# chapter1
+1. point a
+2. point b
+# chapter2
+1. part name
+  1. detail
+  2. detail`,
   treemap: `Categories (# headers) + items:
 # Sauces
 1. tomato
@@ -99,7 +107,8 @@ function isSectionLine(line: string): string | null {
 }
 
 export function parseVisualInput(type: VisualType, sourceText: string, centerTitle: string): ParsedVisual {
-  const lines = sourceText.split(/\r?\n/).map((l) => l.trim());
+  const rawLines = sourceText.split(/\r?\n/);
+  const lines = rawLines.map((l) => l.trim());
 
   if (type === "flowmap") {
     const nodes: FlowData["nodes"] = [];
@@ -125,39 +134,25 @@ export function parseVisualInput(type: VisualType, sourceText: string, centerTit
     return { type: "bubblemap", data: { center: centerTitle, items } };
   }
 
-  const sections: BraceSection[] = [];
-  let current: BraceSection | null = null;
-  let itemIdx = 0;
-
-  for (const line of lines) {
-    if (!line) continue;
-    const sectionTitle = isSectionLine(line);
-    if (sectionTitle) {
-      current = { id: uid("sec", sections.length), title: sectionTitle, items: [] };
-      sections.push(current);
-      itemIdx = 0;
-      continue;
-    }
-    const item = parseItemLine(line);
-    if (!item) continue;
-    if (!current) {
-      current = { id: uid("sec", sections.length), title: "Section", items: [] };
-      sections.push(current);
-    }
-    current.items.push({ id: uid("it", itemIdx++), label: item });
-  }
+  const sections = parseSectionedLines(lines);
 
   if (type === "bracemap") {
+    const braceSections = parseBraceMapSections(rawLines);
     return {
       type: "bracemap",
-      data: { topic: centerTitle, sections: sections.length ? sections : [{ id: "sec-0", title: "Notes", items: [] }] },
+      data: {
+        topic: centerTitle,
+        sections: braceSections.length
+          ? braceSections
+          : [{ id: "sec-0", title: "Notes", items: [] }],
+      },
     };
   }
 
   const groups: TreeGroup[] = sections.map((s) => ({
     id: s.id,
     title: s.title,
-    items: s.items,
+    items: s.items.map((n) => ({ id: n.id, label: n.label })),
   }));
   return {
     type: "treemap",
@@ -200,6 +195,90 @@ export function buildEntryMetadata(
     meta[VISUAL_PAGES_KEY] = visualPages;
   }
   return meta;
+}
+
+function parseSectionedLines(lines: string[]): BraceSection[] {
+  const sections: BraceSection[] = [];
+  let current: BraceSection | null = null;
+  let itemIdx = 0;
+
+  for (const line of lines) {
+    if (!line) continue;
+    const sectionTitle = isSectionLine(line);
+    if (sectionTitle) {
+      current = { id: uid("sec", sections.length), title: sectionTitle, items: [] };
+      sections.push(current);
+      itemIdx = 0;
+      continue;
+    }
+    const item = parseItemLine(line);
+    if (!item) continue;
+    if (!current) {
+      current = { id: uid("sec", sections.length), title: "Section", items: [] };
+      sections.push(current);
+    }
+    current.items.push({ id: uid("it", itemIdx++), label: item, children: [] });
+  }
+  return sections;
+}
+
+/** Brace map: # chapters, numbered points; 2-space indent nests under previous point. */
+export function parseBraceMapSections(rawLines: string[]): BraceSection[] {
+  const sections: BraceSection[] = [];
+  let current: BraceSection | null = null;
+  const stack: BraceNode[] = [];
+  let nodeIdx = 0;
+
+  for (const raw of rawLines) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+
+    const indent = raw.length - raw.trimStart().length;
+    const depth = Math.min(Math.floor(indent / 2), 4);
+
+    const hash = trimmed.match(/^(#+)\s*(.+)$/);
+    if (hash) {
+      const level = hash[1].length;
+      const title = hash[2].trim();
+      if (level === 1) {
+        current = { id: uid("sec", sections.length), title, items: [] };
+        sections.push(current);
+        stack.length = 0;
+      } else if (current) {
+        const sub: BraceNode = { id: uid("node", nodeIdx++), label: title, children: [] };
+        current.items.push(sub);
+        stack.length = 0;
+        stack[0] = sub;
+      }
+      continue;
+    }
+
+    const item = parseItemLine(trimmed);
+    if (!item) continue;
+    if (!current) {
+      current = { id: uid("sec", sections.length), title: "Section", items: [] };
+      sections.push(current);
+    }
+
+    const node: BraceNode = { id: uid("node", nodeIdx++), label: item, children: [] };
+    if (depth === 0) {
+      current.items.push(node);
+      stack.length = 0;
+      stack[0] = node;
+    } else {
+      const parent = stack[depth - 1] ?? stack[stack.length - 1];
+      if (parent) {
+        parent.children.push(node);
+        stack[depth] = node;
+        stack.length = depth + 1;
+      } else {
+        current.items.push(node);
+        stack[0] = node;
+      }
+    }
+  }
+
+  return sections;
 }
 
 export function newVisualPage(type: VisualType, index: number): VisualPage {

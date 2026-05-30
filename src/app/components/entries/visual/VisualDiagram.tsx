@@ -1,4 +1,5 @@
 import type { ParsedVisual } from "../../../lib/visualPages";
+import { BraceMapLayout } from "./BraceMapLayout";
 
 const box =
   "px-2 py-1.5 text-[10px] sm:text-xs font-mono border border-cyan-500/40 bg-slate-900/80 text-cyan-100 text-center max-w-[140px]";
@@ -51,76 +52,14 @@ export function VisualDiagram({ parsed, className = "" }: { parsed: ParsedVisual
   }
 
   if (parsed.type === "bracemap") {
-    return <BraceMapDiagram data={parsed.data} className={className} />;
+    const { topic, sections } = parsed.data;
+    if (!sections.some((s) => s.items.length > 0)) {
+      return <EmptyDiagram className={className} message="Add # chapters and numbered points" />;
+    }
+    return <BraceMapLayout data={{ topic, sections }} className={className} />;
   }
 
   return <TreeMapDiagram data={parsed.data} className={className} />;
-}
-
-function BraceMapDiagram({
-  data,
-  className,
-}: {
-  data: import("../../../lib/visualPages").BraceData;
-  className?: string;
-}) {
-  const { topic, sections } = data;
-  if (!sections.some((s) => s.items.length > 0)) {
-    return <EmptyDiagram className={className} message="Add # chapters and numbered points" />;
-  }
-
-  const blockH = 56;
-  const totalH = Math.max(sections.length * blockH, 80);
-  const midY = totalH / 2;
-
-  return (
-    <div className={`flex items-stretch gap-0 p-6 min-h-[220px] w-full max-w-3xl mx-auto ${className}`}>
-      <div className="flex items-center justify-end pr-2 shrink-0 w-[28%] max-w-[140px]">
-        <div className={box + " font-semibold text-sm"}>{topic}</div>
-      </div>
-
-      <div className="relative shrink-0 w-10 sm:w-14" style={{ minHeight: totalH }}>
-        <svg
-          className="absolute inset-0 w-full h-full text-cyan-400/70"
-          viewBox={`0 0 40 ${totalH}`}
-          preserveAspectRatio="none"
-          aria-hidden
-        >
-          <path
-            d={`M 8 ${midY} C 8 8, 28 8, 32 ${midY} C 28 ${totalH - 8}, 8 ${totalH - 8}, 8 ${midY}`}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-          />
-        </svg>
-      </div>
-
-      <div className="flex-1 flex flex-col justify-center gap-3 min-w-0">
-        {sections.map((sec) => (
-          <div key={sec.id} className="flex flex-col sm:flex-row sm:items-start gap-2">
-            <div className="shrink-0 px-2 py-1 text-[10px] font-mono text-cyan-300 border border-cyan-500/35 bg-cyan-950/40 tracking-wider">
-              {sec.title}
-            </div>
-            <div className="flex flex-wrap gap-1.5 min-w-0">
-              {sec.items.length === 0 ? (
-                <span className="text-[9px] font-mono text-slate-600">—</span>
-              ) : (
-                sec.items.map((it) => (
-                  <span
-                    key={it.id}
-                    className="text-[10px] font-mono text-slate-300 px-2 py-0.5 border border-slate-700/60 bg-slate-900/60"
-                  >
-                    {it.label}
-                  </span>
-                ))
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function TreeMapDiagram({
