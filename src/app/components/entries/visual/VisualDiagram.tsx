@@ -1,5 +1,7 @@
 import type { ParsedVisual } from "../../../lib/visualPages";
 import { BraceMapLayout } from "./BraceMapLayout";
+import { BubbleMapLayout } from "./BubbleMapLayout";
+import { FlowMapLayout } from "./FlowMapLayout";
 
 const box =
   "px-2 py-1.5 text-[10px] sm:text-xs font-mono border border-cyan-500/40 bg-slate-900/80 text-cyan-100 text-center max-w-[140px]";
@@ -11,13 +13,8 @@ export function VisualDiagram({ parsed, className = "" }: { parsed: ParsedVisual
       return <EmptyDiagram className={className} />;
     }
     return (
-      <div className={`flex flex-wrap items-center justify-center gap-2 p-4 ${className}`}>
-        {nodes.map((node, i) => (
-          <div key={node.id} className="flex items-center gap-2">
-            <div className={box}>{node.label}</div>
-            {i < nodes.length - 1 && <span className="text-cyan-500 font-mono text-lg">→</span>}
-          </div>
-        ))}
+      <div className={`flex justify-center p-4 overflow-x-auto ${className}`}>
+        <FlowMapLayout nodes={nodes} />
       </div>
     );
   }
@@ -28,25 +25,8 @@ export function VisualDiagram({ parsed, className = "" }: { parsed: ParsedVisual
       return <EmptyDiagram className={className} message="Add numbered lines around the title" />;
     }
     return (
-      <div className={`relative min-h-[220px] p-6 flex items-center justify-center ${className}`}>
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 px-4 py-3 rounded-full border-2 border-cyan-400/60 bg-cyan-950/60 text-cyan-100 font-semibold text-sm text-center max-w-[160px]">
-          {center}
-        </div>
-        {items.map((item, i) => {
-          const angle = (i / items.length) * Math.PI * 2 - Math.PI / 2;
-          const rx = 42 + (i % 3) * 4;
-          const x = 50 + Math.cos(angle) * rx;
-          const y = 50 + Math.sin(angle) * rx;
-          return (
-            <div
-              key={item.id}
-              className="absolute text-[10px] font-mono px-2 py-1 border border-teal-500/35 bg-slate-900/90 text-teal-100 max-w-[100px] text-center"
-              style={{ left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -50%)" }}
-            >
-              {item.label}
-            </div>
-          );
-        })}
+      <div className={`flex items-center justify-center p-4 ${className}`}>
+        <BubbleMapLayout data={{ center, items }} />
       </div>
     );
   }
