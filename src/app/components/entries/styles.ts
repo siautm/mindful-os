@@ -6,24 +6,42 @@ export const clipLg =
 export const clipXl =
   "polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px)";
 
-/** Teal + slate palette (closer to MindOS, less neon cyan) */
+/** B · Midnight Archive — slate-950 + cyan/teal accents */
+export const midnight = {
+  pageBg: "bg-slate-950",
+  panel: "bg-slate-900/80 border-cyan-500/20",
+  text: "text-slate-100",
+  textMuted: "text-slate-400",
+  accent: "cyan",
+  accentTeal: "teal",
+} as const;
+
+/** Locked: amber border only on dark card */
 export const locked = {
-  cardBg: "bg-white",
-  cardBorder: "border-amber-400/60 group-hover:border-amber-500/90",
+  cardBg: "bg-slate-900/90",
+  cardBorder: "border-amber-500/55 group-hover:border-amber-400/80",
   tracer: "from-amber-400",
-  corner: "bg-amber-400/10 group-hover:bg-amber-400/18",
-  tag: "bg-amber-50 text-amber-900 border-amber-300/50",
-  title: "text-slate-900",
-  badge: "border border-amber-400/60 text-amber-800 bg-amber-50/90",
-  accent: "teal",
+  corner: "bg-amber-500/10 group-hover:bg-amber-500/15",
+  tag: "bg-amber-950/50 text-amber-200 border-amber-500/40",
+  title: "text-slate-100",
+  badge: "border border-amber-500/60 text-amber-300 bg-amber-950/80",
+  metaKey: "text-amber-500/70",
+  metaVal: "text-slate-300",
+  id: "text-amber-500",
 } as const;
 
 export const active = {
-  cardBg: "bg-white",
-  cardBorder: "border-slate-200/80 group-hover:border-teal-400/70",
-  tracer: "from-teal-400",
-  corner: "bg-teal-400/10 group-hover:bg-teal-400/18",
-  tag: "bg-teal-50 text-teal-800 border-teal-200/80",
-  title: "text-slate-900",
-  accent: "teal",
+  cardBg: "bg-slate-900/85",
+  cardBorder: "border-cyan-500/25 group-hover:border-cyan-400/55",
+  tracer: "from-cyan-400",
+  corner: "bg-cyan-400/10 group-hover:bg-cyan-400/18",
+  tag: "bg-cyan-950/40 text-cyan-200 border-cyan-500/35",
+  title: "text-slate-100",
+  badge: "",
+  metaKey: "text-cyan-500/80",
+  metaVal: "text-slate-300",
+  id: "text-cyan-400",
 } as const;
+
+export const BLAST_OPEN_MS = 820;
+export const BLAST_CLOSE_MS = 520;

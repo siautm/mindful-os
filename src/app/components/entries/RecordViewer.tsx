@@ -109,7 +109,7 @@ export function RecordViewer({
       onClick={onClose}
     >
       <motion.div
-        className={`relative backdrop-blur-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col border ${isLocked ? "border-amber-400/50 bg-white/95" : "border-teal-400/30 bg-white/90"}`}
+        className={`relative backdrop-blur-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col border ${isLocked ? "border-amber-400/50 bg-slate-900/98" : "border-cyan-500/35 bg-slate-900/95"}`}
         style={{ clipPath: clipXl }}
         onClick={(e) => e.stopPropagation()}
         initial={{ scaleX: 0, scaleY: 0 }}
@@ -126,13 +126,13 @@ export function RecordViewer({
 
         <div
           className={`relative border-b p-6 flex items-start justify-between bg-gradient-to-r shrink-0 ${
-            isLocked ? "border-amber-400/25 from-amber-50/80 to-transparent" : "border-teal-400/20 from-teal-400/5 to-transparent"
+            isLocked ? "border-amber-400/25 from-amber-50/80 to-transparent" : "border-cyan-400/20 from-teal-400/5 to-transparent"
           }`}
         >
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 mb-3">
-              <div className={`w-1 h-6 shrink-0 ${isLocked ? "bg-amber-400" : "bg-teal-400"}`} />
-              <div className={`text-[10px] font-mono tracking-widest ${isLocked ? "text-amber-600" : "text-teal-600"}`}>
+              <div className={`w-1 h-6 shrink-0 ${isLocked ? "bg-amber-400" : "bg-cyan-400"}`} />
+              <div className={`text-[10px] font-mono tracking-widest ${isLocked ? "text-amber-600" : "text-cyan-600"}`}>
                 RECORD {entry.id.slice(0, 12)}
               </div>
               {isLocked && (
@@ -164,10 +164,10 @@ export function RecordViewer({
                   </button>
                 ) : (
                   <div
-                    className={`w-20 h-20 border border-dashed flex items-center justify-center ${isLocked ? "border-amber-400/40" : "border-teal-400/40"}`}
+                    className={`w-20 h-20 border border-dashed flex items-center justify-center ${isLocked ? "border-amber-400/40" : "border-cyan-400/40"}`}
                     style={{ clipPath: photoClip }}
                   >
-                    <ImagePlus className={`w-7 h-7 ${isLocked ? "text-amber-400/50" : "text-teal-400/50"}`} />
+                    <ImagePlus className={`w-7 h-7 ${isLocked ? "text-amber-400/50" : "text-cyan-400/50"}`} />
                   </div>
                 )}
                 {!isLocked && (
@@ -182,7 +182,7 @@ export function RecordViewer({
                     <button
                       type="button"
                       onClick={() => fileRef.current?.click()}
-                      className="text-[9px] font-mono text-teal-600 hover:text-teal-500 w-full text-center"
+                      className="text-[9px] font-mono text-cyan-600 hover:text-cyan-500 w-full text-center"
                     >
                       UPLOAD
                     </button>
@@ -195,7 +195,7 @@ export function RecordViewer({
                 onChange={(e) => setTitle(e.target.value)}
                 disabled={isLocked}
                 className={`flex-1 text-2xl font-semibold bg-transparent border-none outline-none min-w-0 ${
-                  isLocked ? "text-gray-500 cursor-not-allowed" : "text-gray-900 focus:text-teal-600"
+                  isLocked ? "text-slate-500 cursor-not-allowed" : "text-slate-100 focus:text-cyan-400"
                 }`}
                 placeholder="Record Title"
               />
@@ -206,7 +206,7 @@ export function RecordViewer({
                 value={photoUrl.startsWith("data:") ? "" : photoUrl}
                 onChange={(e) => setPhotoUrl(e.target.value)}
                 placeholder="Or paste image URL…"
-                className="mt-2 w-full text-xs font-mono px-2 py-1.5 border border-teal-400/20 bg-teal-400/5 focus:outline-none focus:border-teal-400"
+                className="mt-2 w-full text-xs font-mono px-2 py-1.5 border border-cyan-400/20 bg-cyan-400/5 focus:outline-none focus:border-cyan-400"
                 style={{ clipPath: clipSm }}
               />
             )}
@@ -216,7 +216,7 @@ export function RecordViewer({
             <button
               type="button"
               onClick={onToggleLock}
-              className={`p-2 transition-colors ${isLocked ? "hover:bg-amber-100 text-amber-600" : "hover:bg-teal-400/10 text-teal-600"}`}
+              className={`p-2 transition-colors ${isLocked ? "hover:bg-amber-100 text-amber-600" : "hover:bg-cyan-400/10 text-cyan-600"}`}
               style={{ clipPath: clipSm }}
             >
               {isLocked ? <Lock className="w-5 h-5" /> : <LockOpen className="w-5 h-5" />}
@@ -224,7 +224,7 @@ export function RecordViewer({
             <button
               type="button"
               onClick={onClose}
-              className="p-2 hover:bg-teal-400/10 transition-colors"
+              className="p-2 hover:bg-cyan-400/10 transition-colors"
               style={{ clipPath: clipSm }}
             >
               <X className="w-5 h-5 text-gray-500" />
@@ -235,9 +235,9 @@ export function RecordViewer({
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <div className={`w-1 h-4 ${isLocked ? "bg-amber-400" : "bg-teal-400"}`} />
-              <Tag className={`w-3.5 h-3.5 ${isLocked ? "text-amber-500" : "text-teal-500"}`} />
-              <span className={`text-[11px] font-mono tracking-widest ${isLocked ? "text-amber-800/80" : "text-gray-700"}`}>
+              <div className={`w-1 h-4 ${isLocked ? "bg-amber-400" : "bg-cyan-400"}`} />
+              <Tag className={`w-3.5 h-3.5 ${isLocked ? "text-amber-500" : "text-cyan-500"}`} />
+              <span className={`text-[11px] font-mono tracking-widest ${isLocked ? "text-amber-400/80" : "text-slate-400"}`}>
                 CLASSIFICATION TAGS
               </span>
             </div>
@@ -269,13 +269,13 @@ export function RecordViewer({
                   onChange={(e) => setNewTag(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleAddTag()}
                   placeholder="Add classification tag..."
-                  className="flex-1 px-3 py-2 text-sm border border-teal-400/20 bg-teal-400/5 focus:outline-none focus:border-teal-400 font-mono"
+                  className="flex-1 px-3 py-2 text-sm border border-cyan-400/20 bg-cyan-400/5 focus:outline-none focus:border-cyan-400 font-mono"
                   style={{ clipPath: clipSm }}
                 />
                 <button
                   type="button"
                   onClick={handleAddTag}
-                  className="px-4 py-2 bg-teal-500 text-white hover:bg-teal-600"
+                  className="px-4 py-2 bg-cyan-500 text-white hover:bg-cyan-600"
                   style={{ clipPath: clipSm }}
                 >
                   <Plus className="w-4 h-4" />
@@ -286,8 +286,8 @@ export function RecordViewer({
 
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <div className={`w-1 h-4 ${isLocked ? "bg-amber-400" : "bg-teal-400"}`} />
-              <span className={`text-[11px] font-mono tracking-widest ${isLocked ? "text-amber-800/80" : "text-gray-700"}`}>
+              <div className={`w-1 h-4 ${isLocked ? "bg-amber-400" : "bg-cyan-400"}`} />
+              <span className={`text-[11px] font-mono tracking-widest ${isLocked ? "text-amber-400/80" : "text-slate-400"}`}>
                 DATA PARAMETERS
               </span>
             </div>
@@ -295,7 +295,7 @@ export function RecordViewer({
               {metadata.map((item, idx) => (
                 <div key={idx} className="flex gap-2 items-center group">
                   <div
-                    className={`w-1.5 h-1.5 shrink-0 ${isLocked ? "bg-amber-400" : "bg-teal-400"}`}
+                    className={`w-1.5 h-1.5 shrink-0 ${isLocked ? "bg-amber-400" : "bg-cyan-400"}`}
                     style={{ clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" }}
                   />
                   <input
@@ -307,12 +307,12 @@ export function RecordViewer({
                     placeholder="PARAMETER"
                     className={`w-1/3 min-w-0 px-3 py-2 text-xs border font-mono uppercase tracking-wide ${
                       isLocked
-                        ? "border-amber-300/40 bg-amber-50/50 text-gray-500 cursor-not-allowed"
-                        : "border-teal-400/20 bg-teal-400/5 focus:outline-none focus:border-teal-400"
+                        ? "border-amber-400/40 bg-amber-950/30 text-slate-500 cursor-not-allowed"
+                        : "border-cyan-500/30 bg-slate-950/50 focus:outline-none focus:border-cyan-400"
                     }`}
                     style={{ clipPath: clipSm }}
                   />
-                  <span className={`font-mono shrink-0 ${isLocked ? "text-amber-500" : "text-teal-400"}`}>:</span>
+                  <span className={`font-mono shrink-0 ${isLocked ? "text-amber-500" : "text-cyan-400"}`}>:</span>
                   <input
                     type="text"
                     value={item.value}
@@ -321,8 +321,8 @@ export function RecordViewer({
                     placeholder="Value"
                     className={`flex-1 min-w-0 px-3 py-2 text-sm border ${
                       isLocked
-                        ? "border-amber-300/30 bg-gray-50 text-gray-600 cursor-not-allowed"
-                        : "border-gray-200/50 bg-white/50 focus:outline-none focus:border-teal-400"
+                        ? "border-amber-400/30 bg-slate-950/40 text-slate-400 cursor-not-allowed"
+                        : "border-slate-700/50 bg-slate-950/30 text-slate-200 focus:outline-none focus:border-cyan-400"
                     }`}
                     style={{ clipPath: clipSm }}
                   />
@@ -347,7 +347,7 @@ export function RecordViewer({
                   value={newMetaKey}
                   onChange={(e) => setNewMetaKey(e.target.value)}
                   placeholder="NEW PARAMETER..."
-                  className="w-1/3 min-w-0 px-3 py-2 text-xs border border-teal-400/20 bg-teal-400/5 focus:outline-none focus:border-teal-400 font-mono uppercase"
+                  className="w-1/3 min-w-0 px-3 py-2 text-xs border border-cyan-400/20 bg-cyan-400/5 focus:outline-none focus:border-cyan-400 font-mono uppercase"
                   style={{ clipPath: clipSm }}
                 />
                 <input
@@ -356,13 +356,13 @@ export function RecordViewer({
                   onChange={(e) => setNewMetaValue(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleAddMeta()}
                   placeholder="New value..."
-                  className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-200/50 bg-white/50 focus:outline-none focus:border-teal-400"
+                  className="flex-1 min-w-0 px-3 py-2 text-sm border border-slate-700/50 bg-slate-950/30 text-slate-200 focus:outline-none focus:border-cyan-400"
                   style={{ clipPath: clipSm }}
                 />
                 <button
                   type="button"
                   onClick={handleAddMeta}
-                  className="px-4 py-2 bg-teal-500 text-white hover:bg-teal-600 shrink-0"
+                  className="px-4 py-2 bg-cyan-500 text-white hover:bg-cyan-600 shrink-0"
                   style={{ clipPath: clipSm }}
                 >
                   <Plus className="w-4 h-4" />
@@ -378,12 +378,12 @@ export function RecordViewer({
         </div>
 
         {!isLocked && (
-          <div className="shrink-0 border-t border-teal-400/20 p-4 flex gap-2 bg-white/50">
+          <div className="shrink-0 border-t border-cyan-500/20 p-4 flex gap-2 bg-slate-950/60">
             <button
               type="button"
               disabled={saving || !title.trim()}
               onClick={handleSave}
-              className="flex-1 py-3 bg-teal-500 text-white font-mono text-sm tracking-wider hover:bg-teal-600 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 py-3 bg-cyan-600 text-white font-mono text-sm tracking-wider hover:bg-cyan-500 disabled:opacity-50 flex items-center justify-center gap-2"
               style={{ clipPath: clipSm }}
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}

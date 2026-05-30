@@ -1,34 +1,43 @@
 import { motion } from "motion/react";
-import { ImageIcon, Lock, ZoomIn } from "lucide-react";
+import { ChevronRight, Lock, LockOpen, ZoomIn } from "lucide-react";
 import type { KnowledgeEntry } from "../../lib/entryTypes";
-import { active, clipLg, locked } from "./styles";
+import { entryToMetadataPairs } from "../../lib/entryTypes";
+import { active, clipLg, clipSm, locked } from "./styles";
 
 interface RecordCardProps {
   entry: KnowledgeEntry;
   index?: number;
   onClick: () => void;
-  onPreviewImage?: (e: React.MouseEvent) => void;
+  onToggleLock: (e: React.MouseEvent) => void;
+  onImageClick: (e: React.MouseEvent) => void;
 }
 
-export function RecordCard({ entry, index = 0, onClick, onPreviewImage }: RecordCardProps) {
+/** Reference-original card layout (thumbnail + title + tags + metadata preview). */
+export function RecordCard({
+  entry,
+  index = 0,
+  onClick,
+  onToggleLock,
+  onImageClick,
+}: RecordCardProps) {
   const isLocked = entry.isPinned;
   const theme = isLocked ? locked : active;
-  const hasPhoto = Boolean(entry.photoUrl);
+  const metadata = entryToMetadataPairs(entry.metadata);
 
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96 }}
-      transition={{ type: "spring", stiffness: 380, damping: 30, delay: index * 0.04 }}
+      transition={{ type: "spring", stiffness: 360, damping: 28, delay: index * 0.035 }}
       onClick={onClick}
-      className={`relative cursor-pointer group overflow-hidden w-full border shadow-sm hover:shadow-lg hover:shadow-teal-500/10 ${theme.cardBg} ${theme.cardBorder}`}
+      className={`relative backdrop-blur-sm cursor-pointer group overflow-hidden w-full max-w-sm mx-auto border ${theme.cardBg} ${theme.cardBorder}`}
       style={{ clipPath: clipLg }}
-      whileHover={{ y: -4 }}
-      whileTap={{ scale: 0.99 }}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
     >
-      <div className="absolute inset-0 opacity-30 group-hover:opacity-90 transition-opacity duration-300 pointer-events-none z-[1]">
+      <div className="absolute inset-0 opacity-40 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
         <div className={`absolute top-0 left-0 w-full h-px bg-gradient-to-r ${theme.tracer} via-transparent to-transparent`} />
         <div className={`absolute top-0 right-0 w-px h-full bg-gradient-to-b ${theme.tracer} via-transparent to-transparent`} />
         <div className={`absolute bottom-0 right-0 w-full h-px bg-gradient-to-l ${theme.tracer} via-transparent to-transparent`} />
@@ -36,14 +45,14 @@ export function RecordCard({ entry, index = 0, onClick, onPreviewImage }: Record
       </div>
 
       <div
-        className={`absolute top-0 right-0 w-20 h-20 ${theme.corner} transition-colors pointer-events-none z-[1]`}
+        className={`absolute top-0 right-0 w-16 h-16 ${theme.corner} transition-colors pointer-events-none`}
         style={{ clipPath: "polygon(100% 0, 100% 100%, 0 0)" }}
       />
 
       {isLocked && (
-        <div className="absolute top-3 right-3 z-20 pointer-events-none">
+        <div className="absolute top-3 left-3 z-10">
           <div
-            className={`flex items-center gap-1 px-2 py-0.5 text-[9px] font-mono tracking-wider shadow-sm ${locked.badge}`}
+            className={`flex items-center gap-1 px-2 py-1 text-[9px] font-mono tracking-wider ${locked.badge}`}
             style={{ clipPath: "polygon(3px 0, 100% 0, calc(100% - 3px) 100%, 0 100%)" }}
           >
             <Lock className="w-3 h-3" />
@@ -52,58 +61,104 @@ export function RecordCard({ entry, index = 0, onClick, onPreviewImage }: Record
         </div>
       )}
 
-      <div className="relative flex flex-col" style={{ clipPath: clipLg }}>
-        {/* Cover preview */}
-        <div className="relative w-full aspect-[16/10] bg-gradient-to-br from-slate-100 to-teal-50/80 overflow-hidden">
-          {hasPhoto ? (
-            <>
-              <img
-                src={entry.photoUrl}
-                alt=""
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-              />
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onPreviewImage?.(e);
-                }}
-                className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1 bg-black/0 hover:bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-300"
-                aria-label="Preview image"
-              >
-                <ZoomIn className="w-8 h-8 text-white drop-shadow-md" />
-                <span className="text-[10px] font-mono text-white/95 tracking-widest">PREVIEW</span>
-              </button>
-              <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/35 to-transparent pointer-events-none" />
-            </>
-          ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-slate-400">
-              <ImageIcon className="w-10 h-10 opacity-40" />
-              <span className="text-[10px] font-mono tracking-widest opacity-60">NO IMAGE</span>
-            </div>
-          )}
+      <div
+        className={`relative border border-transparent group-hover:border-cyan-400/30 transition-all p-5`}
+        style={{ clipPath: clipLg }}
+      >
+        <div className={`text-[10px] font-mono ${theme.id} mb-3 tracking-wider truncate`}>
+          {entry.id.slice(0, 14)}
         </div>
 
-        <div className="relative p-5 flex flex-col gap-3 min-h-[5.5rem]">
-          <h3 className={`font-semibold text-lg leading-snug tracking-tight ${theme.title} line-clamp-2 pr-2`}>
+        <div className="flex items-center gap-3 mb-3">
+          {entry.photoUrl ? (
+            <button
+              type="button"
+              onClick={onImageClick}
+              className="relative w-12 h-12 flex-shrink-0 overflow-hidden group/img"
+              style={{ clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)" }}
+            >
+              <img src={entry.photoUrl} alt="" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
+                <ZoomIn className="w-5 h-5 text-white" />
+              </div>
+              <div
+                className={`absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r ${theme.tracer} to-transparent opacity-0 group-hover/img:opacity-100 transition-opacity`}
+              />
+            </button>
+          ) : null}
+
+          <h3 className={`font-semibold text-base tracking-tight ${theme.title} flex-1 line-clamp-2`}>
             {entry.title}
           </h3>
+        </div>
 
-          {entry.tags.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {entry.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className={`px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border ${theme.tag}`}
-                  style={{ clipPath: "polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px)" }}
-                >
-                  {tag}
+        {entry.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {entry.tags.slice(0, 3).map((tag) => (
+              <span
+                key={tag}
+                className={`px-2 py-0.5 text-[9px] font-mono uppercase tracking-wider border ${theme.tag}`}
+                style={{ clipPath: "polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px)" }}
+              >
+                {tag}
+              </span>
+            ))}
+            {entry.tags.length > 3 && (
+              <span className="px-2 py-0.5 bg-slate-800 text-slate-400 text-[9px] font-mono">
+                +{entry.tags.length - 3}
+              </span>
+            )}
+          </div>
+        )}
+
+        {metadata.length > 0 && (
+          <div className="text-xs space-y-1.5 font-mono mb-4">
+            {metadata.slice(0, 3).map((item, idx) => (
+              <div key={idx} className="flex gap-2 items-center min-w-0">
+                <div
+                  className={`w-1 h-1 shrink-0 ${isLocked ? "bg-amber-400" : "bg-cyan-400"}`}
+                  style={{ clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" }}
+                />
+                <span className={`uppercase tracking-wide text-[9px] min-w-[4rem] shrink-0 ${theme.metaKey}`}>
+                  {item.key}
                 </span>
+                <span className={`truncate text-[11px] ${theme.metaVal}`}>{item.value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-700/80">
+          <button
+            type="button"
+            onClick={onToggleLock}
+            className={`p-1.5 transition-all ${
+              isLocked
+                ? "bg-amber-500/15 hover:bg-amber-500/25 text-amber-400"
+                : "bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-400"
+            }`}
+            style={{ clipPath: clipSm }}
+          >
+            {isLocked ? <Lock className="w-3.5 h-3.5" /> : <LockOpen className="w-3.5 h-3.5" />}
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex gap-0.5">
+              {[...Array(4)].map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-0.5 transition-all ${
+                    isLocked ? "bg-amber-400/30 group-hover:bg-amber-400/60" : "bg-cyan-400/30 group-hover:bg-cyan-400/60"
+                  }`}
+                  style={{ height: `${8 + i * 2}px` }}
+                />
               ))}
             </div>
-          ) : (
-            <p className="text-[10px] font-mono text-slate-400 tracking-wider">NO TAGS</p>
-          )}
+            <ChevronRight
+              className={`w-4 h-4 transition-transform group-hover:translate-x-1 ${
+                isLocked ? "text-amber-500" : "text-cyan-500"
+              }`}
+            />
+          </div>
         </div>
       </div>
     </motion.div>
