@@ -70,14 +70,16 @@ export const VISUAL_FORMAT_HINTS: Record<VisualType, string> = {
 1. salty
 2. creamy
 3. fast`,
-  bracemap: `Chapters (#) + points (numbered). Indent for sub-parts:
+  bracemap: `Parts tree (left → right). # = chapter, ## = sub-part:
 # chapter1
-1. point a
-2. point b
+1. a
+2. b
 # chapter2
-1. part name
-  1. detail
-  2. detail`,
+## Lakes
+1. tectonic
+1. glacial
+## Oceans
+1. Atlantic`,
   treemap: `Categories (# headers) + items:
 # Sauces
 1. tomato
@@ -227,6 +229,7 @@ export function parseBraceMapSections(rawLines: string[]): BraceSection[] {
   const sections: BraceSection[] = [];
   let current: BraceSection | null = null;
   const stack: BraceNode[] = [];
+  let subheaderNode: BraceNode | null = null;
   let nodeIdx = 0;
 
   for (const raw of rawLines) {
@@ -244,11 +247,13 @@ export function parseBraceMapSections(rawLines: string[]): BraceSection[] {
         current = { id: uid("sec", sections.length), title, items: [] };
         sections.push(current);
         stack.length = 0;
+        subheaderNode = null;
       } else if (current) {
         const sub: BraceNode = { id: uid("node", nodeIdx++), label: title, children: [] };
         current.items.push(sub);
         stack.length = 0;
         stack[0] = sub;
+        subheaderNode = sub;
       }
       continue;
     }
@@ -262,10 +267,16 @@ export function parseBraceMapSections(rawLines: string[]): BraceSection[] {
 
     const node: BraceNode = { id: uid("node", nodeIdx++), label: item, children: [] };
     if (depth === 0) {
-      current.items.push(node);
-      stack.length = 0;
-      stack[0] = node;
+      if (subheaderNode) {
+        subheaderNode.children.push(node);
+        stack[0] = node;
+      } else {
+        current.items.push(node);
+        stack.length = 0;
+        stack[0] = node;
+      }
     } else {
+      subheaderNode = null;
       const parent = stack[depth - 1] ?? stack[stack.length - 1];
       if (parent) {
         parent.children.push(node);
