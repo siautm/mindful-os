@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
+import { useNavigate } from "react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { Activity, Database, Search } from "lucide-react";
+import { Activity, Database } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useStorageHydration } from "../lib/useStorageHydration";
 import { toast } from "sonner";
@@ -21,7 +22,10 @@ import { CreateRecordButton } from "../components/entries/CreateRecordButton";
 import { HolographicGrid } from "../components/entries/HolographicGrid";
 import { ImageZoomModal } from "../components/entries/ImageZoomModal";
 import { QuitEntriesButton } from "../components/entries/QuitEntriesButton";
+import { EntriesSearchBar } from "../components/entries/EntriesSearchBar";
 import { clipSm } from "../components/entries/styles";
+
+const EXIT_MS = 420;
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.trim() || "";
 const ENTRIES_ENDPOINT = `${API_BASE}/api/entries`;
@@ -39,7 +43,9 @@ function newEntryId(): string {
 }
 
 export function Entries() {
+  const navigate = useNavigate();
   const { session } = useAuth();
+  const [isExiting, setIsExiting] = useState(false);
   const [catalog, setCatalog] = useState<EntryCatalog>(emptyCatalog);
   const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
   const [query, setQuery] = useState("");
@@ -260,19 +266,40 @@ export function Entries() {
     );
   };
 
-  return (
-    <div className="fixed inset-0 z-[30] h-[100dvh] overflow-y-auto overflow-x-hidden bg-gradient-to-br from-white via-gray-50 to-cyan-50/30">
-      <HolographicGrid />
-      <QuitEntriesButton />
+  const handleQuit = () => {
+    if (isExiting) return;
+    setIsExiting(true);
+    window.setTimeout(() => navigate("/"), EXIT_MS);
+  };
 
-      <div className="relative bg-white/80 backdrop-blur-md border-b border-cyan-400/20 shadow-sm">
+  return (
+    <motion.div
+      className="fixed inset-0 z-[30] h-[100dvh] overflow-y-auto overflow-x-hidden bg-gradient-to-br from-slate-50 via-white to-teal-50/50"
+      initial={{ opacity: 0, scale: 1.02 }}
+      animate={
+        isExiting
+          ? { opacity: 0, scale: 0.97, filter: "blur(6px)" }
+          : { opacity: 1, scale: 1, filter: "blur(0px)" }
+      }
+      transition={{ duration: isExiting ? EXIT_MS / 1000 : 0.55, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <motion.div
+        className="pointer-events-none fixed inset-0 bg-teal-500/5"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: isExiting ? 0 : 1 }}
+        transition={{ duration: 0.8 }}
+      />
+      <HolographicGrid />
+      <QuitEntriesButton onQuit={handleQuit} disabled={isExiting} />
+
+      <div className="relative bg-white/85 backdrop-blur-md border-b border-teal-200/50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-6 pl-[5.5rem] sm:pl-6">
           <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
             <div className="flex items-center gap-3 min-w-0">
               <div className="relative shrink-0">
-                <Database className="w-9 h-9 sm:w-10 sm:h-10 text-cyan-500" />
+                <Database className="w-9 h-9 sm:w-10 sm:h-10 text-teal-600" />
                 <div
-                  className="absolute -bottom-1 -right-1 w-3 h-3 bg-cyan-400 animate-pulse"
+                  className="absolute -bottom-1 -right-1 w-3 h-3 bg-teal-400 animate-pulse"
                   style={{ clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" }}
                 />
               </div>
@@ -281,7 +308,7 @@ export function Entries() {
                   Knowledge Records
                 </h1>
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                  <p className="text-[10px] text-cyan-600 font-mono tracking-widest">MINDOS ENTRIES</p>
+                  <p className="text-[10px] text-teal-700 font-mono tracking-widest">MINDOS ENTRIES</p>
                   <div className="w-px h-3 bg-cyan-400/40 hidden sm:block" />
                   <div className="flex items-center gap-1.5">
                     <Activity className="w-3 h-3 text-green-500 animate-pulse" />
@@ -293,46 +320,32 @@ export function Entries() {
 
             <div className="flex gap-4 sm:gap-6">
               <div className="text-right">
-                <div className="text-xl sm:text-2xl font-bold text-cyan-600 font-mono">{entries.length}</div>
+                <div className="text-xl sm:text-2xl font-bold text-teal-600 font-mono">{entries.length}</div>
                 <div className="text-[9px] text-gray-500 font-mono tracking-widest">RECORDS</div>
               </div>
               <div className="text-right">
-                <div className="text-xl sm:text-2xl font-bold text-cyan-600 font-mono">{dataPointCount}</div>
+                <div className="text-xl sm:text-2xl font-bold text-teal-600 font-mono">{dataPointCount}</div>
                 <div className="text-[9px] text-gray-500 font-mono tracking-widest">DATA POINTS</div>
               </div>
             </div>
           </div>
 
-          <div className="relative mb-4 group/search">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
-              <Search className="w-4 h-4 text-cyan-500 transition-transform duration-300 group-focus-within/search:scale-110" />
-              <div className="w-px h-4 bg-cyan-400/30" />
-            </div>
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="SEARCH RECORDS..."
-              className="w-full pl-14 pr-4 py-3 border border-cyan-400/20 bg-white/50 backdrop-blur-sm focus:outline-none focus:border-cyan-400 focus:bg-white focus:shadow-[0_0_24px_rgba(34,211,238,0.12)] transition-all duration-300 font-mono text-sm placeholder:text-gray-400"
-              style={{ clipPath: "polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%)" }}
-            />
-            <motion.div
-              className="absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-cyan-400 via-cyan-300 to-transparent pointer-events-none"
-              initial={false}
-              animate={{ width: query ? "100%" : "6rem" }}
-              transition={{ duration: 0.35, ease: "easeOut" }}
-            />
-          </div>
+          <EntriesSearchBar
+            value={query}
+            onChange={setQuery}
+            matchCount={filtered.length}
+            totalCount={entries.length}
+          />
 
           {allTags.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <div className="text-[10px] font-mono text-cyan-600 tracking-widest">FILTER BY TAGS</div>
+                <div className="text-[10px] font-mono text-teal-700 tracking-widest">FILTER BY TAGS</div>
                 {selectedTags.length > 0 && (
                   <button
                     type="button"
                     onClick={() => setSelectedTags([])}
-                    className="text-[9px] font-mono text-gray-500 hover:text-cyan-600 underline"
+                    className="text-[9px] font-mono text-gray-500 hover:text-teal-600 underline"
                   >
                     CLEAR ALL
                   </button>
@@ -348,8 +361,8 @@ export function Entries() {
                       onClick={() => toggleTagFilter(tag)}
                       className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider border transition-all ${
                         isSelected
-                          ? "bg-cyan-500 text-white border-cyan-500"
-                          : "bg-cyan-500/10 text-cyan-700 border-cyan-400/30 hover:bg-cyan-500/20"
+                          ? "bg-teal-600 text-white border-teal-600 shadow-sm shadow-teal-500/20"
+                          : "bg-teal-50 text-teal-800 border-teal-200/70 hover:bg-teal-100/80"
                       }`}
                       style={{ clipPath: clipSm }}
                     >
@@ -366,7 +379,7 @@ export function Entries() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-28 relative">
         {filtered.length === 0 ? (
           <div className="text-center py-16 sm:py-20">
-            <div className="text-cyan-600 text-xs font-mono tracking-widest mb-2">NO RECORDS FOUND</div>
+            <div className="text-teal-700 text-xs font-mono tracking-widest mb-2">NO RECORDS FOUND</div>
             <p className="text-gray-500 text-sm font-mono mb-6">
               {query || selectedTags.length > 0 ? "ADJUST SEARCH PARAMETERS" : "CREATE YOUR FIRST RECORD"}
             </p>
@@ -374,7 +387,7 @@ export function Entries() {
               {[...Array(5)].map((_, i) => (
                 <motion.div
                   key={i}
-                  className="w-1 h-8 bg-cyan-400/30"
+                  className="w-1 h-8 bg-teal-400/30"
                   animate={{ scaleY: [0.3, 1, 0.3] }}
                   transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.1 }}
                 />
@@ -382,10 +395,20 @@ export function Entries() {
             </div>
           </div>
         ) : (
-          <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <motion.div layout className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             <AnimatePresence mode="popLayout">
-              {filtered.map((entry) => (
-                <RecordCard key={entry.id} entry={entry} onClick={() => handleOpen(entry)} />
+              {filtered.map((entry, i) => (
+                <RecordCard
+                  key={entry.id}
+                  entry={entry}
+                  index={i}
+                  onClick={() => handleOpen(entry)}
+                  onPreviewImage={() => {
+                    if (entry.photoUrl) {
+                      setZoomedImage({ url: entry.photoUrl, title: entry.title });
+                    }
+                  }}
+                />
               ))}
             </AnimatePresence>
           </motion.div>
@@ -430,6 +453,6 @@ export function Entries() {
           onClose={() => setZoomedImage(null)}
         />
       )}
-    </div>
+    </motion.div>
   );
 }

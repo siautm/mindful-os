@@ -5,19 +5,19 @@ export function HolographicGrid() {
         className="absolute inset-0 opacity-[0.03]"
         style={{
           backgroundImage: `
-            linear-gradient(to right, #06b6d4 1px, transparent 1px),
-            linear-gradient(to bottom, #06b6d4 1px, transparent 1px)
+            linear-gradient(to right, #14b8a6 1px, transparent 1px),
+            linear-gradient(to bottom, #14b8a6 1px, transparent 1px)
           `,
           backgroundSize: "40px 40px",
         }}
       />
       <div className="absolute inset-0">
         <div
-          className="absolute top-0 left-1/4 w-px h-full bg-gradient-to-b from-transparent via-cyan-400/20 to-transparent"
+          className="absolute top-0 left-1/4 w-px h-full bg-gradient-to-b from-transparent via-teal-400/15 to-transparent"
           style={{ transform: "skewX(-15deg)" }}
         />
         <div
-          className="absolute top-0 right-1/4 w-px h-full bg-gradient-to-b from-transparent via-cyan-400/20 to-transparent"
+          className="absolute top-0 right-1/4 w-px h-full bg-gradient-to-b from-transparent via-teal-400/15 to-transparent"
           style={{ transform: "skewX(15deg)" }}
         />
       </div>

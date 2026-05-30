@@ -12,7 +12,7 @@ export function CreateRecordButton({ onClick }: CreateRecordButtonProps) {
       <motion.button
         type="button"
         onClick={onClick}
-        className="relative w-16 h-16 bg-cyan-500 text-white shadow-lg hover:bg-cyan-400 flex items-center justify-center group overflow-hidden"
+        className="relative w-16 h-16 bg-teal-600 text-white shadow-lg shadow-teal-500/25 hover:bg-teal-500 flex items-center justify-center group overflow-hidden"
         style={{ clipPath: clipMd }}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}

@@ -1,4 +1,4 @@
-/** Sci-fi HUD clip paths (from reference design). */
+/** Sci-fi HUD clip paths */
 export const clipSm = "polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%)";
 export const clipMd = "polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px)";
 export const clipLg =
@@ -6,22 +6,24 @@ export const clipLg =
 export const clipXl =
   "polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px)";
 
-/** Locked record: amber border accent only (no red fill). */
+/** Teal + slate palette (closer to MindOS, less neon cyan) */
 export const locked = {
-  cardBg: "bg-white/85",
-  cardBorder: "border-amber-400/55 group-hover:border-amber-500/80",
+  cardBg: "bg-white",
+  cardBorder: "border-amber-400/60 group-hover:border-amber-500/90",
   tracer: "from-amber-400",
-  corner: "bg-amber-400/8 group-hover:bg-amber-400/15",
-  tag: "bg-amber-500/10 text-amber-800 border-amber-400/40",
-  title: "text-gray-900",
-  badge: "border border-amber-400/50 text-amber-700 bg-amber-50/80",
+  corner: "bg-amber-400/10 group-hover:bg-amber-400/18",
+  tag: "bg-amber-50 text-amber-900 border-amber-300/50",
+  title: "text-slate-900",
+  badge: "border border-amber-400/60 text-amber-800 bg-amber-50/90",
+  accent: "teal",
 } as const;
 
 export const active = {
-  cardBg: "bg-white/80",
-  cardBorder: "border-gray-200/50 group-hover:border-cyan-400/50",
-  tracer: "from-cyan-400",
-  corner: "bg-cyan-400/10 group-hover:bg-cyan-400/20",
-  tag: "bg-cyan-500/10 text-cyan-700 border-cyan-400/30",
-  title: "text-gray-900",
+  cardBg: "bg-white",
+  cardBorder: "border-slate-200/80 group-hover:border-teal-400/70",
+  tracer: "from-teal-400",
+  corner: "bg-teal-400/10 group-hover:bg-teal-400/18",
+  tag: "bg-teal-50 text-teal-800 border-teal-200/80",
+  title: "text-slate-900",
+  accent: "teal",
 } as const;
