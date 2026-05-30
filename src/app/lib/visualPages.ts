@@ -70,16 +70,16 @@ export const VISUAL_FORMAT_HINTS: Record<VisualType, string> = {
 1. salty
 2. creamy
 3. fast`,
-  bracemap: `Parts tree (left → right). # = chapter, ## = sub-part:
-# chapter1
-1. a
-2. b
-# chapter2
-## Lakes
-1. tectonic
-1. glacial
-## Oceans
-1. Atlantic`,
+  bracemap: `#chapter = 章, ##子类, 编号=要点（纵向树线连接）
+#chapter1
+##fresh
+1.1
+2.1
+3.3
+#chapter3
+1.5
+2.66
+3.gg`,
   treemap: `Categories (# headers) + items:
 # Sauces
 1. tomato
@@ -100,8 +100,8 @@ function parseItemLine(line: string): string | null {
 }
 
 function isSectionLine(line: string): string | null {
-  const hash = line.match(/^#+\s*(.+)$/);
-  if (hash) return hash[1].trim();
+  const hash = line.match(/^(#+)\s*(.*)$/);
+  if (hash) return hash[2].trim() || "Section";
   if (line.endsWith(":") && line.length > 1 && !parseItemLine(line)) {
     return line.slice(0, -1).trim();
   }
@@ -239,10 +239,10 @@ export function parseBraceMapSections(rawLines: string[]): BraceSection[] {
     const indent = raw.length - raw.trimStart().length;
     const depth = Math.min(Math.floor(indent / 2), 4);
 
-    const hash = trimmed.match(/^(#+)\s*(.+)$/);
+    const hash = trimmed.match(/^(#+)\s*(.*)$/);
     if (hash) {
       const level = hash[1].length;
-      const title = hash[2].trim();
+      const title = hash[2].trim() || (level === 1 ? "Chapter" : "Part");
       if (level === 1) {
         current = { id: uid("sec", sections.length), title, items: [] };
         sections.push(current);
