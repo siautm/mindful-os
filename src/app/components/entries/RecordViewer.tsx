@@ -126,7 +126,7 @@ export function RecordViewer({
 
         <div
           className={`relative border-b p-6 flex items-start justify-between bg-gradient-to-r shrink-0 ${
-            isLocked ? "border-violet-400/25 from-violet-50/80 to-transparent" : "border-cyan-400/20 from-cyan-950/30 to-transparent"
+            isLocked ? "border-violet-400/25 from-violet-950/40 to-transparent" : "border-cyan-400/20 from-cyan-950/30 to-transparent"
           }`}
         >
           <div className="flex-1 min-w-0">
