@@ -1,12 +1,15 @@
 import { useMemo } from "react";
-import { Pencil, Trash2, ZoomIn } from "lucide-react";
-import { VISUAL_TYPE_LABELS, type VisualPage, type VisualType } from "../../lib/visualPages";
+import { Check, Pencil, Trash2, ZoomIn } from "lucide-react";
+import { type VisualPage, type VisualType } from "../../lib/visualPages";
 import { VisualPageEditor } from "./visual/VisualPageEditor";
 import { VisualPageView } from "./visual/VisualPageView";
 import { VisualTypePicker } from "./visual/VisualTypePicker";
 import { clipSm } from "./styles";
 
 const fieldText = "text-slate-200 placeholder:text-slate-500";
+
+const actionBtn =
+  "px-3 py-1.5 text-[10px] font-mono tracking-wider transition-colors";
 
 interface RecordBackPanelProps {
   visual: VisualPage | null;
@@ -42,7 +45,7 @@ export function RecordBackPanel({
 
   if (!visual) {
     return (
-      <div className="flex flex-col min-h-[320px]">
+      <div className="flex flex-col min-h-[280px]">
         {isLocked ? (
           <p className="text-xs font-mono text-slate-500">No diagram on this record.</p>
         ) : (
@@ -53,87 +56,81 @@ export function RecordBackPanel({
   }
 
   return (
-    <div className="flex flex-col gap-4 min-h-[320px]">
-      <div>
-        <label className="text-[10px] font-mono text-slate-500 tracking-widest block mb-1.5">
-          CENTER TITLE
-        </label>
-        <input
-          type="text"
-          value={diagramTitle}
-          onChange={(e) => onVisualChange({ ...visual, diagramTitle: e.target.value })}
-          disabled={isLocked}
-          placeholder="Center / root label…"
-          className={`w-full px-3 py-2 text-sm font-mono border border-cyan-500/25 bg-slate-950/50 focus:outline-none focus:border-cyan-400 ${fieldText}`}
-          style={{ clipPath: clipSm }}
+    <div className="flex flex-col gap-3 min-h-[280px]">
+      <input
+        type="text"
+        value={diagramTitle}
+        onChange={(e) => onVisualChange({ ...visual, diagramTitle: e.target.value })}
+        disabled={isLocked}
+        placeholder="Center title…"
+        aria-label="Diagram center title"
+        className={`w-full px-0 py-1 text-sm font-mono bg-transparent border-0 border-b border-slate-700 focus:outline-none focus:border-cyan-500/50 ${fieldText}`}
+      />
+
+      {isEditing ? (
+        <VisualPageEditor
+          page={visual}
+          diagramTitle={displayDiagramTitle}
+          isLocked={isLocked}
+          onChange={onVisualChange}
+          embedded
         />
-      </div>
-
-      <div className="flex flex-col flex-1 min-h-0 border border-cyan-500/25 bg-slate-950/40">
-        <div className="px-3 py-2 border-b border-cyan-500/20 bg-slate-950/60">
-          <span className="text-[10px] font-mono text-cyan-500/90 tracking-widest leading-none">
-            {VISUAL_TYPE_LABELS[visual.type]}
-          </span>
-        </div>
-
-        <div className="flex-1 overflow-auto min-h-[260px] p-4">
-          {isEditing ? (
-            <VisualPageEditor
-              page={visual}
-              diagramTitle={displayDiagramTitle}
-              isLocked={isLocked}
-              onChange={onVisualChange}
-              onDone={onDoneEdit}
-              embedded
-            />
-          ) : (
-            <VisualPageView
-              page={visual}
-              diagramTitle={displayDiagramTitle}
-              isLocked={isLocked}
-              embedded
-            />
-          )}
-        </div>
-      </div>
-
-      {!isEditing && (
-        <div className="flex flex-wrap gap-2 justify-end pt-1">
-          {!isLocked && (
-            <button
-              type="button"
-              onClick={onEdit}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono border border-cyan-500/40 text-cyan-200 hover:bg-cyan-950/50"
-              style={{ clipPath: clipSm }}
-            >
-              <Pencil className="w-3.5 h-3.5" />
-              EDIT
-            </button>
-          )}
-          {canZoom && (
-            <button
-              type="button"
-              onClick={onZoom}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono border border-cyan-500/40 text-cyan-200 hover:bg-cyan-950/50"
-              style={{ clipPath: clipSm }}
-            >
-              <ZoomIn className="w-3.5 h-3.5" />
-              ZOOM
-            </button>
-          )}
-          {!isLocked && (
-            <button
-              type="button"
-              onClick={onRemoveVisual}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono border border-red-500/30 text-red-400 hover:bg-red-950/40"
-              style={{ clipPath: clipSm }}
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              REMOVE
-            </button>
-          )}
+      ) : (
+        <div className="flex-1 overflow-auto min-h-[220px] py-2">
+          <VisualPageView page={visual} diagramTitle={displayDiagramTitle} isLocked={isLocked} embedded />
         </div>
       )}
+
+      <div className="flex flex-wrap gap-2 justify-end pt-2 border-t border-slate-800/60">
+        {isEditing ? (
+          !isLocked && (
+            <button
+              type="button"
+              onClick={onDoneEdit}
+              className={`${actionBtn} flex items-center gap-1.5 text-cyan-200 border border-cyan-500/40 hover:bg-cyan-950/40`}
+              style={{ clipPath: clipSm }}
+            >
+              <Check className="w-3.5 h-3.5" />
+              DONE
+            </button>
+          )
+        ) : (
+          <>
+            {!isLocked && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className={`${actionBtn} flex items-center gap-1.5 text-cyan-200 border border-cyan-500/35 hover:bg-cyan-950/40`}
+                style={{ clipPath: clipSm }}
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                EDIT
+              </button>
+            )}
+            {canZoom && (
+              <button
+                type="button"
+                onClick={onZoom}
+                className={`${actionBtn} flex items-center gap-1.5 text-cyan-200/90 border border-cyan-500/25 hover:bg-cyan-950/30`}
+                style={{ clipPath: clipSm }}
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+                ZOOM
+              </button>
+            )}
+            {!isLocked && (
+              <button
+                type="button"
+                onClick={onRemoveVisual}
+                className={`${actionBtn} flex items-center gap-1.5 text-red-400/90 border-0 hover:text-red-300`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                REMOVE
+              </button>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
