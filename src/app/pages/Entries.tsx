@@ -99,11 +99,6 @@ export function Entries() {
     return () => cancelAnimationFrame(id);
   }, []);
 
-  const searchNoResults = useMemo(() => {
-    const hasFilter = query.trim().length > 0 || selectedTags.length > 0;
-    return hasFilter && filtered.length === 0;
-  }, [query, selectedTags, filtered.length]);
-
   const allTags = useMemo(
     () => Array.from(new Set(entries.flatMap((e) => e.tags))).sort((a, b) => a.localeCompare(b)),
     [entries]
@@ -124,6 +119,11 @@ export function Entries() {
       return entrySearchBlob(e).includes(q);
     });
   }, [entries, query, selectedTags]);
+
+  const searchNoResults = useMemo(() => {
+    const hasFilter = query.trim().length > 0 || selectedTags.length > 0;
+    return hasFilter && filtered.length === 0;
+  }, [query, selectedTags, filtered.length]);
 
   const dataPointCount = useMemo(
     () => entries.reduce((acc, e) => acc + Object.keys(e.metadata ?? {}).length, 0),
